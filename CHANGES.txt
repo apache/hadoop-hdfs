@@ -370,6 +370,8 @@ Trunk (unreleased changes)
 
     HDFS-665. TestFileAppend2 sometimes hangs. (hairong)
 
+    HDFS-676. Fix NPE in FSDataset.updateReplicaUnderRecovery() (shv)
+
 Release 0.20.1 - 2009-09-01
 
   IMPROVEMENTS
