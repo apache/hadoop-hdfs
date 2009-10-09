@@ -249,6 +249,8 @@ Trunk (unreleased changes)
     HDFS-518. Create new tests for Append's hflush. (Konstantin Boudnik
     via szetszwo)
 
+    HDFS-663. DFSIO for append. (shv)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
