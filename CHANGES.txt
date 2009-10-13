@@ -377,6 +377,13 @@ Trunk (unreleased changes)
     HDFS-673. BlockReceiver#PacketResponder should not remove a packet from
     the ack queue before its ack is sent. (hairong)
 
+Release 0.20.2 - Unreleased
+
+  BUG FIXES
+
+    HDFS-686. NullPointerException is thrown while merging edit log and image.
+    (hairong)
+
 Release 0.20.1 - 2009-09-01
 
   IMPROVEMENTS
