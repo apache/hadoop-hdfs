@@ -372,6 +372,9 @@ Trunk (unreleased changes)
 
     HDFS-676. Fix NPE in FSDataset.updateReplicaUnderRecovery() (shv)
 
+    HDFS-673. BlockReceiver#PacketResponder should not remove a packet from
+    the ack queue before its ack is sent. (hairong)
+
 Release 0.20.1 - 2009-09-01
 
   IMPROVEMENTS
