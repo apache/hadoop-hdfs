@@ -251,6 +251,8 @@ Trunk (unreleased changes)
 
     HDFS-663. DFSIO for append. (shv)
 
+    HDFS-688. Add configuration resources to DFSAdmin. (shv)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
