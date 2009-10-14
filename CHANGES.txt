@@ -258,6 +258,9 @@ Trunk (unreleased changes)
 
     HDFS-680. Add new access method to a copy of a block's replica. (shv)
 
+    HDFS-703. Unify build property names to facilitate cross-projects
+    modifications (cos)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
