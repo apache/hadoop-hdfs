@@ -261,6 +261,9 @@ Trunk (unreleased changes)
     HDFS-703. Unify build property names to facilitate cross-projects
     modifications (cos)
 
+    HDFS-705. Create an adapter to access some of package-private methods of
+    DataNode from tests (cos)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
