@@ -431,6 +431,8 @@ Trunk (unreleased changes)
 
     HDFS-625. Fix NullPointerException thrown from ListPathServlet. (suresh)
 
+    HDFS-735. TestReadWhileWriting has wrong line termination symbols (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
