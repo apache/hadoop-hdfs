@@ -433,6 +433,9 @@ Trunk (unreleased changes)
 
     HDFS-735. TestReadWhileWriting has wrong line termination symbols (cos)
 
+    HDFS-691. Fix an overflow error in DFSClient.DFSInputStream.available().
+    (szetszwo)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
