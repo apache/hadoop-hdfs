@@ -103,6 +103,8 @@ Trunk (unreleased changes)
     HDFS-631. Rename configuration keys towards API standardization and
     backward compatibility. (Jitendra Nath Pandey via suresh)
 
+    HDFS-731. Support new Syncable interface in HDFS. (hairong)
+
   IMPROVEMENTS
 
     HDFS-381. Remove blocks from DataNode maps when corresponding file
