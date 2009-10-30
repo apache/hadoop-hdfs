@@ -289,6 +289,9 @@ Trunk (unreleased changes)
     
     HDFS-728. Create a comprehensive functional test for append. (hairong)
 
+    HDFS-736. commitBlockSynchronization() updates block GS and length in-place.
+    (shv)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
