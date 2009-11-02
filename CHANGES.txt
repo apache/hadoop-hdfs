@@ -294,6 +294,8 @@ Trunk (unreleased changes)
     HDFS-736. commitBlockSynchronization() updates block GS and length in-place.
     (shv)
 
+    HDFS-521. Create new tests for pipeline (cos)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
