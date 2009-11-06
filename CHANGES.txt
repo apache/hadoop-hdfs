@@ -443,6 +443,8 @@ Trunk (unreleased changes)
     HDFS-691. Fix an overflow error in DFSClient.DFSInputStream.available().
     (szetszwo)
 
+    HDFS-733. TestBlockReport fails intermittently. (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
