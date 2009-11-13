@@ -291,10 +291,13 @@ Trunk (unreleased changes)
     
     HDFS-728. Create a comprehensive functional test for append. (hairong)
 
-    HDFS-736. commitBlockSynchronization() updates block GS and length in-place.
-    (shv)
+    HDFS-736. commitBlockSynchronization() updates block GS and length 
+    in-place. (shv)
 
     HDFS-521. Create new tests for pipeline (cos)
+
+    HDFS-641. Move all of the components that depend on map/reduce to 
+    map/reduce. (omalley)
 
   BUG FIXES
 
