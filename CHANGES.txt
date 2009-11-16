@@ -453,6 +453,8 @@ Trunk (unreleased changes)
     HDFS-741. TestHFlush test doesn't seek() past previously written part of
     the file. (cos)
 
+    HDFS-706. Intermittent failures in TestFiHFlush. (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
