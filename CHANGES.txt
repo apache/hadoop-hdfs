@@ -448,6 +448,8 @@ Trunk (unreleased changes)
 
     HDFS-733. TestBlockReport fails intermittently. (cos)
 
+    HDFS-774. Intermittent race condition in TestFiPipelines. (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
