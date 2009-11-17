@@ -299,6 +299,9 @@ Trunk (unreleased changes)
     HDFS-641. Move all of the components that depend on map/reduce to 
     map/reduce. (omalley)
 
+    HDFS-764. Places the Block Access token implementation in hdfs project.
+    (Kan Zhang via ddas)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
