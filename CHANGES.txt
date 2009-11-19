@@ -457,6 +457,9 @@ Trunk (unreleased changes)
     the file. (cos)
 
     HDFS-706. Intermittent failures in TestFiHFlush. (cos)
+    
+    HDFS-646. Fix test-patch failure by adding test-contrib ant target.
+    (gkesavan)
 
 Release 0.20.2 - Unreleased
 
