@@ -306,6 +306,9 @@ Trunk (unreleased changes)
     HADOOP-5107. Use Maven ant tasks to publish the subproject jars.
     (Giridharan Kesavan via omalley)
 
+    HDFS-787. Upgrade some libraries to be consistent with common and 
+    mapreduce. (omalley)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
