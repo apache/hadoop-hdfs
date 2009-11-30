@@ -317,7 +317,7 @@
     <taskdef
         resource="org/aspectj/tools/ant/taskdefs/aspectjTaskdefs.properties">
       <classpath>
-        <pathelement location="${common.ivy.lib.dir}/aspectjtools-1.6.4.jar"/>
+        <pathelement location="${common.ivy.lib.dir}/aspectjtools-1.6.5.jar"/>
       </classpath>
     </taskdef>
     <echo message="Start weaving aspects in place"/>

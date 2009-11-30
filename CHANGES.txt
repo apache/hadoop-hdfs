@@ -468,6 +468,8 @@ Trunk (unreleased changes)
     HDFS-646. Fix test-patch failure by adding test-contrib ant target.
     (gkesavan)
 
+    HDFS-791. Build is broken after HDFS-787 patch has been applied (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
