@@ -308,6 +308,8 @@ Trunk (unreleased changes)
 
     HDFS-787. Upgrade some libraries to be consistent with common and 
     mapreduce. (omalley)
+  
+    HDFS-519. Create new tests for lease recovery (cos)
 
   BUG FIXES
 
