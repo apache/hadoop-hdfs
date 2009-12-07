@@ -1574,6 +1574,7 @@ public class BlockManager {
         NameNode.stateChangeLog.info("BLOCK* ask " + dn.getName()
             + " to delete " + blockList);
       }
+      pendingDeletionBlocksCount -= blocksToInvalidate.size();
       return blocksToInvalidate.size();
     }
   }

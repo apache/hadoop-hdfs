@@ -474,6 +474,9 @@ Trunk (unreleased changes)
 
     HDFS-792. TestHDFSCLI is failing. (Todd Lipcon via cos)
 
+    HDFS-781. Namenode metrics PendingDeletionBlocks is not decremented.
+    (Suresh)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
