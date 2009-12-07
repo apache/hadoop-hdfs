@@ -479,6 +479,8 @@ Trunk (unreleased changes)
     HDFS-781. Namenode metrics PendingDeletionBlocks is not decremented.
     (Suresh)
 
+    HDFS-192. Fix TestBackupNode failures. (shv)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
