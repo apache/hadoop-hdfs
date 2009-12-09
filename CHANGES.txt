@@ -313,6 +313,8 @@ Trunk (unreleased changes)
 
     HDFS-804. New unit tests for concurrent lease recovery. (cos)
 
+    HDFS-813. Enable the append test in TestReadWhileWriting.  (szetszwo)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
