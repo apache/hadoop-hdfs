@@ -485,6 +485,8 @@ Trunk (unreleased changes)
 
     HDFS-797. TestHDFSCLI much slower after HDFS-265 merge. (Todd Lipcon via cos)
 
+    HDFS-813. Stop lease checker in TestReadWhileWriting.  (szetszwo)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
