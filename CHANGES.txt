@@ -492,6 +492,9 @@ Trunk (unreleased changes)
 
     HDFS-456. Fix URI generation for windows file paths. (shv)
 
+    HDFS-812. FSNamesystem#internalReleaseLease throws NullPointerException on
+    a single-block file's lease recovery. (cos)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
