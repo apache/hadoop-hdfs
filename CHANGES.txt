@@ -495,6 +495,9 @@ Trunk (unreleased changes)
     HDFS-812. FSNamesystem#internalReleaseLease throws NullPointerException on
     a single-block file's lease recovery. (cos)
 
+    HDFS-724. Pipeline hangs if one of the block receiver is not responsive.
+    (hairong)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
@@ -528,8 +531,8 @@ Release 0.20.2 - Unreleased
     HDFS-185. Disallow chown, chgrp, chmod, setQuota, and setSpaceQuota when
     name-node is in safemode. (Ravi Phulari via shv)
 
-    HDFS-724. Pipeline hangs if one of the block receiver is not responsive.
-    (hairong)
+    HDFS-101. DFS write pipeline: DFSClient sometimes does not detect second
+    datanode failure. (hairong)
 
 Release 0.20.1 - 2009-09-01
 
