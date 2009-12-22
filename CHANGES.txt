@@ -500,6 +500,8 @@ Trunk (unreleased changes)
     HDFS-724. Pipeline hangs if one of the block receiver is not responsive.
     (hairong)
 
+    HDFS-564. Adding pipeline tests 17-35. (hairong)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
