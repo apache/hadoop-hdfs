@@ -103,6 +103,8 @@ Trunk (unreleased changes)
     HDFS-631. Rename configuration keys towards API standardization and
     backward compatibility. (Jitendra Nath Pandey via suresh)
 
+    HDFS-669. Add unit tests framework (Mockito) (cos, Eli Collins)
+
     HDFS-731. Support new Syncable interface in HDFS. (hairong)
 
   IMPROVEMENTS
@@ -264,7 +266,7 @@ Trunk (unreleased changes)
 
     HDFS-680. Add new access method to a copy of a block's replica. (shv)
 
-    HDFS-703. Unify build property names to facilitate cross-projects
+    HDFS-704. Unify build property names to facilitate cross-projects
     modifications (cos)
 
     HDFS-705. Create an adapter to access some of package-private methods of
