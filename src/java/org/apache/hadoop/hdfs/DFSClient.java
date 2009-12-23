@@ -1613,7 +1613,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * DFSInputStream provides bytes from a named file.  It handles 
    * negotiation of the namenode and various datanodes as necessary.
    ****************************************************************/
-  class DFSInputStream extends FSInputStream {
+  private class DFSInputStream extends FSInputStream {
     private Socket s = null;
     private boolean closed = false;
 
@@ -2344,7 +2344,10 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
   }
     
-  static class DFSDataInputStream extends FSDataInputStream {
+  /**
+   * The Hdfs implementation of {@link FSDataInputStream}
+   */
+  public static class DFSDataInputStream extends FSDataInputStream {
     DFSDataInputStream(DFSInputStream in)
       throws IOException {
       super(in);
@@ -2371,6 +2374,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       return ((DFSInputStream)in).getAllBlocks();
     }
 
+    /**
+     * @return The visible length of the file.
+     */
+    public long getVisibleLength() throws IOException {
+      return ((DFSInputStream)in).getFileLength();
+    }
   }
 
   /****************************************************************

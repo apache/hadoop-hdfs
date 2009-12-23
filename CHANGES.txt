@@ -107,6 +107,9 @@ Trunk (unreleased changes)
 
     HDFS-731. Support new Syncable interface in HDFS. (hairong)
 
+    HDFS-814. Add an api to get the visible length of a DFSDataInputStream.
+    (szetszwo)
+
   IMPROVEMENTS
 
     HDFS-381. Remove blocks from DataNode maps when corresponding file
