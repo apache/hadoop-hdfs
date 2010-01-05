@@ -513,6 +513,10 @@ Trunk (unreleased changes)
 
     HDFS-868. Fix link to Hadoop Upgrade Wiki. (Chris A. Mattmann via shv)
 
+    HDFS-869  0.21.0 - snapshot incorrect dependency published in .pom files
+    (Kay Kay via Stack)
+
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
