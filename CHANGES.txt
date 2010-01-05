@@ -511,6 +511,8 @@ Trunk (unreleased changes)
     HDFS-762. Balancer causes Null Pointer Exception.
     (Cristian Ivascu via dhruba)
 
+    HDFS-868. Fix link to Hadoop Upgrade Wiki. (Chris A. Mattmann via shv)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
