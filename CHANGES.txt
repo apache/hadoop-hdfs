@@ -516,6 +516,7 @@ Trunk (unreleased changes)
     HDFS-869  0.21.0 - snapshot incorrect dependency published in .pom files
     (Giridharan Kesavan via Stack)
 
+    HDFS-880. TestNNLeaseRecovery fails on windows (cos, shv)
 
 Release 0.20.2 - Unreleased
 
