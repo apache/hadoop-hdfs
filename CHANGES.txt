@@ -323,6 +323,9 @@ Trunk (unreleased changes)
 
     HDFS-813. Enable the append test in TestReadWhileWriting.  (szetszwo)
 
+    HDFS-145. Cleanup inconsistent block length handling code in
+    FSNameSystem#addStoredBlock. (hairong)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
