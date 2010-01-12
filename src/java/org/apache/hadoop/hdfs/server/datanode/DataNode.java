@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -63,6 +64,7 @@ import org.apache.hadoop.hdfs.security.ExportedAccessKeys;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.IncorrectVersionException;
 import org.apache.hadoop.hdfs.server.common.Storage;
+import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.datanode.metrics.DataNodeMetrics;
@@ -1365,10 +1367,16 @@ public class DataNode extends Configured
           " anymore. RackID resolution is handled by the NameNode.");
       System.exit(-1);
     }
-    String[] dataDirs = conf.getStrings(DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY);
+    Collection<URI> dataDirs = getStorageDirs(conf);
     dnThreadName = "DataNode: [" +
-                        StringUtils.arrayToString(dataDirs) + "]";
+                    StringUtils.uriToString(dataDirs.toArray(new URI[0])) + "]";
     return makeInstance(dataDirs, conf);
+  }
+
+  static Collection<URI> getStorageDirs(Configuration conf) {
+    Collection<String> dirNames =
+      conf.getStringCollection(DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY);
+    return Util.stringCollectionAsURIs(dirNames);
   }
 
   /** Instantiate & Start a single datanode daemon and wait for it to finish.
@@ -1400,21 +1408,27 @@ public class DataNode extends Configured
    * no directory from this directory list can be created.
    * @throws IOException
    */
-  public static DataNode makeInstance(String[] dataDirs, Configuration conf)
+  static DataNode makeInstance(Collection<URI> dataDirs, Configuration conf)
     throws IOException {
     ArrayList<File> dirs = new ArrayList<File>();
-    for (int i = 0; i < dataDirs.length; i++) {
-      File data = new File(dataDirs[i]);
+    for(URI dirURI : dataDirs) {
+      if(! "file".equalsIgnoreCase(dirURI.getScheme())) {
+        LOG.warn("Unsupported URI schema in " + dirURI  + ". Ignoring ...");
+        continue;
+      }
+      File data = new File(dirURI.getPath());
       try {
         DiskChecker.checkDir(data);
         dirs.add(data);
       } catch(DiskErrorException e) {
-        LOG.warn("Invalid directory in dfs.data.dir: " + e.getMessage());
+        LOG.warn("Invalid directory in "
+            + DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY + ": " + e.getMessage());
       }
     }
     if (dirs.size() > 0) 
       return new DataNode(conf, dirs);
-    LOG.error("All directories in dfs.data.dir are invalid.");
+    LOG.error("All directories in "
+        + DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY + " are invalid.");
     return null;
   }
 

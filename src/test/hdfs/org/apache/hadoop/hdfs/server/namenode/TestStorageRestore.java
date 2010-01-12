@@ -81,9 +81,7 @@ public class TestStorageRestore extends TestCase {
  
   protected void setUp() throws Exception {
     config = new HdfsConfiguration();
-    String baseDir = System.getProperty("test.build.data",  "build/test/data");
-    
-    hdfsDir = new File(baseDir, "dfs");
+    hdfsDir = new File(MiniDFSCluster.getBaseDirectory()).getCanonicalFile();
     if ( hdfsDir.exists() && !FileUtil.fullyDelete(hdfsDir) ) {
       throw new IOException("Could not delete hdfs directory '" + hdfsDir + "'");
     }
@@ -132,8 +130,7 @@ public class TestStorageRestore extends TestCase {
     Iterator<StorageDirectory> it = fi.dirIterator();
     while(it.hasNext()) {
       StorageDirectory sd = it.next();
-      if(sd.getRoot().getCanonicalPath().equals(path2.getCanonicalPath()) ||
-          sd.getRoot().getCanonicalPath().equals(path3.getCanonicalPath())) {
+      if(sd.getRoot().equals(path2) || sd.getRoot().equals(path3)) {
         al.add(sd);
       }
     }
@@ -259,8 +256,8 @@ public class TestStorageRestore extends TestCase {
       // should be different
       //assertTrue(fsImg1.length() != fsImg2.length());
       //assertTrue(fsImg1.length() != fsImg3.length());
-      assertTrue(fsEdits1.length() != fsEdits2.length());
-      assertTrue(fsEdits1.length() != fsEdits3.length());
+      assertTrue("edits1 = edits2", fsEdits1.length() != fsEdits2.length());
+      assertTrue("edits1 = edits3", fsEdits1.length() != fsEdits3.length());
       
       assertTrue(!md5_1.equals(md5_2));
       assertTrue(!md5_1.equals(md5_3));
