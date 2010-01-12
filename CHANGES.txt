@@ -524,6 +524,9 @@ Trunk (unreleased changes)
 
     HDFS-880. TestNNLeaseRecovery fails on windows (cos, shv)
 
+    HDFS-699. Primary datanode should compare replicas' on disk lengths.
+    (hairong)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
