@@ -546,6 +546,9 @@ Trunk (unreleased changes)
               exclude specific datanodes when locating the next block.
               (Cosmin Lehene via Stack)
 
+    HDFS-927. DFSInputStream retries too many times for new block locations
+    (Todd Lipcon via Stack)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
