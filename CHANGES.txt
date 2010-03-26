@@ -551,6 +551,9 @@ Trunk (unreleased changes)
     HDFS-927. DFSInputStream retries too many times for new block locations
     (Todd Lipcon via Stack)
 
+    HDFS-1046. Fix Tomcat version in hdfsproxy/build.xml.  (Srikanth
+    Sundarrajan via szetszwo)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
