@@ -556,6 +556,15 @@ Trunk (unreleased changes)
     HDFS-1046. Fix Tomcat version in hdfsproxy/build.xml.  (Srikanth
     Sundarrajan via szetszwo)
 
+Release 0.20.3 - Unreleased
+
+  IMPROVEMENTS
+
+  BUG FIXES
+
+    HDFS-955. New implementation of saveNamespace() to avoid loss of edits 
+    when name-node fails during saving. (shv)
+
 Release 0.20.2 - Unreleased
 
   IMPROVEMENTS
