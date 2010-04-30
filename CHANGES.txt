@@ -333,6 +333,8 @@ Trunk (unreleased changes)
 
     HDFS-1067. Create block recovery tests that handle errors. (hairong)
 
+    HDFS-1107. Turn on append by default. (shv)
+
   BUG FIXES
 
     HDFS-76. Better error message to users when commands fail because of 
