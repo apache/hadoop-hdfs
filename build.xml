@@ -28,7 +28,7 @@
  
   <property name="Name" value="Hadoop-Hdfs"/>
   <property name="name" value="hadoop-hdfs"/>
-  <property name="version" value="0.22.0-SNAPSHOT"/>
+  <property name="version" value="0.21.0-SNAPSHOT"/>
   <property name="final.name" value="${name}-${version}"/>
   <property name="test.hdfs.final.name" value="${name}-test-${version}"/>
   <property name="ant.final.name" value="${name}-ant-${version}"/>
