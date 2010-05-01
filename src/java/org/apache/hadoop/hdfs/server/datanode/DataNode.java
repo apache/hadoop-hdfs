@@ -46,6 +46,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocalFileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.HDFSPolicyProvider;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockListAsLongs;
@@ -85,6 +89,7 @@ import org.apache.hadoop.hdfs.server.protocol.ReplicaRecoveryInfo;
 import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockRecoveryCommand.RecoveringBlock;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.IOUtils;
@@ -93,9 +98,7 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.authorize.ConfiguredPolicy;
-import org.apache.hadoop.security.authorize.PolicyProvider;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.ServiceAuthorizationManager;
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.DiskChecker;
@@ -227,32 +230,38 @@ public class DataNode extends Configured
    * Create the DataNode given a configuration and an array of dataDirs.
    * 'dataDirs' is where the blocks are stored.
    */
-  DataNode(Configuration conf, 
-           AbstractList<File> dataDirs) throws IOException {
+  DataNode(final Configuration conf, 
+           final AbstractList<File> dataDirs) throws IOException {
     this(conf, dataDirs, (DatanodeProtocol)RPC.waitForProxy(DatanodeProtocol.class,
                        DatanodeProtocol.versionID,
-                       NameNode.getAddress(conf),
+                       NameNode.getAddress(conf), 
                        conf));
   }
-
+  
   /**
    * Create the DataNode given a configuration, an array of dataDirs,
    * and a namenode proxy
    */
-  DataNode(final Configuration conf,
+  DataNode(final Configuration conf, 
            final AbstractList<File> dataDirs,
            final DatanodeProtocol namenode) throws IOException {
     super(conf);
+
+    UserGroupInformation.setConfiguration(conf);
+    DFSUtil.login(conf, 
+        DFSConfigKeys.DFS_DATANODE_KEYTAB_FILE_KEY,
+        DFSConfigKeys.DFS_DATANODE_USER_NAME_KEY);
+    
     DataNode.setDataNode(this);
+    
     try {
       startDataNode(conf, dataDirs, namenode);
     } catch (IOException ie) {
       shutdown();
-      throw ie;
-    }
+     throw ie;
+   }
   }
-    
-  
+
   /**
    * This method starts the data node with the specified conf.
    * 
@@ -393,6 +402,7 @@ public class DataNode extends Configured
     this.infoServer.addInternalServlet(null, "/getFileChecksum/*",
         FileChecksumServlets.GetServlet.class);
     this.infoServer.setAttribute("datanode.blockScanner", blockScanner);
+    this.infoServer.setAttribute("datanode.conf", conf);
     this.infoServer.addServlet(null, "/blockScannerReport", 
                                DataBlockScanner.Servlet.class);
     this.infoServer.start();
@@ -403,18 +413,14 @@ public class DataNode extends Configured
     // set service-level authorization security policy
     if (conf.getBoolean(
           ServiceAuthorizationManager.SERVICE_AUTHORIZATION_CONFIG, false)) {
-      PolicyProvider policyProvider = 
-        (PolicyProvider)(ReflectionUtils.newInstance(
-            conf.getClass(PolicyProvider.POLICY_PROVIDER_CONFIG, 
-                HDFSPolicyProvider.class, PolicyProvider.class), 
-            conf));
-      SecurityUtil.setPolicy(new ConfiguredPolicy(conf, policyProvider));
-    }
+      ServiceAuthorizationManager.refresh(conf, new HDFSPolicyProvider());
+       }
 
     //init ipc server
     InetSocketAddress ipcAddr = NetUtils.createSocketAddr(
         conf.get("dfs.datanode.ipc.address"));
-    ipcServer = RPC.getServer(this, ipcAddr.getHostName(), ipcAddr.getPort(), 
+    ipcServer = RPC.getServer(DataNode.class, this,
+        ipcAddr.getHostName(), ipcAddr.getPort(), 
         conf.getInt("dfs.datanode.handler.count", 3), false, conf);
     ipcServer.start();
     dnRegistration.setIpcPort(ipcServer.getListenerAddress().getPort());
@@ -570,7 +576,7 @@ public class DataNode extends Configured
       try {
         // reset name to machineName. Mainly for web interface.
         dnRegistration.name = machineName + ":" + dnRegistration.getPort();
-        dnRegistration = namenode.register(dnRegistration);
+        dnRegistration = namenode.registerDatanode(dnRegistration);
         break;
       } catch(SocketTimeoutException e) {  // namenode is busy
         LOG.info("Problem connecting to server: " + getNameNodeAddr());
@@ -694,6 +700,7 @@ public class DataNode extends Configured
       try {
         this.storage.unlockAll();
       } catch (IOException ie) {
+        LOG.warn("Exception when unlocking storage: " + ie, ie);
       }
     }
     if (dataNodeThread != null) {
@@ -1421,34 +1428,51 @@ public class DataNode extends Configured
    */
   static DataNode makeInstance(Collection<URI> dataDirs, Configuration conf)
     throws IOException {
-    ArrayList<File> dirs = new ArrayList<File>();
-    for(URI dirURI : dataDirs) {
-      if(! "file".equalsIgnoreCase(dirURI.getScheme())) {
-        LOG.warn("Unsupported URI schema in " + dirURI  + ". Ignoring ...");
-        continue;
-      }
-      File data = new File(dirURI.getPath());
-      try {
-        DiskChecker.checkDir(data);
-        dirs.add(data);
-      } catch(DiskErrorException e) {
-        LOG.warn("Invalid directory in "
-            + DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY + ": " + e.getMessage());
-      }
-    }
-    if (dirs.size() > 0) 
+    LocalFileSystem localFS = FileSystem.getLocal(conf);
+    FsPermission permission = new FsPermission(
+        conf.get(DFSConfigKeys.DFS_DATANODE_DATA_DIR_PERMISSION_KEY,
+                 DFSConfigKeys.DFS_DATANODE_DATA_DIR_PERMISSION_DEFAULT));
+    ArrayList<File> dirs = getDataDirsFromURIs(dataDirs, localFS, permission);
+
+    if (dirs.size() > 0) {
       return new DataNode(conf, dirs);
+    }
     LOG.error("All directories in "
         + DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY + " are invalid.");
     return null;
+  }
+
+  // DataNode ctor expects AbstractList instead of List or Collection...
+  static ArrayList<File> getDataDirsFromURIs(Collection<URI> dataDirs,
+      LocalFileSystem localFS, FsPermission permission) {
+    ArrayList<File> dirs = new ArrayList<File>();
+    for (URI dirURI : dataDirs) {
+      if (!"file".equalsIgnoreCase(dirURI.getScheme())) {
+        LOG.warn("Unsupported URI schema in " + dirURI + ". Ignoring ...");
+        continue;
+      }
+      // drop any (illegal) authority in the URI for backwards compatibility
+      File data = new File(dirURI.getPath());
+      try {
+        DiskChecker.checkDir(localFS, new Path(data.toURI()), permission);
+        dirs.add(data);
+      } catch (IOException e) {
+        LOG.warn("Invalid directory in: "
+                 + DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY + ": "
+                 + e.getMessage());
+      }
+    }
+    return dirs;
   }
 
   @Override
   public String toString() {
     return "DataNode{" +
       "data=" + data +
-      ", localName='" + dnRegistration.getName() + "'" +
-      ", storageID='" + dnRegistration.getStorageID() + "'" +
+      (dnRegistration != null ?
+          (", localName='" + dnRegistration.getName() + "'" +
+              ", storageID='" + dnRegistration.getStorageID() + "'")
+          : "") +
       ", xmitsInProgress=" + xmitsInProgress.get() +
       "}";
   }

@@ -20,10 +20,14 @@ package org.apache.hadoop.hdfs.server.protocol;
 
 import java.io.*;
 
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.ipc.VersionedProtocol;
+import org.apache.hadoop.security.KerberosInfo;
+
+import org.apache.avro.reflect.Nullable;
 
 /**********************************************************************
  * Protocol that a DFS datanode uses to communicate with the NameNode.
@@ -33,11 +37,12 @@ import org.apache.hadoop.ipc.VersionedProtocol;
  * returning values from these functions.
  *
  **********************************************************************/
+@KerberosInfo(DFSConfigKeys.DFS_NAMENODE_USER_NAME_KEY)
 public interface DatanodeProtocol extends VersionedProtocol {
   /**
-   * 23: nextGenerationStamp() removed.
+   * 24: register() renamed registerDatanode()
    */
-  public static final long versionID = 23L;
+  public static final long versionID = 24L;
   
   // error code
   final static int NOTIFY = 0;
@@ -68,7 +73,7 @@ public interface DatanodeProtocol extends VersionedProtocol {
    * new storageID if the datanode did not have one and
    * registration ID for further communication.
    */
-  public DatanodeRegistration register(DatanodeRegistration registration
+  public DatanodeRegistration registerDatanode(DatanodeRegistration registration
                                        ) throws IOException;
   /**
    * sendHeartbeat() tells the NameNode that the DataNode is still
@@ -78,6 +83,7 @@ public interface DatanodeProtocol extends VersionedProtocol {
    * A DatanodeCommand tells the DataNode to invalidate local block(s), 
    * or to copy them to other DataNodes, etc.
    */
+  @Nullable
   public DatanodeCommand[] sendHeartbeat(DatanodeRegistration registration,
                                        long capacity,
                                        long dfsUsed, long remaining,

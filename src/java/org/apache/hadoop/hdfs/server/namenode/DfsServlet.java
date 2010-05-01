@@ -36,7 +36,6 @@ import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /**
@@ -48,35 +47,24 @@ abstract class DfsServlet extends HttpServlet {
 
   static final Log LOG = LogFactory.getLog(DfsServlet.class.getCanonicalName());
 
-  /** Get {@link UserGroupInformation} from request */
-  protected UnixUserGroupInformation getUGI(HttpServletRequest request) {
-    String ugi = request.getParameter("ugi");
-    try {
-      return new UnixUserGroupInformation(ugi.split(","));
-    }
-    catch(Exception e) {
-      LOG.warn("Invalid ugi (= " + ugi + ")");
-    }
-    return JspHelper.webUGI;
-  }
-
   /**
    * Create a {@link NameNode} proxy from the current {@link ServletContext}. 
    */
-  protected ClientProtocol createNameNodeProxy(UnixUserGroupInformation ugi
-      ) throws IOException {
+  protected ClientProtocol createNameNodeProxy() throws IOException {
     ServletContext context = getServletContext();
     InetSocketAddress nnAddr = (InetSocketAddress)context.getAttribute("name.node.address");
     Configuration conf = new HdfsConfiguration(
         (Configuration)context.getAttribute("name.conf"));
-    UnixUserGroupInformation.saveToConf(conf,
-        UnixUserGroupInformation.UGI_PROPERTY_NAME, ugi);
     return DFSClient.createNamenode(nnAddr, conf);
   }
 
   /** Create a URI for redirecting request */
-  protected URI createRedirectUri(String servletpath, UserGroupInformation ugi,
-      DatanodeID host, HttpServletRequest request) throws URISyntaxException {
+  protected URI createRedirectUri(String servletpath, 
+                                  UserGroupInformation ugi,
+                                  DatanodeID host, 
+                                  HttpServletRequest request,
+                                  NameNode nn
+                                  ) throws IOException, URISyntaxException {
     final String hostname = host instanceof DatanodeInfo?
         ((DatanodeInfo)host).getHostName(): host.getHost();
     final String scheme = request.getScheme();
@@ -84,8 +72,18 @@ abstract class DfsServlet extends HttpServlet {
         (Integer)getServletContext().getAttribute("datanode.https.port")
         : host.getInfoPort();
     final String filename = request.getPathInfo();
+    StringBuilder params = new StringBuilder();
+    params.append("filename=");
+    params.append(filename);
+    if (UserGroupInformation.isSecurityEnabled()) {
+      params.append(JspHelper.SET_DELEGATION);
+      params.append(ugi.getTokens().iterator().next().encodeToUrlString());
+    } else {
+      params.append("&ugi=");
+      params.append(ugi.getShortUserName());
+    }
     return new URI(scheme, null, hostname, port, servletpath,
-        "filename=" + filename + "&ugi=" + ugi, null);
+                   params.toString(), null);
   }
 
   /** Get filename from the request */
@@ -96,5 +94,10 @@ abstract class DfsServlet extends HttpServlet {
       throw new IOException("Invalid filename");
     }
     return filename;
+  }
+  
+  protected UserGroupInformation getUGI(HttpServletRequest request,
+                                        Configuration conf) throws IOException {
+    return JspHelper.getUGI(request, conf);
   }
 }

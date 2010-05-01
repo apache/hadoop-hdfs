@@ -17,13 +17,13 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.List;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.permission.*;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 
 /**
@@ -32,6 +32,13 @@ import org.apache.hadoop.hdfs.protocol.Block;
  * directory inodes.
  */
 abstract class INode implements Comparable<byte[]>, FSInodeInfo {
+  /*
+   *  The inode name is in java UTF8 encoding; 
+   *  The name in HdfsFileStatus should keep the same encoding as this.
+   *  if this encoding is changed, implicitly getFileInfo and listStatus in
+   *  clientProtocol are changed; The decoding at the client
+   *  side should change accordingly.
+   */
   protected byte[] name;
   protected INodeDirectory parent;
   protected long modificationTime;
@@ -172,6 +179,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    * Check whether it's a directory
    */
   public abstract boolean isDirectory();
+
   /**
    * Collect all the blocks in all children of this INode.
    * Count and return the number of files in the sub tree.
@@ -208,7 +216,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   }
   
   /**
-   * Adds total nubmer of names and total disk space taken under 
+   * Adds total number of names and total disk space taken under 
    * this tree to counts.
    * Returns updated counts object.
    */
@@ -219,7 +227,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    * @return local file name
    */
   String getLocalName() {
-    return bytes2String(name);
+    return DFSUtil.bytes2String(name);
   }
 
   /**
@@ -234,7 +242,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    * Set local file name
    */
   void setLocalName(String name) {
-    this.name = string2Bytes(name);
+    this.name = DFSUtil.string2Bytes(name);
   }
 
   /**
@@ -312,6 +320,13 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   }
 
   /**
+   * Check whether it's a symlink
+   */
+  public boolean isLink() {
+    return false;
+  }
+
+  /**
    * Breaks file path into components.
    * @param path
    * @return array of byte arrays each of which represents 
@@ -328,27 +343,43 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     }
     byte[][] bytes = new byte[strings.length][];
     for (int i = 0; i < strings.length; i++)
-      bytes[i] = string2Bytes(strings[i]);
+      bytes[i] = DFSUtil.string2Bytes(strings[i]);
     return bytes;
   }
 
   /**
-   * Breaks file path into names.
+   * Splits an absolute path into an array of path components.
    * @param path
-   * @return array of names 
+   * @throws AssertionError if the given path is invalid.
+   * @return array of path components.
    */
   static String[] getPathNames(String path) {
     if (path == null || !path.startsWith(Path.SEPARATOR)) {
-      return null;
+      throw new AssertionError("Absolute path required");
     }
     return path.split(Path.SEPARATOR);
+  }
+
+  /**
+   * Given some components, create a path name.
+   * @param components
+   * @return concatenated path
+   */
+  static String constructPath(byte[][] components, int start) {
+    StringBuilder buf = new StringBuilder();
+    for (int i = start; i < components.length; i++) {
+      buf.append(DFSUtil.bytes2String(components[i]));
+      if (i < components.length - 1) {
+        buf.append(Path.SEPARATOR);
+      }
+    }
+    return buf.toString();
   }
 
   boolean removeNode() {
     if (parent == null) {
       return false;
     } else {
-      
       parent.removeChild(this);
       parent = null;
       return true;
@@ -396,29 +427,5 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
         return b1 - b2;
     }
     return len1 - len2;
-  }
-
-  /**
-   * Converts a byte array to a string using UTF8 encoding.
-   */
-  static String bytes2String(byte[] bytes) {
-    try {
-      return new String(bytes, "UTF8");
-    } catch(UnsupportedEncodingException e) {
-      assert false : "UTF8 encoding is not supported ";
-    }
-    return null;
-  }
-
-  /**
-   * Converts a string to a byte array using UTF8 encoding.
-   */
-  static byte[] string2Bytes(String str) {
-    try {
-      return str.getBytes("UTF8");
-    } catch(UnsupportedEncodingException e) {
-      assert false : "UTF8 encoding is not supported ";
-    }
-    return null;
   }
 }

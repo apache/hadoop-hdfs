@@ -26,12 +26,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options;
+import org.apache.hadoop.fs.Options.Rename;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
@@ -43,12 +47,12 @@ import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.io.ArrayWritable;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableFactories;
 import org.apache.hadoop.io.WritableFactory;
-import org.mortbay.log.Log;
+import org.apache.hadoop.security.token.delegation.DelegationKey;
 
 /**
  * FSEditLog maintains a log of the namespace modifications.
@@ -57,7 +61,7 @@ import org.mortbay.log.Log;
 public class FSEditLog {
   public  static final byte OP_INVALID = -1;
   private static final byte OP_ADD = 0;
-  private static final byte OP_RENAME = 1;  // rename
+  private static final byte OP_RENAME_OLD = 1;  // rename
   private static final byte OP_DELETE = 2;  // delete
   private static final byte OP_MKDIR = 3;   // create directory
   private static final byte OP_SET_REPLICATION = 4; // set replication
@@ -74,6 +78,14 @@ public class FSEditLog {
   private static final byte OP_CLEAR_NS_QUOTA = 12; // clear namespace quota
   private static final byte OP_TIMES = 13; // sets mod & access time on a file
   private static final byte OP_SET_QUOTA = 14; // sets name and disk quotas.
+  private static final byte OP_RENAME = 15;  // new rename
+  private static final byte OP_CONCAT_DELETE = 16; // concat files.
+  private static final byte OP_SYMLINK = 17; // a symbolic link
+  private static final byte OP_GET_DELEGATION_TOKEN = 18; //new delegation token
+  private static final byte OP_RENEW_DELEGATION_TOKEN = 19; //renew delegation token
+  private static final byte OP_CANCEL_DELEGATION_TOKEN = 20; //cancel delegation token
+  private static final byte OP_UPDATE_MASTER_KEY = 21; //update master key
+
   /* 
    * The following operations are used to control remote edit log streams,
    * and not logged into file streams.
@@ -402,8 +414,9 @@ public class FSEditLog {
     return numEdits;
   }
 
+  @SuppressWarnings("deprecation")
   int loadEditRecords(int logVersion, DataInputStream in,
-                             boolean closeOnExit) throws IOException {
+      boolean closeOnExit) throws IOException {
     FSNamesystem fsNamesys = fsimage.getFSNamesystem();
     FSDirectory fsDir = fsNamesys.dir;
     int numEdits = 0;
@@ -411,9 +424,13 @@ public class FSEditLog {
     String clientMachine = null;
     String path = null;
     int numOpAdd = 0, numOpClose = 0, numOpDelete = 0,
-        numOpRename = 0, numOpSetRepl = 0, numOpMkDir = 0,
+        numOpRenameOld = 0, numOpSetRepl = 0, numOpMkDir = 0,
         numOpSetPerm = 0, numOpSetOwner = 0, numOpSetGenStamp = 0,
-        numOpTimes = 0, numOpOther = 0;
+        numOpTimes = 0, numOpRename = 0, numOpConcatDelete = 0, 
+        numOpSymlink = 0, numOpGetDelegationToken = 0,
+        numOpRenewDelegationToken = 0, numOpCancelDelegationToken = 0, 
+        numOpUpdateMasterKey = 0, numOpOther = 0;
+
     try {
       while (true) {
         long timestamp = 0;
@@ -534,8 +551,29 @@ public class FSEditLog {
           fsDir.unprotectedSetReplication(path, replication, null);
           break;
         } 
-        case OP_RENAME: {
-          numOpRename++;
+        case OP_CONCAT_DELETE: {
+          if (logVersion > -22) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpConcatDelete++;
+          int length = in.readInt();
+          if (length < 3) { // trg, srcs.., timestam
+            throw new IOException("Incorrect data format. " 
+                                  + "Mkdir operation.");
+          }
+          String trg = FSImage.readString(in);
+          int srcSize = length - 1 - 1; //trg and timestamp
+          String [] srcs = new String [srcSize];
+          for(int i=0; i<srcSize;i++) {
+            srcs[i]= FSImage.readString(in);
+          }
+          timestamp = readLong(in);
+          fsDir.unprotectedConcat(trg, srcs);
+          break;
+        }
+        case OP_RENAME_OLD: {
+          numOpRenameOld++;
           int length = in.readInt();
           if (length != 3) {
             throw new IOException("Incorrect data format. " 
@@ -544,7 +582,7 @@ public class FSEditLog {
           String s = FSImage.readString(in);
           String d = FSImage.readString(in);
           timestamp = readLong(in);
-          FileStatus dinfo = fsDir.getFileInfo(d);
+          HdfsFileStatus dinfo = fsDir.getFileInfo(d, false);
           fsDir.unprotectedRenameTo(s, d, timestamp);
           fsNamesys.changeLease(s, d, dinfo);
           break;
@@ -666,6 +704,94 @@ public class FSEditLog {
           fsDir.unprotectedSetTimes(path, mtime, atime, true);
           break;
         }
+        case OP_SYMLINK: {
+          numOpSymlink++;
+          int length = in.readInt();
+          if (length != 4) {
+            throw new IOException("Incorrect data format. " 
+                                  + "symlink operation.");
+          }
+          path = FSImage.readString(in);
+          String value = FSImage.readString(in);
+          mtime = readLong(in);
+          atime = readLong(in);
+          PermissionStatus perm = PermissionStatus.read(in);
+          fsDir.unprotectedSymlink(path, value, mtime, atime, perm);
+          break;
+        }
+        case OP_RENAME: {
+          if (logVersion > -21) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpRename++;
+          int length = in.readInt();
+          if (length != 3) {
+            throw new IOException("Incorrect data format. " 
+                                  + "Mkdir operation.");
+          }
+          String s = FSImage.readString(in);
+          String d = FSImage.readString(in);
+          timestamp = readLong(in);
+          Rename[] options = readRenameOptions(in);
+          HdfsFileStatus dinfo = fsDir.getFileInfo(d, false);
+          fsDir.unprotectedRenameTo(s, d, timestamp, options);
+          fsNamesys.changeLease(s, d, dinfo);
+          break;
+        }
+        case OP_GET_DELEGATION_TOKEN: {
+          if (logVersion > -24) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpGetDelegationToken++;
+          DelegationTokenIdentifier delegationTokenId = 
+              new DelegationTokenIdentifier();
+          delegationTokenId.readFields(in);
+          long expiryTime = readLong(in);
+          fsNamesys.getDelegationTokenSecretManager()
+              .addPersistedDelegationToken(delegationTokenId, expiryTime);
+          break;
+        }
+        case OP_RENEW_DELEGATION_TOKEN: {
+          if (logVersion > -24) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpRenewDelegationToken++;
+          DelegationTokenIdentifier delegationTokenId = 
+              new DelegationTokenIdentifier();
+          delegationTokenId.readFields(in);
+          long expiryTime = readLong(in);
+          fsNamesys.getDelegationTokenSecretManager()
+              .updatePersistedTokenRenewal(delegationTokenId, expiryTime);
+          break;
+        }
+        case OP_CANCEL_DELEGATION_TOKEN: {
+          if (logVersion > -24) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpCancelDelegationToken++;
+          DelegationTokenIdentifier delegationTokenId = 
+              new DelegationTokenIdentifier();
+          delegationTokenId.readFields(in);
+          fsNamesys.getDelegationTokenSecretManager()
+              .updatePersistedTokenCancellation(delegationTokenId);
+          break;
+        }
+        case OP_UPDATE_MASTER_KEY: {
+          if (logVersion > -24) {
+            throw new IOException("Unexpected opcode " + opcode
+                + " for version " + logVersion);
+          }
+          numOpUpdateMasterKey++;
+          DelegationKey delegationKey = new DelegationKey();
+          delegationKey.readFields(in);
+          fsNamesys.getDelegationTokenSecretManager().updatePersistedMasterKey(
+              delegationKey);
+          break;
+        }
         default: {
           throw new IOException("Never seen opcode " + opcode);
         }
@@ -677,12 +803,19 @@ public class FSEditLog {
     }
     if (FSImage.LOG.isDebugEnabled()) {
       FSImage.LOG.debug("numOpAdd = " + numOpAdd + " numOpClose = " + numOpClose 
-          + " numOpDelete = " + numOpDelete + " numOpRename = " + numOpRename 
+          + " numOpDelete = " + numOpDelete 
+          + " numOpRenameOld = " + numOpRenameOld 
           + " numOpSetRepl = " + numOpSetRepl + " numOpMkDir = " + numOpMkDir
           + " numOpSetPerm = " + numOpSetPerm 
           + " numOpSetOwner = " + numOpSetOwner
           + " numOpSetGenStamp = " + numOpSetGenStamp 
           + " numOpTimes = " + numOpTimes
+          + " numOpConcatDelete  = " + numOpConcatDelete
+          + " numOpRename = " + numOpRename
+          + " numOpGetDelegationToken = " + numOpGetDelegationToken
+          + " numOpRenewDelegationToken = " + numOpRenewDelegationToken
+          + " numOpCancelDelegationToken = " + numOpCancelDelegationToken
+          + " numOpUpdateMasterKey = " + numOpUpdateMasterKey
           + " numOpOther = " + numOpOther);
     }
     return numEdits;
@@ -722,7 +855,7 @@ public class FSEditLog {
     ArrayList<EditLogOutputStream> errorStreams = null;
     long start = FSNamesystem.now();
     for(EditLogOutputStream eStream : editStreams) {
-      Log.debug("loggin edits into " + eStream.getName()  + " stream");
+      FSImage.LOG.debug("loggin edits into " + eStream.getName()  + " stream");
       if(!eStream.isOperationSupported(op))
         continue;
       try {
@@ -969,7 +1102,19 @@ public class FSEditLog {
       new DeprecatedUTF8(src),
       new DeprecatedUTF8(dst),
       FSEditLog.toLogLong(timestamp)};
-    logEdit(OP_RENAME, new ArrayWritable(DeprecatedUTF8.class, info));
+    logEdit(OP_RENAME_OLD, new ArrayWritable(DeprecatedUTF8.class, info));
+  }
+  
+  /** 
+   * Add rename record to edit log
+   */
+  void logRename(String src, String dst, long timestamp, Options.Rename... options) {
+    DeprecatedUTF8 info[] = new DeprecatedUTF8[] { 
+      new DeprecatedUTF8(src),
+      new DeprecatedUTF8(dst),
+      FSEditLog.toLogLong(timestamp)};
+    logEdit(OP_RENAME, new ArrayWritable(DeprecatedUTF8.class, info),
+        toBytesWritable(options));
   }
   
   /** 
@@ -1002,7 +1147,22 @@ public class FSEditLog {
     DeprecatedUTF8 g = new DeprecatedUTF8(groupname == null? "": groupname);
     logEdit(OP_SET_OWNER, new DeprecatedUTF8(src), u, g);
   }
-
+  
+  /**
+   * concat(trg,src..) log
+   */
+  void logConcat(String trg, String [] srcs, long timestamp) {
+    int size = 1 + srcs.length + 1; // trg, srcs, timestamp
+    DeprecatedUTF8 info[] = new DeprecatedUTF8[size];
+    int idx = 0;
+    info[idx++] = new DeprecatedUTF8(trg);
+    for(int i=0; i<srcs.length; i++) {
+      info[idx++] = new DeprecatedUTF8(srcs[i]);
+    }
+    info[idx] = FSEditLog.toLogLong(timestamp);
+    logEdit(OP_CONCAT_DELETE, new ArrayWritable(DeprecatedUTF8.class, info));
+  }
+  
   /** 
    * Add delete file record to edit log
    */
@@ -1029,6 +1189,45 @@ public class FSEditLog {
       FSEditLog.toLogLong(mtime),
       FSEditLog.toLogLong(atime)};
     logEdit(OP_TIMES, new ArrayWritable(DeprecatedUTF8.class, info));
+  }
+
+  /** 
+   * Add a create symlink record.
+   */
+  void logSymlink(String path, String value, long mtime, 
+                  long atime, INodeSymlink node) {
+    DeprecatedUTF8 info[] = new DeprecatedUTF8[] { 
+      new DeprecatedUTF8(path),
+      new DeprecatedUTF8(value),
+      FSEditLog.toLogLong(mtime),
+      FSEditLog.toLogLong(atime)};
+    logEdit(OP_SYMLINK, 
+            new ArrayWritable(DeprecatedUTF8.class, info),
+            node.getPermissionStatus());
+  }
+  
+  /**
+   * log delegation token to edit log
+   * @param id DelegationTokenIdentifier
+   * @param expiryTime of the token
+   * @return
+   */
+  void logGetDelegationToken(DelegationTokenIdentifier id,
+      long expiryTime) {
+    logEdit(OP_GET_DELEGATION_TOKEN, id, FSEditLog.toLogLong(expiryTime));
+  }
+  
+  void logRenewDelegationToken(DelegationTokenIdentifier id,
+      long expiryTime) {
+    logEdit(OP_RENEW_DELEGATION_TOKEN, id, FSEditLog.toLogLong(expiryTime));
+  }
+  
+  void logCancelDelegationToken(DelegationTokenIdentifier id) {
+    logEdit(OP_CANCEL_DELEGATION_TOKEN, id);
+  }
+  
+  void logUpdateMasterKey(DelegationKey key) {
+    logEdit(OP_UPDATE_MASTER_KEY, key);
   }
   
   static private DeprecatedUTF8 toLogReplication(short replication) {
@@ -1502,5 +1701,26 @@ public class FSEditLog {
       "Not a backup node corresponds to a backup stream";
     processIOError(errorStreams, true);
     return regAllowed;
+  }
+  
+  static Rename[] readRenameOptions(DataInputStream in) throws IOException {
+    BytesWritable writable = new BytesWritable();
+    writable.readFields(in);
+    
+    byte[] bytes = writable.getBytes();
+    Rename[] options = new Rename[bytes.length];
+    
+    for (int i = 0; i < bytes.length; i++) {
+      options[i] = Rename.valueOf(bytes[i]);
+    }
+    return options;
+  }
+  
+  static BytesWritable toBytesWritable(Options.Rename... options) {
+    byte[] bytes = new byte[options.length];
+    for (int i = 0; i < options.length; i++) {
+      bytes[i] = options[i].value();
+    }
+    return new BytesWritable(bytes);
   }
 }

@@ -60,6 +60,7 @@
   	<and>
 	    <or>
 	    	<equals arg1="${testcase}" arg2="TestProxyFilter" />
+	    	<equals arg1="${testcase}" arg2="TestAuthorizationFilter" />
 	    	<equals arg1="${testcase}" arg2="TestLdapIpDirFilter" />
 				<equals arg1="${testcase}" arg2="TestProxyUtil" />
 				<equals arg1="${testcase}" arg2="TestProxyForwardServlet" />
@@ -238,7 +239,7 @@
 				<sysproperty key="javax.net.ssl.keyStorePassword" value="changeme"/>
 				<sysproperty key="javax.net.ssl.keyPassword" value="changeme"/>			
 				<sysproperty key="javax.net.ssl.clientCert" value="${ssl.client.cert}"/>
-        <formatter type="xml" />
+        <formatter type="plain" />
         <batchtest todir="${test.build.dir}" unless="testcase">
            <fileset dir="${src.test}">
              <include name="**/TestHdfsProxy.java"/>
@@ -249,6 +250,7 @@
             <fileset dir="${src.test}">
             	<include name="**/${testcase}.java"/>
             	<exclude name="**/TestProxyFilter.java"/>
+            	<exclude name="**/TestAuthorizationFilter.java"/>
             	<exclude name="**/TestLdapIpDirFilter.java"/>
             	<exclude name="**/TestProxyUtil.java"/>
             	<exclude name="**/TestProxyForwardServlet.java"/>

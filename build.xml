@@ -28,7 +28,7 @@
  
   <property name="Name" value="Hadoop-Hdfs"/>
   <property name="name" value="hadoop-hdfs"/>
-  <property name="version" value="0.21.0-SNAPSHOT"/>
+  <property name="version" value="0.22.0-SNAPSHOT"/>
   <property name="final.name" value="${name}-${version}"/>
   <property name="test.hdfs.final.name" value="${name}-test-${version}"/>
   <property name="ant.final.name" value="${name}-ant-${version}"/>
@@ -42,6 +42,8 @@
   <property name="contrib.dir" value="${basedir}/src/contrib"/>
   <property name="docs.src" value="${basedir}/src/docs"/>
   <property name="changes.src" value="${docs.src}/changes"/>
+  <property name="c++.src" value="${basedir}/src/c++"/>
+  <property name="c++.libhdfs.src" value="${c++.src}/libhdfs"/>
 
   <property name="build.dir" value="${basedir}/build"/>
   <property name="build-fi.dir" value="${basedir}/build-fi"/>
@@ -58,12 +60,15 @@
             value="${nonspace.os}-${os.arch}-${sun.arch.data.model}"/>
   <property name="jvm.arch" 
             value="${sun.arch.data.model}"/>
+  <property name="build.c++" value="${build.dir}/c++-build/${build.platform}"/>
+  <property name="build.c++.libhdfs" value="${build.c++}/libhdfs"/>
 
   <property name="build.docs" value="${build.dir}/docs"/>
   <property name="build.javadoc" value="${build.docs}/api"/>
   <property name="build.javadoc.timestamp" value="${build.javadoc}/index.html" />
   <property name="build.javadoc.dev" value="${build.docs}/dev-api"/>
   <property name="build.encoding" value="ISO-8859-1"/>
+  <property name="install.c++" value="${build.dir}/c++/${build.platform}"/>
 
   <property name="test.src.dir" value="${basedir}/src/test"/>
   <property name="test.lib.dir" value="${basedir}/src/test/lib"/>
@@ -91,6 +96,9 @@
 
   <property name="test.hdfs.commit.tests.file" value="${test.src.dir}/commit-tests" />
   <property name="test.hdfs.all.tests.file" value="${test.src.dir}/all-tests" />
+
+  <property name="test.hdfs.rpc.engine" value=""/>
+  <property name="test.libhdfs.dir" value="${test.build.dir}/libhdfs"/>
 
   <property name="web.src.dir" value="${basedir}/src/web"/>
   <property name="src.webapps" value="${basedir}/src/webapps"/>
@@ -156,6 +164,8 @@
   <property name="ivy.publish.pattern" value="hadoop-hdfs-[revision].[ext]"/>
   <property name="hadoop-hdfs.jar" location="${build.dir}/${final.name}.jar" />
   <property name="hadoop-hdfs-test.jar" location="${build.dir}/${test.hdfs.final.name}.jar" />
+  <property name="hadoop-hdfs-sources.jar" location="${build.dir}/${final.name}-sources.jar" />
+  <property name="hadoop-hdfs-test-sources.jar" location="${build.dir}/${test.hdfs.final.name}-sources.jar" />
   <property name="hadoop-hdfs-fi.jar" location="${build.dir}/${final.name}-fi.jar" />
 
   <!-- jdiff.home property set -->
@@ -259,6 +269,8 @@
 
   </target>
 
+  <import file="${test.src.dir}/aop/build/aop.xml"/>
+
   <target name="compile-hdfs-classes" depends="init">
     <taskdef classname="org.apache.jasper.JspC" name="jsp-compile" >
        <classpath refid="classpath"/>
@@ -299,136 +311,27 @@
       <classpath refid="classpath"/>
     </javac>   
 
+    <taskdef
+       name="paranamer" 
+       classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+      <classpath refid="classpath" />
+    </taskdef>
+    <paranamer
+       sourceDirectory="${java.src.dir}/org/apache/hadoop/hdfs/protocol"
+       outputDirectory="${build.classes}"/>
+    <paranamer
+       sourceDirectory="${java.src.dir}/org/apache/hadoop/hdfs/server/protocol"
+       outputDirectory="${build.classes}"/>
+
     <copy todir="${build.classes}">
      <fileset dir="${java.src.dir}" includes="**/*.properties"/>
      <fileset dir="${java.src.dir}" includes="hdfs-default.xml"/>
     </copy>
   </target>
 
-  <!--All Fault Injection (FI) related targets are located in this session -->
-  
-  <!-- Weaving aspects in place
-  	Later on one can run 'ant jar-fault-inject' to create
-  	Hadoop jar file with instrumented classes
-  -->
-  <property name="compile-inject.output" value="${build-fi.dir}/compile-fi.log"/>
-  <target name="compile-fault-inject" depends="compile-core, compile-hdfs-test">
-    <!-- AspectJ task definition -->
-    <taskdef
-        resource="org/aspectj/tools/ant/taskdefs/aspectjTaskdefs.properties">
-      <classpath>
-        <pathelement location="${common.ivy.lib.dir}/aspectjtools-1.6.5.jar"/>
-      </classpath>
-    </taskdef>
-    <echo message="Start weaving aspects in place"/>
-    <iajc
-      encoding="${build.encoding}" 
-      srcdir="${java.src.dir};${build.src};${test.src.dir}/aop" 
-      includes="org/apache/hadoop/**/*.java, org/apache/hadoop/**/*.aj"
-      destDir="${build.classes}"
-      debug="${javac.debug}"
-      target="${javac.version}"
-      source="${javac.version}"
-      deprecation="${javac.deprecation}">
-      <classpath refid="test.classpath"/>
-    </iajc>
-    <loadfile property="injection.failure" srcfile="${compile-inject.output}">
-      <filterchain>
-        <linecontainsregexp>
-          <regexp pattern='iajc.*warning'/>
-        </linecontainsregexp>
-      </filterchain>
-    </loadfile>
-    <fail if="injection.failure">
-      Broken binding of advises: ${line.separator}${injection.failure}
-    </fail>
-    <echo message="Weaving of aspects is finished"/>
-  </target>
-
-  <target name="injectfaults"
-          description="Instrument HDFS classes with faults and other AOP advices">
-    <!--mkdir to prevent <subant> failure in case the folder has been removed-->
-    <mkdir dir="${build-fi.dir}"/>
-    <delete file="${compile-inject.output}"/>
-    <subant buildpath="${basedir}" target="compile-fault-inject"
-            output="${compile-inject.output}">
-      <property name="build.dir" value="${build-fi.dir}"/>
-    </subant>
-  </target>
-
-  <!--At this moment there's no special FI test suite thus the normal tests are -->
-  <!--being executed with faults injected in place-->
-
-  <!--This target is not included into the the top level list of target
-  for it serves a special "regression" testing purpose of non-FI tests in
-  FI environment -->
-  <target name="run-with-fault-inject-testcaseonly">
-    <fail unless="testcase">Can't run this target without -Dtestcase setting!
-    </fail>
-    <subant buildpath="build.xml" target="run-test-hdfs-fault-inject">
-    	<property name="special.fi.testcasesonly" value="yes"/>
-    </subant>
-  </target>
-
-  <target name="run-test-hdfs-fault-inject" depends="injectfaults"
-          description="Run Fault Injection related hdfs tests">
-    <subant buildpath="build.xml" target="run-test-hdfs">
-      <property name="build.dir" value="${build-fi.dir}"/>
-      <property name="test.fault.inject" value="yes"/>
-      <property name="test.include" value="TestFi*"/>
-    </subant>
-  </target>
-
-  <!-- ================================================================== -->
-  <!-- Make hadoop-fi.jar including all Fault Iinjected artifacts         -->
-  <!-- ================================================================== -->
-  <!--                                                                    -->
-  <!-- ================================================================== -->
-  <target name="jar-fault-inject" description="Make hadoop-fi.jar">
-    <subant buildpath="build.xml" target="create-jar-fault-inject">
-      <property name="build.dir" value="${build-fi.dir}"/>
-    </subant>
-  </target>
-
-  <target name="create-jar-fault-inject" depends="injectfaults">
-    <jar jarfile="${hadoop-hdfs-fi.jar}"
-         basedir="${build.classes}">
-      <manifest>
-        <section name="org/apache/hadoop">
-          <attribute name="Implementation-Title" value="${ant.project.name}"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
-        </section>
-      </manifest>
-      <fileset file="${conf.dir}/commons-logging.properties"/>
-      <fileset file="${conf.dir}/log4j.properties"/>
-      <fileset file="${conf.dir}/hadoop-metrics.properties"/>
-      <fileset file="${test.src.dir}/fi-site.xml"/>
-      <zipfileset dir="${build.webapps}" prefix="webapps"/>
-    </jar>
-  </target>
-
-  <!-- ================================================================== -->
-  <!-- Make test jar files including all Fault Injected artifacts         -->
-  <!-- ================================================================== -->
-  <!--                                                                    -->
-  <!-- ================================================================== -->
-
-  <target name="jar-test-fault-inject" depends="jar-hdfs-test-fault-inject"
-          description="Make hadoop-test.jar files"/>
-
-  <target name="jar-hdfs-test-fault-inject" description="Make hadoop-test-fi.jar">
-    <subant buildpath="build.xml" target="jar-hdfs-test">
-      <property name="build.dir" value="${build-fi.dir}"/>
-      <property name="test.hdfs.final.name" value="${name}-test-${version}-fi"/>
-    </subant>
-  </target>
-
-  <!--End of Fault Injection (FI) related session-->
-
   <target name="compile-core" depends="clover, compile-hdfs-classes" description="Compile"/> 
 
-  <target name="compile-contrib" depends="compile-core">
+  <target name="compile-contrib" depends="compile-core,compile-c++-libhdfs">
      <subant target="compile">
         <property name="version" value="${version}"/>
         <fileset file="${contrib.dir}/build.xml"/>
@@ -456,6 +359,12 @@
       <fileset file="${conf.dir}/log4j.properties"/>
       <fileset file="${conf.dir}/hadoop-metrics.properties"/>
       <zipfileset dir="${build.webapps}" prefix="webapps"/>
+      <fileset file="${jar.extra.properties.list}" />
+    </jar>
+
+    <jar jarfile="${hadoop-hdfs-sources.jar}">
+      <fileset dir="${java.src.dir}" includes="org/apache/hadoop/**/*.java" />
+      <fileset dir="${build.src}" includes="org/apache/hadoop/**/*.java" />
     </jar>
   </target>
 
@@ -512,7 +421,59 @@
           </section>
          </manifest>
     </jar>
+
+    <jar jarfile="${hadoop-hdfs-test-sources.jar}">
+      <fileset dir="${test.src.dir}/hdfs" includes="org/apache/hadoop/**/*.java" />
+      <fileset dir="${test.src.dir}/unit" includes="org/apache/hadoop/**/*.java" />
+    </jar>
   </target>
+
+  <!-- ================================================================== -->
+  <!-- Fault injection customization section.
+       These targets ought to be copied over to other projects and modified
+       as needed -->
+  <!-- ================================================================== -->
+  <!-- "Implementing" a target dependecy from aop.xml -->
+  <target name="-classes-compilation"
+    depends="compile-hdfs-classes, compile-hdfs-test"/>
+
+  <target name="jar-test-fault-inject" depends="jar-hdfs-test-fault-inject"
+          description="Make hadoop-test.jar files"/>
+
+  <target name="run-test-hdfs-fault-inject" depends="injectfaults" 
+	  description="Run full set of the unit tests with fault injection">
+    <macro-run-tests-fault-inject target.name="run-test-hdfs"
+      testcasesonly="false"/>
+  </target>
+
+  <target name="jar-hdfs-test-fault-inject" depends="injectfaults" 
+    description="Make hadoop-hdfs-test-fi.jar">
+    <macro-jar-test-fault-inject
+      target.name="jar-hdfs-test"
+      jar.final.name="test.hdfs.final.name"
+      jar.final.value="${name}-test-${version}-fi" />
+  </target>
+
+  <target name="jar-fault-inject" depends="injectfaults" 
+    description="Make hadoop-fi.jar">
+    <macro-jar-fault-inject
+      target.name="jar"
+      jar.final.name="final.name"
+      jar.final.value="${final.name}-fi" />
+  </target>
+
+  <!--This target is not included into the the top level list of target
+  for it serves a special "regression" testing purpose of non-FI tests in
+  FI environment -->
+  <target name="run-fault-inject-with-testcaseonly" depends="injectfaults">
+    <fail unless="testcase">Can't run this target without -Dtestcase setting!
+    </fail>
+    <macro-run-tests-fault-inject target.name="run-test-hdfs" 
+      testcasesonly="true"/>
+  </target>
+  <!-- ================================================================== -->
+  <!-- End of Fault injection customization section                       -->
+  <!-- ================================================================== -->
 
   <condition property="tests.notestcase">
     <and>
@@ -536,10 +497,14 @@
       <isset property="testcase" />
     </and>
   </condition>
+  <condition property="tests.testcaseonly.fi">
+    <istrue value="${special.fi.testcasesonly}" />
+  </condition>
   <condition property="tests.testcase.fi">
     <and>
       <istrue value="${test.fault.inject}" />
       <isset property="testcase" />
+      <isfalse value="${special.fi.testcasesonly}" />
     </and>
   </condition>
 
@@ -573,6 +538,7 @@
         <sysproperty key="test.src.dir" value="${test.src.dir}"/>
         <sysproperty key="test.build.extraconf" value="${test.build.extraconf}" />
         <sysproperty key="hadoop.policy.file" value="hadoop-policy.xml"/>
+        <sysproperty key="hdfs.rpc.engine" value="${test.hdfs.rpc.engine}"/>
         <classpath refid="test.classpath"/>
         <!-- Pass probability specifications to the spawn JVM -->
         <syspropertyset id="FaultProbabilityProperties">
@@ -599,8 +565,7 @@
         </batchtest>
         <!--The following batch is for very special occasions only when
         a non-FI tests are needed to be executed against FI-environment -->
-        <batchtest todir="${test.build.dir}" if="special.fi.testcasesonly">
-          <fileset dir="${test.src.dir}/aop" includes="**/${testcase}.java"/>
+        <batchtest todir="${test.build.dir}" if="tests.testcaseonly.fi">
           <fileset dir="${test.src.dir}/hdfs" includes="**/${testcase}.java"/>
         </batchtest>
       </junit>
@@ -644,7 +609,7 @@
     <fail if="testsfailed">Tests failed!</fail>
   </target>
 
-  <target name="test" depends="jar-test, test-core" description="Run all unit tests">
+  <target name="test" depends="test-c++-libhdfs, jar-test, test-core" description="Run all unit tests">
     <subant target="test-contrib">
       <fileset file="${basedir}/build.xml"/>
      </subant>
@@ -1079,6 +1044,79 @@
      </subant>  	
   </target>
 
+ <target name="test-c++-libhdfs" depends="compile-c++-libhdfs, compile-core" if="islibhdfs" unless="clover.enabled">
+    <delete dir="${test.libhdfs.dir}"/>
+    <mkdir dir="${test.libhdfs.dir}"/>
+    <mkdir dir="${test.libhdfs.dir}/conf"/>
+    <mkdir dir="${test.libhdfs.dir}/logs"/>
+    <mkdir dir="${test.libhdfs.dir}/hdfs/name"/>
+
+    <exec dir="${build.c++.libhdfs}" executable="${make.cmd}" failonerror="true">
+        <env key="OS_NAME" value="${os.name}"/>
+        <env key="OS_ARCH" value="${os.arch}"/>
+        <env key="JVM_ARCH" value="${jvm.arch}"/>
+        <env key="LIBHDFS_BUILD_DIR" value="${build.c++.libhdfs}"/>
+        <env key="HADOOP_HOME" value="${basedir}"/>
+        <env key="HADOOP_CONF_DIR" value="${test.libhdfs.dir}/conf"/>
+        <env key="HADOOP_LOG_DIR" value="${test.libhdfs.dir}/logs"/>
+        <env key="LIBHDFS_TEST_DIR" value="${test.libhdfs.dir}"/>
+        <env key="LIBHDFS_SRC_DIR" value="${c++.libhdfs.src}"/>
+        <env key="LIBHDFS_INSTALL_DIR" value="${install.c++}/lib"/>  
+        <env key="LIB_DIR" value="${common.ivy.lib.dir}"/>
+        <env key="CLOVER_JAR" value="${clover.jar}"/>
+		<arg value="test"/>
+    </exec>
+  </target>
+
+ <target name="create-c++-configure" depends="init" if="compile.c++">
+    <antcall target="create-c++-configure-libhdfs"/>
+  </target>
+
+  <target name="create-c++-configure-libhdfs" depends="check-c++-libhdfs" if="islibhdfs">
+    <exec executable="autoreconf" dir="${c++.libhdfs.src}" 
+          searchpath="yes" failonerror="yes">
+       <arg value="-if"/>
+    </exec>
+  </target>
+
+  <target name="check-c++-libhdfs">
+    <condition property="islibhdfs">
+      <and>
+        <isset property="compile.c++"/>
+        <isset property="libhdfs"/>
+      </and>
+    </condition>
+  </target>
+
+  <target name="check-c++-makefile-libhdfs" depends="init,check-c++-libhdfs" if="islibhdfs">
+    <condition property="need.c++.libhdfs.makefile">
+       <not> <available file="${build.c++.libhdfs}/Makefile"/> </not>
+    </condition>
+  </target>
+
+  <target name="create-c++-libhdfs-makefile" depends="check-c++-makefile-libhdfs" 
+                                           if="need.c++.libhdfs.makefile">
+    <mkdir dir="${build.c++.libhdfs}"/>
+    <chmod file="${c++.libhdfs.src}/configure" perm="ugo+x"/>
+    <exec executable="${c++.libhdfs.src}/configure" dir="${build.c++.libhdfs}"
+          failonerror="yes">
+      <env key="ac_cv_func_malloc_0_nonnull" value="yes"/>
+      <env key="JVM_ARCH" value="${jvm.arch}"/>
+      <arg value="--prefix=${install.c++}"/>
+    </exec>
+  </target>
+
+  <target name="compile-c++-libhdfs" depends="create-c++-libhdfs-makefile" if="islibhdfs">
+    <exec executable="${make.cmd}" dir="${build.c++.libhdfs}" searchpath="yes"
+          failonerror="yes">
+      <env key="ac_cv_func_malloc_0_nonnull" value="yes"/>
+      <env key="JVM_ARCH" value="${jvm.arch}"/>
+      <arg value="install"/>
+    </exec>
+    <!-- Create a build platform-agnostic link to c++ libs -->
+    <symlink overwrite="true" link="${build.dir}/c++/lib" resource="${install.c++}/lib"/>
+  </target>
+
   <target name="compile-ant-tasks" depends="compile-core">
     <javac
         encoding="${build.encoding}"
@@ -1111,6 +1149,7 @@
    <clover-setup initString="${clover.db.dir}/hadoop_coverage.db">
      <fileset dir="src" includes="java/**/*"/>
    </clover-setup>
+   <echo message="HDFS-783: test-libhdfs is disabled for Clover'ed builds" />
 </target>
 
 <target name="clover.info" unless="clover.present">
@@ -1235,11 +1274,11 @@
          uri="urn:maven-artifact-ant" classpathref="mvn-ant-task.classpath"/>
   </target>   
 
-  
   <target name="mvn-install-hdfs" depends="mvn-taskdef,jar,set-version">
      <artifact:pom file="${hadoop-hdfs.pom}" id="hadoop.hdfs"/>
      <artifact:install file="${hadoop-hdfs.jar}">
         <pom refid="hadoop.hdfs"/>
+        <attach file="${hadoop-hdfs-sources.jar}" classifier="sources" />
      </artifact:install>
   </target>
 
@@ -1248,9 +1287,11 @@
      <artifact:pom file="${hadoop-hdfs-test.pom}" id="hadoop.hdfs.test"/>
      <artifact:install file="${hadoop-hdfs.jar}">
         <pom refid="hadoop.hdfs"/>
+        <attach file="${hadoop-hdfs-sources.jar}" classifier="sources" />
      </artifact:install>
      <artifact:install file="${hadoop-hdfs-test.jar}">
         <pom refid="hadoop.hdfs.test"/>
+        <attach file="${hadoop-hdfs-test-sources.jar}" classifier="sources" />
      </artifact:install>
   </target>
 
@@ -1263,10 +1304,12 @@
      <artifact:deploy file="${hadoop-hdfs.jar}">
          <remoteRepository id="apache.snapshots.https" url="${repourl}"/>
          <pom refid="hadoop.hdfs"/>
+        <attach file="${hadoop-hdfs-sources.jar}" classifier="sources" />
      </artifact:deploy>
      <artifact:deploy file="${hadoop-hdfs-test.jar}">
          <remoteRepository id="apache.snapshots.https" url="${repourl}"/>
          <pom refid="hadoop.hdfs.test"/>
+        <attach file="${hadoop-hdfs-test-sources.jar}" classifier="sources" />
      </artifact:deploy>
   </target>
   
@@ -1314,6 +1357,8 @@
     </fail>
   </target>
 
+  <property name="ivyresolvelog" value="download-only"/>
+  <property name="ivyretrievelog" value="quiet"/>
 
   <target name="ivy-init" depends="ivy-init-antlib" >
 
@@ -1324,78 +1369,92 @@
   </target>
 
   <target name="ivy-resolve" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-javadoc" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="javadoc"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="javadoc"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-releaseaudit" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="releaseaudit"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="releaseaudit"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-test" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="test" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="test"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-common" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="common" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="common"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-jdiff" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="jdiff" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="jdiff"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-resolve-checkstyle" depends="ivy-init">
-    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="checkstyle"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="checkstyle"
+      log="${ivyresolvelog}"/>
   </target>
 
   <target name="ivy-retrieve" depends="ivy-resolve"
     description="Retrieve Ivy-managed artifacts">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
   </target>
 
   <target name="ivy-retrieve-checkstyle" depends="ivy-resolve-checkstyle"
     description="Retrieve Ivy-managed artifacts for the checkstyle configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="checkstyle-classpath" conf="checkstyle"/>
   </target>
 
   <target name="ivy-retrieve-jdiff" depends="ivy-resolve-jdiff"
     description="Retrieve Ivy-managed artifacts for the javadoc configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="jdiff-classpath" conf="jdiff"/>
   </target>
 
   <target name="ivy-retrieve-javadoc" depends="ivy-resolve-javadoc"
     description="Retrieve Ivy-managed artifacts for the javadoc configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="javadoc-classpath" conf="javadoc"/>
   </target>
 
   <target name="ivy-retrieve-test" depends="ivy-resolve-test"
     description="Retrieve Ivy-managed artifacts for the test configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="ivy-test.classpath" conf="test"/>
   </target>
 
   <target name="ivy-retrieve-common" depends="ivy-resolve-common"
     description="Retrieve Ivy-managed artifacts for the compile configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"/>
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="ivy-common.classpath" conf="common"/>
   </target>
 
   <target name="ivy-retrieve-releaseaudit" depends="ivy-resolve-releaseaudit"
     description="Retrieve Ivy-managed artifacts for the compile configurations">
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
-      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" />
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" 
+        log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="releaseaudit-classpath" conf="releaseaudit"/>
   </target>
 

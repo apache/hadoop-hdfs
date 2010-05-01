@@ -210,7 +210,7 @@ public class TestSaveNamespace {
 
   private void checkEditExists(FSNamesystem fsn, int id) throws IOException {
     // Make sure the image loaded including our edit.
-    assertNotNull(fsn.getFileInfo("/test" + id));
+    assertNotNull(fsn.getFileInfo("/test" + id, false));
   }
 
   private Configuration getConf() throws IOException {

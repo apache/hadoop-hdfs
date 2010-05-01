@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs;
 
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
 import java.util.EnumSet;
 
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -28,15 +29,21 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.DirectoryListing;
 import org.apache.hadoop.hdfs.protocol.FSConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.DFSClient.DFSDataInputStream;
-import org.apache.hadoop.hdfs.DFSClient.DFSOutputStream;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.security.token.SecretManager.InvalidToken;
+import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.fs.Options;
 
 
 /****************************************************************
@@ -156,7 +163,7 @@ public class DistributedFileSystem extends FileSystem {
   /** {@inheritDoc} */
   @Override
   public Path getHomeDirectory() {
-    return new Path("/user/" + dfs.ugi.getUserName()).makeQualified(this);
+    return new Path("/user/" + dfs.ugi.getShortUserName()).makeQualified(this);
   }
 
   private String getPathName(Path file) {
@@ -190,6 +197,7 @@ public class DistributedFileSystem extends FileSystem {
     this.verifyChecksum = verifyChecksum;
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public FSDataInputStream open(Path f, int bufferSize) throws IOException {
     return new DFSClient.DFSDataInputStream(
@@ -244,19 +252,41 @@ public class DistributedFileSystem extends FileSystem {
                                ) throws IOException {
     return dfs.setReplication(getPathName(src), replication);
   }
-
+  
   /**
-   * Rename files/dirs
+   * THIS IS DFS only operations, it is not part of FileSystem
+   * move blocks from srcs to trg
+   * and delete srcs afterwards
+   * all blocks should be the same size
+   * @param trg existing file to append to
+   * @param psrcs list of files (same block size, same replication)
+   * @throws IOException
    */
+  public void concat(Path trg, Path [] psrcs) throws IOException {
+    String [] srcs = new String [psrcs.length];
+    for(int i=0; i<psrcs.length; i++) {
+      srcs[i] = getPathName(psrcs[i]);
+    }
+    dfs.concat(getPathName(trg), srcs);
+  }
+
+  /** {@inheritDoc} */
+  @SuppressWarnings("deprecation")
   @Override
   public boolean rename(Path src, Path dst) throws IOException {
     return dfs.rename(getPathName(src), getPathName(dst));
   }
 
-  /**
-   * requires a boolean check to delete a non 
-   * empty directory recursively.
+  /** 
+   * {@inheritDoc}
+   * This rename operation is guaranteed to be atomic.
    */
+  @SuppressWarnings("deprecation")
+  @Override
+  public void rename(Path src, Path dst, Options.Rename... options) throws IOException {
+    dfs.rename(getPathName(src), getPathName(dst), options);
+  }
+  
   @Override
   public boolean delete(Path f, boolean recursive) throws IOException {
    return dfs.delete(getPathName(f), recursive);
@@ -276,25 +306,70 @@ public class DistributedFileSystem extends FileSystem {
     dfs.setQuota(getPathName(src), namespaceQuota, diskspaceQuota);
   }
   
-  private FileStatus makeQualified(FileStatus f) {
+  private FileStatus makeQualified(HdfsFileStatus f, Path parent) {
     return new FileStatus(f.getLen(), f.isDir(), f.getReplication(),
         f.getBlockSize(), f.getModificationTime(),
         f.getAccessTime(),
         f.getPermission(), f.getOwner(), f.getGroup(),
-        f.getPath().makeQualified(this)); // fully-qualify path
+        (f.getFullPath(parent)).makeQualified(
+            getUri(), getWorkingDirectory())); // fully-qualify path
   }
 
+  /**
+   * List all the entries of a directory
+   *
+   * Note that this operation is not atomic for a large directory.
+   * The entries of a directory may be fetched from NameNode multiple times.
+   * It only guarantees that  each name occurs once if a directory
+   * undergoes changes between the calls.
+   */
   @Override
   public FileStatus[] listStatus(Path p) throws IOException {
-    FileStatus[] infos = dfs.listPaths(getPathName(p));
-    if (infos == null) 
+    String src = getPathName(p);
+
+    // fetch the first batch of entries in the directory
+    DirectoryListing thisListing = dfs.listPaths(
+        src, HdfsFileStatus.EMPTY_NAME);
+
+    if (thisListing == null) { // the directory does not exist
       throw new FileNotFoundException("File " + p + " does not exist.");
-    
-    FileStatus[] stats = new FileStatus[infos.length];
-    for (int i = 0; i < infos.length; i++) {
-      stats[i] = makeQualified(infos[i]);
     }
-    return stats;
+    
+    HdfsFileStatus[] partialListing = thisListing.getPartialListing();
+    if (!thisListing.hasMore()) { // got all entries of the directory
+      FileStatus[] stats = new FileStatus[partialListing.length];
+      for (int i = 0; i < partialListing.length; i++) {
+        stats[i] = makeQualified(partialListing[i], p);
+      }
+      return stats;
+    }
+
+    // The directory size is too big that it needs to fetch more
+    // estimate the total number of entries in the directory
+    int totalNumEntries =
+      partialListing.length + thisListing.getRemainingEntries();
+    ArrayList<FileStatus> listing =
+      new ArrayList<FileStatus>(totalNumEntries);
+    // add the first batch of entries to the array list
+    for (HdfsFileStatus fileStatus : partialListing) {
+      listing.add(makeQualified(fileStatus, p));
+    }
+ 
+    // now fetch more entries
+    do {
+      thisListing = dfs.listPaths(src, thisListing.getLastName());
+ 
+      if (thisListing == null) { // the directory is deleted
+        throw new FileNotFoundException("File " + p + " does not exist.");
+      }
+ 
+      partialListing = thisListing.getPartialListing();
+      for (HdfsFileStatus fileStatus : partialListing) {
+        listing.add(makeQualified(fileStatus, p));
+      }
+    } while (thisListing.hasMore());
+ 
+    return listing.toArray(new FileStatus[listing.size()]);
   }
 
   /**
@@ -537,9 +612,9 @@ public class DistributedFileSystem extends FileSystem {
    */
   @Override
   public FileStatus getFileStatus(Path f) throws IOException {
-    FileStatus fi = dfs.getFileInfo(getPathName(f));
+    HdfsFileStatus fi = dfs.getFileInfo(getPathName(f));
     if (fi != null) {
-      return makeQualified(fi);
+      return makeQualified(fi, f);
     } else {
       throw new FileNotFoundException("File does not exist: " + f);
     }
@@ -575,5 +650,43 @@ public class DistributedFileSystem extends FileSystem {
     dfs.setTimes(getPathName(p), mtime, atime);
   }
   
+  /** 
+   * Delegation Token Operations
+   * These are DFS only operations.
+   */
   
+  /**
+   * Get a valid Delegation Token.
+   * 
+   * @param renewer Name of the designated renewer for the token
+   * @return Token<DelegationTokenIdentifier>
+   * @throws IOException
+   */
+  public Token<DelegationTokenIdentifier> getDelegationToken(Text renewer)
+      throws IOException {
+    return dfs.getDelegationToken(renewer);
+  }
+
+  /**
+   * Renew an existing delegation token.
+   * 
+   * @param token delegation token obtained earlier
+   * @return the new expiration time
+   * @throws IOException
+   */
+  public long renewDelegationToken(Token<DelegationTokenIdentifier> token)
+      throws InvalidToken, IOException {
+    return dfs.renewDelegationToken(token);
+  }
+
+  /**
+   * Cancel an existing delegation token.
+   * 
+   * @param token delegation token
+   * @throws IOException
+   */
+  public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
+      throws IOException {
+    dfs.cancelDelegationToken(token);
+  }
 }

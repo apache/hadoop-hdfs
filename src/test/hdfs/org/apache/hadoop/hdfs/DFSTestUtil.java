@@ -25,11 +25,16 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -38,9 +43,8 @@ import org.apache.hadoop.hdfs.DFSClient.DFSDataInputStream;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.security.BlockAccessToken;
-import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.security.UnixUserGroupInformation;
+import org.apache.hadoop.security.ShellBasedUnixGroupsMapping;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /** Utilities for HDFS tests */
@@ -259,7 +263,7 @@ public class DFSTestUtil {
   }
 
   public static BlockAccessToken getAccessToken(FSDataOutputStream out) {
-    return ((DFSClient.DFSOutputStream) out.getWrappedStream()).getAccessToken();
+    return ((DFSOutputStream) out.getWrappedStream()).getAccessToken();
   }
 
   static void setLogLevel2All(org.apache.commons.logging.Log log) {
@@ -282,16 +286,77 @@ public class DFSTestUtil {
     IOUtils.copyBytes(conn.getInputStream(), out, 4096, true);
     return out.toString();
   }
-
-  static public Configuration getConfigurationWithDifferentUsername(Configuration conf
-      ) throws IOException {
-    final Configuration c = new HdfsConfiguration(conf);
-    final UserGroupInformation ugi = UserGroupInformation.getCurrentUGI();
-    final String username = ugi.getUserName()+"_XXX";
-    final String[] groups = {ugi.getGroupNames()[0] + "_XXX"};
-    UnixUserGroupInformation.saveToConf(c,
-        UnixUserGroupInformation.UGI_PROPERTY_NAME,
-        new UnixUserGroupInformation(username, groups));
-    return c;
+  
+  /**
+   * mock class to get group mapping for fake users
+   * 
+   */
+  static class MockUnixGroupsMapping extends ShellBasedUnixGroupsMapping {
+    static Map<String, String []> fakeUser2GroupsMap;
+    private static final List<String> defaultGroups;
+    static {
+      defaultGroups = new ArrayList<String>(1);
+      defaultGroups.add("supergroup");
+      fakeUser2GroupsMap = new HashMap<String, String[]>();
+    }
+  
+    @Override
+    public List<String> getGroups(String user) throws IOException {
+      boolean found = false;
+      
+      // check to see if this is one of fake users
+      List<String> l = new ArrayList<String>();
+      for(String u : fakeUser2GroupsMap.keySet()) {  
+        if(user.equals(u)) {
+          found = true;
+          for(String gr : fakeUser2GroupsMap.get(u)) {
+            l.add(gr);
+          }
+        }
+      }
+      
+      // default
+      if(!found) {
+        l =  super.getGroups(user);
+        if(l.size() == 0) {
+          System.out.println("failed to get real group for " + user + 
+              "; using default");
+          return defaultGroups;
+        }
+      }
+      return l;
+    }
+  }
+  
+  /**
+   * update the configuration with fake class for mapping user to groups
+   * @param conf
+   * @param map - user to groups mapping
+   */
+  static public void updateConfWithFakeGroupMapping
+    (Configuration conf, Map<String, String []> map) {
+    if(map!=null) {
+      MockUnixGroupsMapping.fakeUser2GroupsMap = map;
+    }
+    
+    // fake mapping user to groups
+    conf.setClass(CommonConfigurationKeys.HADOOP_SECURITY_GROUP_MAPPING,
+        DFSTestUtil.MockUnixGroupsMapping.class,
+        ShellBasedUnixGroupsMapping.class);
+    
+  }
+  
+  /**
+   * Get a FileSystem instance as specified user in a doAs block.
+   */
+  static public FileSystem getFileSystemAs(UserGroupInformation ugi, 
+                                   final Configuration conf) throws IOException, 
+                                                        InterruptedException {
+    return ugi.doAs(new PrivilegedExceptionAction<FileSystem>() {
+      @Override
+      public FileSystem run() throws Exception {
+        return FileSystem.get(conf);
+      }
+    });
   }
 }

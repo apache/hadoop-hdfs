@@ -33,6 +33,8 @@ import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.util.StringUtils;
 
+import org.apache.avro.reflect.Nullable;
+
 /** 
  * DatanodeInfo represents the status of a DataNode.
  * This object is used for communication in the
@@ -49,10 +51,12 @@ public class DatanodeInfo extends DatanodeID implements Node {
   /** HostName as supplied by the datanode during registration as its 
    * name. Namenode uses datanode IP address as the name.
    */
+  @Nullable
   protected String hostName = null;
   
   // administrative states of a datanode
   public enum AdminStates {NORMAL, DECOMMISSION_INPROGRESS, DECOMMISSIONED; }
+  @Nullable
   protected AdminStates adminState;
 
 
@@ -166,7 +170,7 @@ public class DatanodeInfo extends DatanodeID implements Node {
   
   /** A formatted string for reporting the status of the DataNode. */
   public String getDatanodeReport() {
-    StringBuffer buffer = new StringBuffer();
+    StringBuilder buffer = new StringBuilder();
     long c = getCapacity();
     long r = getRemaining();
     long u = getDfsUsed();
@@ -203,7 +207,7 @@ public class DatanodeInfo extends DatanodeID implements Node {
 
   /** A formatted string for printing the status of the DataNode. */
   public String dumpDatanode() {
-    StringBuffer buffer = new StringBuffer();
+    StringBuilder buffer = new StringBuilder();
     long c = getCapacity();
     long r = getRemaining();
     long u = getDfsUsed();
@@ -285,8 +289,8 @@ public class DatanodeInfo extends DatanodeID implements Node {
     }
   }
 
-  private int level; //which level of the tree the node resides
-  private Node parent; //its parent
+  private transient int level; //which level of the tree the node resides
+  private transient Node parent; //its parent
 
   /** Return this node's parent */
   public Node getParent() { return parent; }

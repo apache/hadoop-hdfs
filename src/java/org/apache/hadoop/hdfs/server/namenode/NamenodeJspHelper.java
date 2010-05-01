@@ -18,8 +18,12 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
 import java.net.URLEncoder;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -32,10 +36,16 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
+import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
+import org.apache.hadoop.hdfs.server.datanode.DatanodeJspHelper;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.WritableUtils;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ServletUtil;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.VersionInfo;
@@ -53,10 +63,20 @@ class NamenodeJspHelper {
     long inodes = fsn.dir.totalInodes();
     long blocks = fsn.getBlocksTotal();
     long maxobjects = fsn.getMaxObjects();
-    long totalMemory = Runtime.getRuntime().totalMemory();
-    long maxMemory = Runtime.getRuntime().maxMemory();
 
-    long used = (totalMemory * 100) / maxMemory;
+    MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
+    MemoryUsage heap = mem.getHeapMemoryUsage();
+    long totalMemory = heap.getUsed();
+    long maxMemory = heap.getMax();
+    long commitedMemory = heap.getCommitted();
+    
+    MemoryUsage nonHeap = mem.getNonHeapMemoryUsage();
+    long totalNonHeap = nonHeap.getUsed();
+    long maxNonHeap = nonHeap.getMax();
+    long commitedNonHeap = nonHeap.getCommitted();
+
+    long used = (totalMemory * 100) / commitedMemory;
+    long usedNonHeap = (totalNonHeap * 100) / commitedNonHeap;
 
     String str = inodes + " files and directories, " + blocks + " blocks = "
         + (inodes + blocks) + " total";
@@ -64,8 +84,16 @@ class NamenodeJspHelper {
       long pct = ((inodes + blocks) * 100) / maxobjects;
       str += " / " + maxobjects + " (" + pct + "%)";
     }
-    str += ".  Heap Size is " + StringUtils.byteDesc(totalMemory) + " / "
-        + StringUtils.byteDesc(maxMemory) + " (" + used + "%) <br>";
+    str += ".<br>";
+    str += "Heap Memory used " + StringUtils.byteDesc(totalMemory) + " is "
+        + " " + used + "% of Commited Heap Memory " 
+        + StringUtils.byteDesc(commitedMemory)
+        + ". Max Heap Memory is " + StringUtils.byteDesc(maxMemory) +
+        ". <br>";
+    str += "Non Heap Memory used " + StringUtils.byteDesc(totalNonHeap) + " is"
+        + " " + usedNonHeap + "% of " + " Commited Non Heap Memory "
+        + StringUtils.byteDesc(commitedNonHeap) + ". Max Non Heap Memory is "
+        + StringUtils.byteDesc(maxNonHeap) + ".<br>";
     return str;
   }
 
@@ -165,6 +193,9 @@ class NamenodeJspHelper {
       ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
       fsn.DFSNodesStatus(live, dead);
 
+      ArrayList<DatanodeDescriptor> decommissioning = fsn
+          .getDecommissioningNodes();
+
       sorterField = request.getParameter("sorter/field");
       sorterOrder = request.getParameter("sorter/order");
       if (sorterField == null)
@@ -217,7 +248,14 @@ class NamenodeJspHelper {
           + "<a href=\"dfsnodelist.jsp?whatNodes=LIVE\">Live Nodes</a> "
           + colTxt() + ":" + colTxt() + live.size() + rowTxt() + colTxt()
           + "<a href=\"dfsnodelist.jsp?whatNodes=DEAD\">Dead Nodes</a> "
-          + colTxt() + ":" + colTxt() + dead.size() + "</table></div><br>\n");
+          + colTxt() + ":" + colTxt() + dead.size() + rowTxt() + colTxt()
+          + "<a href=\"dfsnodelist.jsp?whatNodes=DECOMMISSIONING\">"
+          + "Decommissioning Nodes</a> "
+          + colTxt() + ":" + colTxt() + decommissioning.size() 
+          + rowTxt() + colTxt()
+          + "Number of Under-Replicated Blocks" + colTxt() + ":" + colTxt()
+          + fsn.getUnderReplicatedBlocks()
+          + "</table></div><br>\n");
 
       if (live.isEmpty() && dead.isEmpty()) {
         out.print("There are no datanodes in the cluster");
@@ -225,9 +263,32 @@ class NamenodeJspHelper {
     }
   }
 
-  static void redirectToRandomDataNode(NameNode nn, HttpServletResponse resp)
-      throws IOException {
+  static String getDelegationToken(final NameNode nn, final String user
+                                   ) throws IOException, InterruptedException {
+    if (user == null) {
+      return null;
+    }
+    UserGroupInformation ugi = UserGroupInformation.createRemoteUser(user);
+    Token<DelegationTokenIdentifier> token =
+      ugi.doAs(
+               new PrivilegedExceptionAction<Token<DelegationTokenIdentifier>>() {
+                 public Token<DelegationTokenIdentifier> run() throws IOException {
+                   return nn.getDelegationToken(new Text(user));
+                 }
+               });
+    return token.encodeToUrlString();
+  }
+
+  static void redirectToRandomDataNode(final NameNode nn, 
+                                       HttpServletRequest request,
+                                       HttpServletResponse resp,
+                                       Configuration conf
+                                       ) throws IOException,
+                                                InterruptedException {
     final DatanodeID datanode = nn.getNamesystem().getRandomDatanode();
+    final String user = request.getRemoteUser();
+    String tokenString = getDelegationToken(nn, user);
+    // if the user is defined, get a delegation token and stringify it
     final String redirectLocation;
     final String nodeToRedirect;
     int redirectPort;
@@ -241,8 +302,9 @@ class NamenodeJspHelper {
     String fqdn = InetAddress.getByName(nodeToRedirect).getCanonicalHostName();
     redirectLocation = "http://" + fqdn + ":" + redirectPort
         + "/browseDirectory.jsp?namenodeInfoPort="
-        + nn.getHttpAddress().getPort() + "&dir="
-        + URLEncoder.encode("/", "UTF-8");
+        + nn.getHttpAddress().getPort() + "&dir=/"
+        + (tokenString == null ? "" :
+           JspHelper.SET_DELEGATION + tokenString);
     resp.sendRedirect(redirectLocation);
   }
 
@@ -282,6 +344,44 @@ class NamenodeJspHelper {
       return ret;
     }
 
+    void generateDecommissioningNodeData(JspWriter out, DatanodeDescriptor d,
+        String suffix, boolean alive, int nnHttpPort) throws IOException {
+      String url = "http://" + d.getHostName() + ":" + d.getInfoPort()
+          + "/browseDirectory.jsp?namenodeInfoPort=" + nnHttpPort + "&dir="
+          + URLEncoder.encode("/", "UTF-8");
+
+      String name = d.getHostName() + ":" + d.getPort();
+      if (!name.matches("\\d+\\.\\d+.\\d+\\.\\d+.*"))
+        name = name.replaceAll("\\.[^.:]*", "");
+      int idx = (suffix != null && name.endsWith(suffix)) ? name
+          .indexOf(suffix) : -1;
+
+      out.print(rowTxt() + "<td class=\"name\"><a title=\"" + d.getHost() + ":"
+          + d.getPort() + "\" href=\"" + url + "\">"
+          + ((idx > 0) ? name.substring(0, idx) : name) + "</a>"
+          + ((alive) ? "" : "\n"));
+      if (!alive) {
+        return;
+      }
+
+      long decommRequestTime = d.decommissioningStatus.getStartTime();
+      long timestamp = d.getLastUpdate();
+      long currentTime = System.currentTimeMillis();
+      long hoursSinceDecommStarted = (currentTime - decommRequestTime)/3600000;
+      long remainderMinutes = ((currentTime - decommRequestTime)/60000) % 60;
+      out.print("<td class=\"lastcontact\"> "
+          + ((currentTime - timestamp) / 1000)
+          + "<td class=\"underreplicatedblocks\">"
+          + d.decommissioningStatus.getUnderReplicatedBlocks()
+          + "<td class=\"blockswithonlydecommissioningreplicas\">"
+          + d.decommissioningStatus.getDecommissionOnlyReplicas() 
+          + "<td class=\"underrepblocksinfilesunderconstruction\">"
+          + d.decommissioningStatus.getUnderReplicatedInOpenFiles()
+          + "<td class=\"timesincedecommissionrequest\">"
+          + hoursSinceDecommStarted + " hrs " + remainderMinutes + " mins"
+          + "\n");
+    }
+    
     void generateNodeData(JspWriter out, DatanodeDescriptor d,
         String suffix, boolean alive, int nnHttpPort) throws IOException {
       /*
@@ -432,7 +532,7 @@ class NamenodeJspHelper {
             }
           }
           out.print("</table>\n");
-        } else {
+        } else if (whatNodes.equals("DEAD")) {
 
           out.print("<br> <a name=\"DeadNodes\" id=\"title\"> "
               + " Dead Datanodes : " + dead.size() + "</a><br><br>\n");
@@ -446,6 +546,35 @@ class NamenodeJspHelper {
               generateNodeData(out, dead.get(i), port_suffix, false, nnHttpPort);
             }
 
+            out.print("</table>\n");
+          }
+        } else if (whatNodes.equals("DECOMMISSIONING")) {
+          // Decommissioning Nodes
+          ArrayList<DatanodeDescriptor> decommissioning = nn.getNamesystem()
+              .getDecommissioningNodes();
+          out.print("<br> <a name=\"DecommissioningNodes\" id=\"title\"> "
+              + " Decommissioning Datanodes : " + decommissioning.size()
+              + "</a><br><br>\n");
+          if (decommissioning.size() > 0) {
+            out.print("<table border=1 cellspacing=0> <tr class=\"headRow\"> "
+                + "<th " + nodeHeaderStr("name") 
+                + "> Node <th " + nodeHeaderStr("lastcontact")
+                + "> Last <br>Contact <th "
+                + nodeHeaderStr("underreplicatedblocks")
+                + "> Under Replicated Blocks <th "
+                + nodeHeaderStr("blockswithonlydecommissioningreplicas")
+                + "> Blocks With No <br> Live Replicas <th "
+                + nodeHeaderStr("underrepblocksinfilesunderconstruction")
+                + "> Under Replicated Blocks <br> In Files Under Construction" 
+                + " <th " + nodeHeaderStr("timesincedecommissionrequest")
+                + "> Time Since Decommissioning Started"
+                );
+
+            JspHelper.sortNodeList(decommissioning, "name", "ASC");
+            for (int i = 0; i < decommissioning.size(); i++) {
+              generateDecommissioningNodeData(out, decommissioning.get(i),
+                  port_suffix, true, nnHttpPort);
+            }
             out.print("</table>\n");
           }
         }

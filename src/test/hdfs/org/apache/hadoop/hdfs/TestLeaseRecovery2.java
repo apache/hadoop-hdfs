@@ -20,6 +20,8 @@ package org.apache.hadoop.hdfs;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
@@ -32,8 +34,6 @@ import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager;
 import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.hdfs.HdfsConfiguration;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Level;
 import org.junit.AfterClass;
@@ -51,17 +51,20 @@ public class TestLeaseRecovery2 {
   static final private int FILE_SIZE = (int)BLOCK_SIZE*2;
   static final short REPLICATION_NUM = (short)3;
   static byte[] buffer = new byte[FILE_SIZE];
+  
+  static private String fakeUsername = "fakeUser1";
+  static private String fakeGroup = "supergroup";
 
   static private MiniDFSCluster cluster;
   static private DistributedFileSystem dfs;
   final static private Configuration conf = new HdfsConfiguration();
   final static private int BUF_SIZE = conf.getInt("io.file.buffer.size", 4096);
- 
+  
   final static private long SHORT_LEASE_PERIOD = 1000L;
   final static private long LONG_LEASE_PERIOD = 60*60*SHORT_LEASE_PERIOD;
- 
+  
   /** start a dfs cluster
-   *
+   * 
    * @throws IOException
    */
   @BeforeClass
@@ -73,7 +76,7 @@ public class TestLeaseRecovery2 {
     cluster.waitActive();
     dfs = (DistributedFileSystem)cluster.getFileSystem();
   }
-
+  
   /**
    * stop the cluster
    * @throws IOException
@@ -83,15 +86,15 @@ public class TestLeaseRecovery2 {
     IOUtils.closeStream(dfs);
     if (cluster != null) {cluster.shutdown();}
   }
-
+  
   /**
    * This test makes the client does not renew its lease and also
    * set the hard lease expiration period to be short 1s. Thus triggering
    * lease expiration to happen while the client is still alive.
-   *
+   * 
    * The test makes sure that the lease recovery completes and the client
    * fails if it continues to write to the file.
-   *
+   * 
    * @throws Exception
    */
   @Test
@@ -112,14 +115,14 @@ public class TestLeaseRecovery2 {
     // hflush file
     AppendTestUtil.LOG.info("hflush");
     stm.hflush();
-
+    
     // kill the lease renewal thread
     AppendTestUtil.LOG.info("leasechecker.interruptAndJoin()");
     dfs.dfs.leasechecker.interruptAndJoin();
 
-    // set the hard limit to be 1 second
+    // set the hard limit to be 1 second 
     cluster.setLeasePeriod(LONG_LEASE_PERIOD, SHORT_LEASE_PERIOD);
-
+    
     // wait for lease recovery to complete
     LocatedBlocks locatedBlocks;
     do {
@@ -136,30 +139,34 @@ public class TestLeaseRecovery2 {
       fail("Writer thread should have been killed");
     } catch (IOException e) {
       e.printStackTrace();
-    }
+    }      
 
     // verify data
     AppendTestUtil.LOG.info(
         "File size is good. Now validating sizes from datanodes...");
     AppendTestUtil.checkFullFile(dfs, filepath, size, buffer, filestr);
   }
-
+  
   /**
    * This test makes the client does not renew its lease and also
    * set the soft lease expiration period to be short 1s. Thus triggering
    * soft lease expiration to happen immediately by having another client
    * trying to create the same file.
-   *
+   * 
    * The test makes sure that the lease recovery completes.
-   *
+   * 
    * @throws Exception
    */
   @Test
   public void testSoftLeaseRecovery() throws Exception {
+    Map<String, String []> u2g_map = new HashMap<String, String []>(1);
+    u2g_map.put(fakeUsername, new String[] {fakeGroup});
+    DFSTestUtil.updateConfWithFakeGroupMapping(conf, u2g_map);
+
     //create a file
     // create a random file name
     String filestr = "/foo" + AppendTestUtil.nextInt();
-    System.out.println("filestr=" + filestr);
+    AppendTestUtil.LOG.info("filestr=" + filestr);
     Path filepath = new Path(filestr);
     FSDataOutputStream stm = dfs.create(filepath, true,
         BUF_SIZE, REPLICATION_NUM, BLOCK_SIZE);
@@ -167,7 +174,7 @@ public class TestLeaseRecovery2 {
 
     // write random number of bytes into it.
     int size = AppendTestUtil.nextInt(FILE_SIZE);
-    System.out.println("size=" + size);
+    AppendTestUtil.LOG.info("size=" + size);
     stm.write(buffer, 0, size);
 
     // hflush file
@@ -183,13 +190,12 @@ public class TestLeaseRecovery2 {
     // try to re-open the file before closing the previous handle. This
     // should fail but will trigger lease recovery.
     {
-      Configuration conf2 = new HdfsConfiguration(conf);
-      String username = UserGroupInformation.getCurrentUGI().getUserName()+"_1";
-      UnixUserGroupInformation.saveToConf(conf2,
-          UnixUserGroupInformation.UGI_PROPERTY_NAME,
-          new UnixUserGroupInformation(username, new String[]{"supergroup"}));
-      FileSystem dfs2 = FileSystem.get(conf2);
-  
+      UserGroupInformation ugi = 
+        UserGroupInformation.createUserForTesting(fakeUsername, 
+            new String [] { fakeGroup});
+
+      FileSystem dfs2 = DFSTestUtil.getFileSystemAs(ugi, conf);
+
       boolean done = false;
       for(int i = 0; i < 10 && !done; i++) {
         AppendTestUtil.LOG.info("i=" + i);
@@ -202,7 +208,8 @@ public class TestLeaseRecovery2 {
             AppendTestUtil.LOG.info("done", ioe);
             done = true;
           }
-          else if (message.contains(AlreadyBeingCreatedException.class.getSimpleName())) {
+          else if (message.contains(
+              AlreadyBeingCreatedException.class.getSimpleName())) {
             AppendTestUtil.LOG.info("GOOD! got " + message);
           }
           else {
@@ -224,7 +231,7 @@ public class TestLeaseRecovery2 {
     // verify that file-size matches
     long fileSize = dfs.getFileStatus(filepath).getLen();
     assertTrue("File should be " + size + " bytes, but is actually " +
-               " found to be " + fileSize + " bytes", fileSize == size);
+        " found to be " + fileSize + " bytes", fileSize == size);
 
     // verify data
     AppendTestUtil.LOG.info("File size is good. " +

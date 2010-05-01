@@ -28,6 +28,8 @@ import java.io.IOException;
 public class SafeModeException extends IOException {
   private static final long serialVersionUID = 1L;
 
+  public SafeModeException() {}
+
   public SafeModeException(String text, FSNamesystem.SafeModeInfo mode ) {
     super(text + ". Name node is in safe mode.\n" + mode.getTurnOffTip());
   }

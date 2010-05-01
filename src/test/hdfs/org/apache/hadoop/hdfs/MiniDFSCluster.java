@@ -22,13 +22,14 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
 
-import javax.security.auth.login.LoginException;
-
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
@@ -36,6 +37,13 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockListAsLongs;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.FSConstants.DatanodeReportType;
+import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
+import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
+import org.apache.hadoop.hdfs.protocol.ClientProtocol;
+import org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol;
+import org.apache.hadoop.security.RefreshUserToGroupMappingsProtocol;
+import org.apache.hadoop.security.authorize.RefreshAuthorizationPolicyProtocol;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
 import static org.apache.hadoop.hdfs.server.common.Util.fileAsURI;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
@@ -45,12 +53,9 @@ import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.tools.DFSAdmin;
-import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.StaticMapping;
-import org.apache.hadoop.security.UnixUserGroupInformation;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -72,7 +77,9 @@ public class MiniDFSCluster {
       this.dnArgs = args;
     }
   }
+  private static final Log LOG = LogFactory.getLog(MiniDFSCluster.class);
 
+  private URI myUri = null;
   private Configuration conf;
   private NameNode nameNode;
   private int numDataNodes;
@@ -244,16 +251,31 @@ public class MiniDFSCluster {
                         String[] racks, String hosts[],
                         long[] simulatedCapacities) throws IOException {
     this.conf = conf;
-    try {
-      UserGroupInformation.setCurrentUser(UnixUserGroupInformation.login(conf));
-    } catch (LoginException e) {
-      IOException ioe = new IOException();
-      ioe.initCause(e);
-      throw ioe;
-    }
     base_dir = new File(getBaseDirectory());
     data_dir = new File(base_dir, "data");
     
+    // use alternate RPC engine if spec'd
+    String rpcEngineName = System.getProperty("hdfs.rpc.engine");
+    if (rpcEngineName != null && !"".equals(rpcEngineName)) {
+      
+      System.out.println("HDFS using RPCEngine: "+rpcEngineName);
+      try {
+        Class<?> rpcEngine = conf.getClassByName(rpcEngineName);
+        setRpcEngine(conf, NamenodeProtocols.class, rpcEngine);
+        setRpcEngine(conf, NamenodeProtocol.class, rpcEngine);
+        setRpcEngine(conf, ClientProtocol.class, rpcEngine);
+        setRpcEngine(conf, DatanodeProtocol.class, rpcEngine);
+        setRpcEngine(conf, RefreshAuthorizationPolicyProtocol.class, rpcEngine);
+        setRpcEngine(conf, RefreshUserToGroupMappingsProtocol.class, rpcEngine);
+      } catch (ClassNotFoundException e) {
+        throw new RuntimeException(e);
+      }
+
+      // disable service authorization, as it does not work with tunnelled RPC
+      conf.setBoolean(CommonConfigurationKeys.HADOOP_SECURITY_AUTHORIZATION,
+                      false);
+    }
+
     // Setup the NameNode configuration
     FileSystem.setDefaultUri(conf, "hdfs://localhost:"+ Integer.toString(nameNodePort));
     conf.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, "127.0.0.1:0");  
@@ -292,6 +314,24 @@ public class MiniDFSCluster {
     startDataNodes(conf, numDataNodes, manageDataDfsDirs, 
                     operation, racks, hosts, simulatedCapacities);
     waitClusterUp();
+    String myUriStr = "hdfs://localhost:"+ Integer.toString(this.getNameNodePort());
+    try {
+      this.myUri = new URI(myUriStr);
+    } catch (URISyntaxException e) {
+      NameNode.LOG.warn("unexpected URISyntaxException: " + e );
+    }
+  }
+  
+  private void setRpcEngine(Configuration conf, Class<?> protocol, Class<?> engine) {
+    conf.setClass("rpc.engine."+protocol.getName(), engine, Object.class);
+  }
+
+  /**
+   * 
+   * @return URI of this MiniDFSCluster
+   */
+  public URI getURI() {
+    return myUri;
   }
 
   /**
@@ -310,7 +350,7 @@ public class MiniDFSCluster {
     if (numDataNodes > 0) {
       while (!isClusterUp()) {
         try {
-          System.err.println("Waiting for the Mini HDFS Cluster to start...");
+          LOG.warn("Waiting for the Mini HDFS Cluster to start...");
           Thread.sleep(1000);
         } catch (InterruptedException e) {
         }
@@ -408,8 +448,9 @@ public class MiniDFSCluster {
           throw new IOException("Mkdirs failed to create directory for DataNode "
                                 + i + ": " + dir1 + " or " + dir2);
         }
-        dnConf.set(DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY,
-                    fileAsURI(dir1) + "," + fileAsURI(dir2));
+        String dirs = fileAsURI(dir1) + "," + fileAsURI(dir2);
+        dnConf.set(DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY, dirs);
+        conf.set(DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY, dirs);
       }
       if (simulatedCapacities != null) {
         dnConf.setBoolean("dfs.datanode.simulateddatastorage", true);
@@ -591,7 +632,7 @@ public class MiniDFSCluster {
    */
   public void shutdownDataNodes() {
     for (int i = dataNodes.size()-1; i >= 0; i--) {
-      System.out.println("Shutting down DataNode " + i);
+      LOG.info("Shutting down DataNode " + i);
       DataNode dn = dataNodes.remove(i).datanode;
       dn.shutdown();
       numDataNodes--;
@@ -808,6 +849,28 @@ public class MiniDFSCluster {
    */
   public FileSystem getFileSystem() throws IOException {
     return FileSystem.get(conf);
+  }
+  
+
+  /**
+   * Get another FileSystem instance that is different from FileSystem.get(conf).
+   * This simulating different threads working on different FileSystem instances.
+   */
+  public FileSystem getNewFileSystemInstance() throws IOException {
+    return FileSystem.newInstance(conf);
+  }
+  
+  /**
+   * @return a {@link HftpFileSystem} object.
+   */
+  public HftpFileSystem getHftpFileSystem() throws IOException {
+    final String str = "hftp://"
+        + conf.get(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY);
+    try {
+      return (HftpFileSystem)FileSystem.get(new URI(str), conf); 
+    } catch (URISyntaxException e) {
+      throw new IOException(e);
+    }
   }
 
   /**

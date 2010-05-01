@@ -47,6 +47,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
@@ -66,8 +67,9 @@ import org.apache.hadoop.hdfs.server.protocol.CheckpointCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 
 /**
  * FSImage handles checkpointing and logging of the namespace edits.
@@ -149,7 +151,7 @@ public class FSImage extends Storage {
    * Used for saving the image to disk
    */
   static private final FsPermission FILE_PERM = new FsPermission((short)0);
-  static private final byte[] PATH_SEPARATOR = INode.string2Bytes(Path.SEPARATOR);
+  static private final byte[] PATH_SEPARATOR = DFSUtil.string2Bytes(Path.SEPARATOR);
 
   /**
    */
@@ -360,9 +362,9 @@ public class FSImage extends Storage {
    * @return true if the image needs to be saved or false otherwise
    */
   boolean recoverTransitionRead(Collection<URI> dataDirs,
-                                 Collection<URI> editsDirs,
-                                StartupOption startOpt
-                                ) throws IOException {
+                                Collection<URI> editsDirs,
+                                StartupOption startOpt)
+      throws IOException {
     assert startOpt != StartupOption.FORMAT : 
       "NameNode formatting should be performed before reading the image";
     
@@ -887,6 +889,14 @@ public class FSImage extends Storage {
    * Choose latest image from one of the directories,
    * load it and merge with the edits from that directory.
    * 
+   * Saving and loading fsimage should never trigger symlink resolution. 
+   * The paths that are persisted do not have *intermediate* symlinks 
+   * because intermediate symlinks are resolved at the time files, 
+   * directories, and symlinks are created. All paths accessed while 
+   * loading or saving fsimage should therefore only see symlinks as 
+   * the final path component, and the functions called below do not
+   * resolve symlinks that are the final path component.
+   *
    * @return whether the image should be saved
    * @throws IOException
    */
@@ -1113,18 +1123,25 @@ public class FSImage extends Storage {
         
         // get quota only when the node is a directory
         long nsQuota = -1L;
-        if (imgVersion <= -16 && blocks == null) {
+        if (imgVersion <= -16 && blocks == null  && numBlocks == -1) {
           nsQuota = in.readLong();
         }
         long dsQuota = -1L;
-        if (imgVersion <= -18 && blocks == null) {
+        if (imgVersion <= -18 && blocks == null && numBlocks == -1) {
           dsQuota = in.readLong();
+        }
+
+        // Read the symlink only when the node is a symlink
+        String symlink = "";
+        if (imgVersion <= -23 && numBlocks == -2) {
+          symlink = Text.readString(in);
         }
         
         PermissionStatus permissions = fsNamesys.getUpgradePermission();
         if (imgVersion <= -11) {
           permissions = PermissionStatus.read(in);
         }
+        
         if (path.length() == 0) { // it is the root
           // update the root's attributes
           if (nsQuota != -1 || dsQuota != -1) {
@@ -1141,7 +1158,7 @@ public class FSImage extends Storage {
         }
         // add new inode
         parentINode = fsDir.addToParent(path, parentINode, permissions,
-                                        blocks, replication, modificationTime, 
+                                        blocks, symlink, replication, modificationTime, 
                                         atime, nsQuota, dsQuota, blockSize);
       }
       
@@ -1150,6 +1167,8 @@ public class FSImage extends Storage {
 
       // load Files Under Construction
       this.loadFilesUnderConstruction(imgVersion, in, fsNamesys);
+      
+      this.loadSecretManagerState(imgVersion, in, fsNamesys);
       
     } finally {
       in.close();
@@ -1224,6 +1243,7 @@ public class FSImage extends Storage {
       // save the rest of the nodes
       saveImage(strbuf, 0, fsDir.rootDir, out);
       fsNamesys.saveFilesUnderConstruction(out);
+      fsNamesys.saveSecretManagerState(out);
       strbuf = null;
     } finally {
       out.close();
@@ -1369,7 +1389,7 @@ public class FSImage extends Storage {
     // remove previous.checkpoint
     if (prevCkptDir.exists())
       deleteDir(prevCkptDir);
-    // rename lastcheckpoint.tmp -> previous.checkpoint
+    // mv lastcheckpoint.tmp -> previous.checkpoint
     if(tmpCkptDir.exists())
       rename(tmpCkptDir, prevCkptDir);
   }
@@ -1430,7 +1450,30 @@ public class FSImage extends Storage {
     int nameLen = name.position();
     out.writeShort(nameLen);
     out.write(name.array(), name.arrayOffset(), nameLen);
-    if (!node.isDirectory()) {  // write file inode
+    if (node.isDirectory()) {
+      out.writeShort(0);  // replication
+      out.writeLong(node.getModificationTime());
+      out.writeLong(0);   // access time
+      out.writeLong(0);   // preferred block size
+      out.writeInt(-1);   // # of blocks
+      out.writeLong(node.getNsQuota());
+      out.writeLong(node.getDsQuota());
+      FILE_PERM.fromShort(node.getFsPermissionShort());
+      PermissionStatus.write(out, node.getUserName(),
+                             node.getGroupName(),
+                             FILE_PERM);
+    } else if (node.isLink()) {
+      out.writeShort(0);  // replication
+      out.writeLong(0);   // modification time
+      out.writeLong(0);   // access time
+      out.writeLong(0);   // preferred block size
+      out.writeInt(-2);   // # of blocks
+      Text.writeString(out, ((INodeSymlink)node).getLinkValue());
+      FILE_PERM.fromShort(node.getFsPermissionShort());
+      PermissionStatus.write(out, node.getUserName(),
+                             node.getGroupName(),
+                             FILE_PERM);      
+    } else {
       INodeFile fileINode = (INodeFile)node;
       out.writeShort(fileINode.getReplication());
       out.writeLong(fileINode.getModificationTime());
@@ -1444,20 +1487,9 @@ public class FSImage extends Storage {
       PermissionStatus.write(out, fileINode.getUserName(),
                              fileINode.getGroupName(),
                              FILE_PERM);
-    } else {   // write directory inode
-      out.writeShort(0);  // replication
-      out.writeLong(node.getModificationTime());
-      out.writeLong(0);   // access time
-      out.writeLong(0);   // preferred block size
-      out.writeInt(-1);    // # of blocks
-      out.writeLong(node.getNsQuota());
-      out.writeLong(node.getDsQuota());
-      FILE_PERM.fromShort(node.getFsPermissionShort());
-      PermissionStatus.write(out, node.getUserName(),
-                             node.getGroupName(),
-                             FILE_PERM);
     }
   }
+  
   /**
    * Save file tree image starting from the given root.
    * This is a recursive procedure, which first saves all children of
@@ -1502,8 +1534,7 @@ public class FSImage extends Storage {
   }
 
   private void loadFilesUnderConstruction(int version, DataInputStream in, 
-                                  FSNamesystem fs) throws IOException {
-
+      FSNamesystem fs) throws IOException {
     FSDirectory fsDir = fs.dir;
     if (version > -13) // pre lease image version
       return;
@@ -1529,6 +1560,16 @@ public class FSImage extends Storage {
     }
   }
 
+  private void loadSecretManagerState(int version,  DataInputStream in, 
+      FSNamesystem fs) throws IOException {
+    if (version > -23) {
+      //SecretManagerState is not available.
+      //This must not happen if security is turned on.
+      return; 
+    }
+    fs.loadSecretManagerState(in);
+  }
+  
   // Helper function that reads in an INodeUnderConstruction
   // from the input stream
   //

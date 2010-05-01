@@ -22,10 +22,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.UnresolvedPathException;
 
 /**
  * Directory INode class.
@@ -95,7 +98,7 @@ class INodeDirectory extends INode {
   }
   
   INode getChild(String name) {
-    return getChildINode(string2Bytes(name));
+    return getChildINode(DFSUtil.string2Bytes(name));
   }
 
   private INode getChildINode(byte[] name) {
@@ -110,18 +113,22 @@ class INodeDirectory extends INode {
   }
 
   /**
+   * Return the INode of the last component in components, or null if the last
+   * component does not exist.
    */
-  private INode getNode(byte[][] components) {
+  private INode getNode(byte[][] components, boolean resolveLink) 
+    throws UnresolvedLinkException {
     INode[] inode  = new INode[1];
-    getExistingPathINodes(components, inode);
+    getExistingPathINodes(components, inode, resolveLink);
     return inode[0];
   }
 
   /**
    * This is the external interface
    */
-  INode getNode(String path) {
-    return getNode(getPathComponents(path));
+  INode getNode(String path, boolean resolveLink) 
+    throws UnresolvedLinkException {
+    return getNode(getPathComponents(path), resolveLink);
   }
 
   /**
@@ -130,7 +137,12 @@ class INodeDirectory extends INode {
    * will be stored starting from the root INode into existing[0]; if
    * existing is not big enough to store all path components, then only the
    * last existing and non existing INodes will be stored so that
-   * existing[existing.length-1] refers to the target INode.
+   * existing[existing.length-1] refers to the INode of the final component.
+   * 
+   * An UnresolvedPathException is always thrown when an intermediate path 
+   * component refers to a symbolic link. If the final path component refers 
+   * to a symbolic link then an UnresolvedPathException is only thrown if
+   * resolveLink is true.  
    * 
    * <p>
    * Example: <br>
@@ -154,29 +166,49 @@ class INodeDirectory extends INode {
    * the array with [rootINode,c1,c2,null], <br>
    * <code>getExistingPathINodes(["","c1","c2","c3"], [?,?,?,?])</code> should
    * fill the array with [rootINode,c1,c2,null]
+   * 
    * @param components array of path component name
-   * @param existing INode array to fill with existing INodes
+   * @param existing array to fill with existing INodes
+   * @param resolveLink indicates whether UnresolvedLinkException should
+   *        be thrown when the path refers to a symbolic link.
    * @return number of existing INodes in the path
    */
-  int getExistingPathINodes(byte[][] components, INode[] existing) {
+  int getExistingPathINodes(byte[][] components, INode[] existing, 
+      boolean resolveLink) throws UnresolvedLinkException {
     assert compareBytes(this.name, components[0]) == 0 :
       "Incorrect name " + getLocalName() + " expected " + 
-      bytes2String(components[0]);
+      DFSUtil.bytes2String(components[0]);
 
     INode curNode = this;
     int count = 0;
     int index = existing.length - components.length;
-    if (index > 0)
+    if (index > 0) {
       index = 0;
-    while ((count < components.length) && (curNode != null)) {
-      if (index >= 0)
+    }
+    while (count < components.length && curNode != null) {
+      final boolean lastComp = (count == components.length - 1);      
+      if (index >= 0) {
         existing[index] = curNode;
-      if (!curNode.isDirectory() || (count == components.length - 1))
-        break; // no more child, stop here
+      }
+      if (curNode.isLink() && (!lastComp || (lastComp && resolveLink))) {
+        NameNode.stateChangeLog.debug("UnresolvedPathException " +
+           " count: " + count +
+           " componenent: " + DFSUtil.bytes2String(components[count]) +
+           " full path: " + constructPath(components, 0) +
+           " remaining path: " + constructPath(components, count+1) +
+           " symlink: " + ((INodeSymlink)curNode).getLinkValue());
+        final String linkTarget = ((INodeSymlink)curNode).getLinkValue();
+        throw new UnresolvedPathException(constructPath(components, 0),
+                                          constructPath(components, count+1),
+                                          linkTarget);
+      }
+      if (lastComp || !curNode.isDirectory()) {
+        break;
+      }
       INodeDirectory parentDir = (INodeDirectory)curNode;
       curNode = parentDir.getChildINode(components[count + 1]);
-      count += 1;
-      index += 1;
+      count++;
+      index++;
     }
     return count;
   }
@@ -186,6 +218,8 @@ class INodeDirectory extends INode {
    * always exist and is this INode.
    * 
    * @param path the path to explore
+   * @param resolveLink indicates whether UnresolvedLinkException should 
+   *        be thrown when the path refers to a symbolic link.
    * @return INodes array containing the existing INodes in the order they
    *         appear when following the path from the root INode to the
    *         deepest INodes. The array size will be the number of expected
@@ -194,13 +228,31 @@ class INodeDirectory extends INode {
    *         
    * @see #getExistingPathINodes(byte[][], INode[])
    */
-  INode[] getExistingPathINodes(String path) {
+  INode[] getExistingPathINodes(String path, boolean resolveLink) 
+    throws UnresolvedLinkException {
     byte[][] components = getPathComponents(path);
     INode[] inodes = new INode[components.length];
 
-    this.getExistingPathINodes(components, inodes);
+    this.getExistingPathINodes(components, inodes, resolveLink);
     
     return inodes;
+  }
+
+  /**
+   * Given a child's name, return the index of the next child
+   *
+   * @param name a child's name
+   * @return the index of the next child
+   */
+  int nextChild(byte[] name) {
+    if (name.length == 0) { // empty name
+      return 0;
+    }
+    int nextPos = Collections.binarySearch(children, name) + 1;
+    if (nextPos >= 0) {
+      return nextPos;
+    }
+    return -nextPos;
   }
 
   /**
@@ -242,7 +294,8 @@ class INodeDirectory extends INode {
    * Equivalent to addNode(path, newNode, false).
    * @see #addNode(String, INode, boolean)
    */
-  <T extends INode> T addNode(String path, T newNode) throws FileNotFoundException {
+  <T extends INode> T addNode(String path, T newNode) 
+    throws FileNotFoundException, UnresolvedLinkException {
     return addNode(path, newNode, false);
   }
   /**
@@ -254,10 +307,11 @@ class INodeDirectory extends INode {
    * @param inheritPermission If true, copy the parent's permission to newNode.
    * @return null if the node already exists; inserted INode, otherwise
    * @throws FileNotFoundException if parent does not exist or 
+   * @throws UnresolvedLinkException if any path component is a symbolic link
    * is not a directory.
    */
   <T extends INode> T addNode(String path, T newNode, boolean inheritPermission
-      ) throws FileNotFoundException {
+      ) throws FileNotFoundException, UnresolvedLinkException  {
     if(addToParent(path, newNode, null, inheritPermission) == null)
       return null;
     return newNode;
@@ -277,7 +331,8 @@ class INodeDirectory extends INode {
                                       T newNode,
                                       INodeDirectory parent,
                                       boolean inheritPermission
-                                    ) throws FileNotFoundException {
+                                    ) throws FileNotFoundException, 
+                                             UnresolvedLinkException {
     byte[][] pathComponents = getPathComponents(path);
     assert pathComponents != null : "Incorrect path " + path;
     int pathLen = pathComponents.length;
@@ -286,7 +341,7 @@ class INodeDirectory extends INode {
     if(parent == null) {
       // Gets the parent INode
       INode[] inodes  = new INode[2];
-      getExistingPathINodes(pathComponents, inodes);
+      getExistingPathINodes(pathComponents, inodes, false);
       INode inode = inodes[0];
       if (inode == null) {
         throw new FileNotFoundException("Parent path does not exist: "+path);

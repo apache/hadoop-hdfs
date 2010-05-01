@@ -41,6 +41,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.ServletException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -50,6 +51,7 @@ import org.apache.hadoop.fs.FSInputStream;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.util.HostsFileReader;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 
@@ -64,7 +66,7 @@ public class ProxyUtil {
   // warning
 
   private static enum UtilityOption {
-    RELOAD("-reloadPermFiles"), CLEAR("-clearUgiCache"), GET("-get"), CHECKCERTS(
+    RELOAD("-reloadPermFiles"), GET("-get"), CHECKCERTS(
         "-checkcerts");
 
     private String name = null;
@@ -189,7 +191,7 @@ public class ProxyUtil {
         connection = openConnection(hostname, sslPort, path);
         connection.connect();
         if (LOG.isDebugEnabled()) {
-          StringBuffer sb = new StringBuffer();
+          StringBuilder sb = new StringBuilder();
           X509Certificate[] clientCerts = (X509Certificate[]) connection
               .getLocalCertificates();
           if (clientCerts != null) {
@@ -279,7 +281,7 @@ public class ProxyUtil {
     long curTime = curDate.getTime();
     if (serverCerts != null) {
       for (X509Certificate cert : serverCerts) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("\n Server certificate Subject Name: "
             + cert.getSubjectX500Principal().getName());
         Date expDate = cert.getNotAfter();
@@ -303,13 +305,12 @@ public class ProxyUtil {
   public static void main(String[] args) throws Exception {
     if (args.length < 1
         || (!UtilityOption.RELOAD.getName().equalsIgnoreCase(args[0])
-            && !UtilityOption.CLEAR.getName().equalsIgnoreCase(args[0])
             && !UtilityOption.GET.getName().equalsIgnoreCase(args[0]) && !UtilityOption.CHECKCERTS
             .getName().equalsIgnoreCase(args[0]))
         || (UtilityOption.GET.getName().equalsIgnoreCase(args[0]) && args.length != 4)
         || (UtilityOption.CHECKCERTS.getName().equalsIgnoreCase(args[0]) && args.length != 3)) {
       System.err.println("Usage: ProxyUtil [" + UtilityOption.RELOAD.getName()
-          + "] | [" + UtilityOption.CLEAR.getName() + "] | ["
+          + "] | ["
           + UtilityOption.GET.getName() + " <hostname> <#port> <path> ] | ["
           + UtilityOption.CHECKCERTS.getName() + " <hostname> <#port> ]");
       System.exit(0);
@@ -321,9 +322,6 @@ public class ProxyUtil {
     if (UtilityOption.RELOAD.getName().equalsIgnoreCase(args[0])) {
       // reload user-certs.xml and user-permissions.xml files
       sendCommand(conf, "/reloadPermFiles");
-    } else if (UtilityOption.CLEAR.getName().equalsIgnoreCase(args[0])) {
-      // clear UGI caches
-      sendCommand(conf, "/clearUgiCache");
     } else if (UtilityOption.CHECKCERTS.getName().equalsIgnoreCase(args[0])) {
       checkServerCertsExpirationDays(conf, args[1], Integer.parseInt(args[2]));
     } else {
@@ -335,5 +333,26 @@ public class ProxyUtil {
       in.close();
     }
   }
+
+  public static String getNamenode(Configuration conf)
+      throws ServletException {
+    String namenode = conf.get("fs.default.name");
+    if (namenode == null) {
+      throw new
+          ServletException("Proxy source cluster name node address missing");
+    }
+    return namenode;
+  }
+
+  public static UserGroupInformation getProxyUGIFor(String userID) {
+    try {
+      return UserGroupInformation.
+          createProxyUser(userID, UserGroupInformation.getLoginUser());
+    } catch (IOException e) {
+      throw new
+          RuntimeException("Unable get current logged in user", e);
+    }
+  }
+
 
 }

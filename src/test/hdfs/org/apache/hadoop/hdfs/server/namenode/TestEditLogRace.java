@@ -40,7 +40,6 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSImage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.FSImage.NameNodeFile;
-import org.apache.hadoop.security.UserGroupInformation;
 
 import static org.junit.Assert.*;
 import org.junit.Test;
@@ -112,8 +111,6 @@ public class TestEditLogRace {
       int i = 0;
       while (!stopped) {
         try {
-          UserGroupInformation.setCurrentUser(
-              UserGroupInformation.login(new HdfsConfiguration()));
           String dirname = "/thr-" + thr.getId() + "-dir-" + i; 
           namesystem.mkdirs(dirname, p, true);
           namesystem.delete(dirname, true);

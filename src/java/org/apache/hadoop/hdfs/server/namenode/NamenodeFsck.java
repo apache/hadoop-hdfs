@@ -33,16 +33,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.BlockReader;
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
+import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.NodeBase;
+import org.apache.hadoop.security.AccessControlException;
 
 /**
  * This class provides rudimentary checking of DFS volumes for errors and
@@ -82,7 +86,7 @@ public class NamenodeFsck {
   /** Delete corrupted files. */
   public static final int FIXING_DELETE = 2;
   
-  private final ClientProtocol namenode;
+  private final NameNode namenode;
   private final NetworkTopology networktopology;
   private final int totalDatanodes;
   private final short minReplication;
@@ -95,6 +99,7 @@ public class NamenodeFsck {
   private boolean showBlocks = false;
   private boolean showLocations = false;
   private boolean showRacks = false;
+  private boolean showCorruptFiles = false;
   private int fixing = FIXING_NONE;
   private String path = "/";
   
@@ -109,7 +114,7 @@ public class NamenodeFsck {
    * @param response the object into which  this servelet writes the url contents
    * @throws IOException
    */
-  NamenodeFsck(Configuration conf, ClientProtocol namenode,
+  NamenodeFsck(Configuration conf, NameNode namenode,
       NetworkTopology networktopology, 
       Map<String,String[]> pmap, PrintWriter out,
       int totalDatanodes, short minReplication) {
@@ -130,6 +135,7 @@ public class NamenodeFsck {
       else if (key.equals("locations")) { this.showLocations = true; }
       else if (key.equals("racks")) { this.showRacks = true; }
       else if (key.equals("openforwrite")) {this.showOpenFiles = true; }
+      else if (key.equals("corruptfiles")) {this.showCorruptFiles = true; }
     }
   }
   
@@ -138,58 +144,122 @@ public class NamenodeFsck {
    */
   public void fsck() {
     try {
-      Result res = new Result(conf);
 
-      final FileStatus[] files = namenode.getListing(path);
-      if (files != null) {
-        for (int i = 0; i < files.length; i++) {
-          check(files[i], res);
+      final HdfsFileStatus file = namenode.getFileInfo(path);
+      if (file != null) {
+
+        if (showCorruptFiles) {
+          listCorruptFiles();
+          return;
         }
+        
+        Result res = new Result(conf);
+
+        check(path, file, res);
+
         out.println(res);
         out.println(" Number of data-nodes:\t\t" + totalDatanodes);
         out.println(" Number of racks:\t\t" + networktopology.getNumOfRacks());
 
         // DFSck client scans for the string HEALTHY/CORRUPT to check the status
-        // of file system and return appropriate code. Changing the output string
-        // might break testcases. 
+        // of file system and return appropriate code. Changing the output
+        // string might break testcases.
         if (res.isHealthy()) {
           out.print("\n\nThe filesystem under path '" + path + "' " + HEALTHY_STATUS);
-        }  else {
+        } else {
           out.print("\n\nThe filesystem under path '" + path + "' " + CORRUPT_STATUS);
         }
+
       } else {
         out.print("\n\nPath '" + path + "' " + NONEXISTENT_STATUS);
       }
+
     } catch (Exception e) {
       String errMsg = "Fsck on path '" + path + "' " + FAILURE_STATUS;
       LOG.warn(errMsg, e);
       out.println(e.getMessage());
-      out.print("\n\n"+errMsg);
+      out.print("\n\n" + errMsg);
     } finally {
       out.close();
     }
   }
+ 
+  static String buildSummaryResultForListCorruptFiles(int corruptFilesCount,
+      String pathName) {
+
+    String summary = "";
+
+    if (corruptFilesCount == 0) {
+      summary = "Unable to locate any corrupt files under '" + pathName
+          + "'.\n\nPlease run a complete fsck to confirm if '" + pathName
+          + "' " + HEALTHY_STATUS;
+    } else if (corruptFilesCount == 1) {
+      summary = "There is at least 1 corrupt file under '" + pathName
+          + "', which " + CORRUPT_STATUS;
+    } else if (corruptFilesCount > 1) {
+      summary = "There are at least " + corruptFilesCount
+          + " corrupt files under '" + pathName + "', which " + CORRUPT_STATUS;
+    } else {
+      throw new IllegalArgumentException("corruptFilesCount must be positive");
+    }
+
+    return summary;
+  }
+
+  private void listCorruptFiles() throws AccessControlException, IOException {
+    int matchedCorruptFilesCount = 0;
+    // directory representation of path
+    String pathdir = path.endsWith(Path.SEPARATOR) ? path : path + Path.SEPARATOR;
+    FileStatus[] corruptFileStatuses = namenode.getCorruptFiles();
+
+    for (FileStatus fileStatus : corruptFileStatuses) {
+      String currentPath = fileStatus.getPath().toString();
+      if (currentPath.startsWith(pathdir) || currentPath.equals(path)) {
+        matchedCorruptFilesCount++;
+        
+        // print the header before listing first item
+        if (matchedCorruptFilesCount == 1 ) {
+          out.println("Here are a few files that may be corrupted:");
+          out.println("===========================================");
+        }
+        
+        out.println(currentPath);
+      }
+    }
+
+    out.println();
+    out.println(buildSummaryResultForListCorruptFiles(matchedCorruptFilesCount,
+        path));
+
+  }
   
-  private void check(FileStatus file, Result res) throws IOException {
-    String path = file.getPath().toString();
+  private void check(String parent, HdfsFileStatus file, Result res) throws IOException {
+    String path = file.getFullName(parent);
     boolean isOpen = false;
 
     if (file.isDir()) {
-      final FileStatus[] files = namenode.getListing(path);
-      if (files == null) {
-        return;
-      }
+      byte[] lastReturnedName = HdfsFileStatus.EMPTY_NAME;
+      DirectoryListing thisListing;
       if (showFiles) {
         out.println(path + " <dir>");
       }
       res.totalDirs++;
-      for (int i = 0; i < files.length; i++) {
-        check(files[i], res);
-      }
+      do {
+        assert lastReturnedName != null;
+        thisListing = namenode.getListing(path, lastReturnedName);
+        if (thisListing == null) {
+          return;
+        }
+        HdfsFileStatus[] files = thisListing.getPartialListing();
+        for (int i = 0; i < files.length; i++) {
+          check(path, files[i], res);
+        }
+        lastReturnedName = thisListing.getLastName();
+      } while (thisListing.hasMore());
       return;
     }
     long fileLen = file.getLen();
-    LocatedBlocks blocks = namenode.getBlockLocations(path, 0, fileLen);
+    LocatedBlocks blocks = namenode.getBlockLocationsNoATime(path, 0, fileLen);
     if (blocks == null) { // the file is deleted
       return;
     }
@@ -219,7 +289,7 @@ public class NamenodeFsck {
     long missize = 0;
     int underReplicatedPerFile = 0;
     int misReplicatedPerFile = 0;
-    StringBuffer report = new StringBuffer();
+    StringBuilder report = new StringBuilder();
     int i = 0;
     for (LocatedBlock lBlk : blocks.getLocatedBlocks()) {
       Block block = lBlk.getBlock();
@@ -277,7 +347,7 @@ public class NamenodeFsck {
       } else {
         report.append(" repl=" + locs.length);
         if (showLocations || showRacks) {
-          StringBuffer sb = new StringBuffer("[");
+          StringBuilder sb = new StringBuilder("[");
           for (int j = 0; j < locs.length; j++) {
             if (j > 0) { sb.append(", "); }
             if (showRacks)
@@ -303,7 +373,7 @@ public class NamenodeFsck {
         break;
       case FIXING_MOVE:
         if (!isOpen)
-          lostFoundMove(file, blocks);
+          lostFoundMove(parent, file, blocks);
         break;
       case FIXING_DELETE:
         if (!isOpen)
@@ -322,7 +392,7 @@ public class NamenodeFsck {
     }
   }
   
-  private void lostFoundMove(FileStatus file, LocatedBlocks blocks)
+  private void lostFoundMove(String parent, HdfsFileStatus file, LocatedBlocks blocks)
     throws IOException {
     final DFSClient dfs = new DFSClient(NameNode.getAddress(conf), conf);
     try {
@@ -332,8 +402,9 @@ public class NamenodeFsck {
     if (!lfInitedOk) {
       return;
     }
-    String target = lostFound + file.getPath();
-    String errmsg = "Failed to move " + file.getPath() + " to /lost+found";
+    String fullName = file.getFullName(parent);
+    String target = lostFound + fullName;
+    String errmsg = "Failed to move " + fullName + " to /lost+found";
     try {
       if (!namenode.mkdirs(target, file.getPermission(), true)) {
         LOG.warn(errmsg);
@@ -377,8 +448,8 @@ public class NamenodeFsck {
         }
       }
       if (fos != null) fos.close();
-      LOG.warn("\n - moved corrupted file " + file.getPath() + " to /lost+found");
-      dfs.delete(file.getPath().toString(), true);
+      LOG.warn("\n - moved corrupted file " + fullName + " to /lost+found");
+      dfs.delete(fullName, true);
     }  catch (Exception e) {
       e.printStackTrace();
       LOG.warn(errmsg + ": " + e.getMessage());
@@ -399,7 +470,7 @@ public class NamenodeFsck {
     InetSocketAddress targetAddr = null;
     TreeSet<DatanodeInfo> deadNodes = new TreeSet<DatanodeInfo>();
     Socket s = null;
-    DFSClient.BlockReader blockReader = null; 
+    BlockReader blockReader = null; 
     Block block = lblock.getBlock(); 
 
     while (s == null) {
@@ -427,7 +498,7 @@ public class NamenodeFsck {
         s.setSoTimeout(HdfsConstants.READ_TIMEOUT);
         
         blockReader = 
-          DFSClient.BlockReader.newBlockReader(s, targetAddr.toString() + ":" + 
+          BlockReader.newBlockReader(s, targetAddr.toString() + ":" + 
                                                block.getBlockId(), 
                                                block.getBlockId(), 
                                                lblock.getAccessToken(),
@@ -499,7 +570,7 @@ public class NamenodeFsck {
     try {
       String lfName = "/lost+found";
       
-      final FileStatus lfStatus = dfs.getFileInfo(lfName);
+      final HdfsFileStatus lfStatus = dfs.getFileInfo(lfName);
       if (lfStatus == null) { // not exists
         lfInitedOk = dfs.mkdirs(lfName, null, true);
         lostFound = lfName;
@@ -571,7 +642,7 @@ public class NamenodeFsck {
     
     /** {@inheritDoc} */
     public String toString() {
-      StringBuffer res = new StringBuffer();
+      StringBuilder res = new StringBuilder();
       res.append("Status: " + (isHealthy() ? "HEALTHY" : "CORRUPT"));
       res.append("\n Total size:\t" + totalSize + " B");
       if (totalOpenFilesSize != 0) 

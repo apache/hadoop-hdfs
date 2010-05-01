@@ -25,14 +25,11 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
 
-import javax.security.auth.login.LoginException;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hdfs.server.namenode.NamenodeFsck;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -72,23 +69,24 @@ public class DFSck extends Configured implements Tool {
   /**
    * Filesystem checker.
    * @param conf current Configuration
-   * @throws LoginException if login failed 
    */
-  public DFSck(Configuration conf) throws LoginException {
+  public DFSck(Configuration conf) throws IOException {
     super(conf);
-    this.ugi = UnixUserGroupInformation.login(conf, true);
+    this.ugi = UserGroupInformation.getCurrentUser();
   }
 
   /**
    * Print fsck usage information
    */
   static void printUsage() {
-    System.err.println("Usage: DFSck <path> [-move | -delete | -openforwrite] [-files [-blocks [-locations | -racks]]]");
+    System.err.println("Usage: DFSck <path> [-list-corruptfiles | [-move | -delete | -openforwrite ] [-files [-blocks [-locations | -racks]]]] ");
     System.err.println("\t<path>\tstart checking from this path");
     System.err.println("\t-move\tmove corrupted files to /lost+found");
     System.err.println("\t-delete\tdelete corrupted files");
     System.err.println("\t-files\tprint out files being checked");
     System.err.println("\t-openforwrite\tprint out files opened for write");
+    System.err.println("\t-list-corruptfiles\tprint out corrupt files up to a "+
+        "maximum defined by property dfs.corruptfilesreturned.max");
     System.err.println("\t-blocks\tprint out block report");
     System.err.println("\t-locations\tprint out locations for every block");
     System.err.println("\t-racks\tprint out network topology for data-node locations");
@@ -107,10 +105,10 @@ public class DFSck extends Configured implements Tool {
       return -1;
     }
 
-    final StringBuffer url = new StringBuffer("http://");
+    final StringBuilder url = new StringBuilder("http://");
     url.append(getConf().get(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, 
                              DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_DEFAULT));
-    url.append("/fsck?ugi=").append(ugi).append("&path=");
+    url.append("/fsck?ugi=").append(ugi.getShortUserName()).append("&path=");
 
     String dir = "/";
     // find top-level dir first
@@ -123,6 +121,7 @@ public class DFSck extends Configured implements Tool {
       else if (args[idx].equals("-delete")) { url.append("&delete=1"); }
       else if (args[idx].equals("-files")) { url.append("&files=1"); }
       else if (args[idx].equals("-openforwrite")) { url.append("&openforwrite=1"); }
+      else if (args[idx].equals("-list-corruptfiles")) { url.append("&corruptfiles=1"); }
       else if (args[idx].equals("-blocks")) { url.append("&blocks=1"); }
       else if (args[idx].equals("-locations")) { url.append("&locations=1"); }
       else if (args[idx].equals("-racks")) { url.append("&racks=1"); }

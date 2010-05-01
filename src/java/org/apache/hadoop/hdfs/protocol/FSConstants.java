@@ -17,7 +17,6 @@
  */
 package org.apache.hadoop.hdfs.protocol;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 
 /************************************
@@ -28,7 +27,7 @@ public interface FSConstants {
   public static int MIN_BLOCKS_FOR_WRITE = 5;
 
   // Chunk the block Invalidate message
-  public static final int BLOCK_INVALIDATE_CHUNK = 100;
+  public static final int BLOCK_INVALIDATE_CHUNK = 1000;
 
   // Long that indicates "leave current quota unchanged"
   public static final long QUOTA_DONT_SET = Long.MAX_VALUE;
@@ -91,9 +90,8 @@ public interface FSConstants {
   // Version is reflected in the data storage file.
   // Versions are negative.
   // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -20;
+  public static final int LAYOUT_VERSION = -24;
   // Current version: 
-  // -20: DataNode adds a "rbw" sub directory to data directory
-  //      current dir contains "finalized" subdir for finalized replicas
-  //      and "rbw" subdir for replicas being written to.
+  // -24: added new OP_[GET|RENEW|CANCEL]_DELEGATION_TOKEN and
+  // OP_UPDATE_MASTER_KEY.
 }

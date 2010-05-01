@@ -18,8 +18,13 @@
 
 package org.apache.hadoop.hdfs;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
 
 public class DFSUtil {
   /**
@@ -76,6 +81,45 @@ public class DFSUtil {
       simulation[index] = false;
     }
   }
+  
+  /**
+   * If a keytab has been provided, login as that user.
+   */
+  public static void login(final Configuration conf,
+                           final String keytabFileKey,
+                           final String userNameKey)
+                           throws IOException {
+    String keytabFilename = conf.get(keytabFileKey);
+    
+    if(keytabFilename == null)
+      return;
+    
+    String user = conf.get(userNameKey, System.getProperty("user.name"));
+    UserGroupInformation.loginUserFromKeytab(user, keytabFilename);
+  }
 
+  /**
+   * Converts a byte array to a string using UTF8 encoding.
+   */
+  public static String bytes2String(byte[] bytes) {
+    try {
+      return new String(bytes, "UTF8");
+    } catch(UnsupportedEncodingException e) {
+      assert false : "UTF8 encoding is not supported ";
+    }
+    return null;
+  }
+
+  /**
+   * Converts a string to a byte array using UTF8 encoding.
+   */
+  public static byte[] string2Bytes(String str) {
+    try {
+      return str.getBytes("UTF8");
+    } catch(UnsupportedEncodingException e) {
+      assert false : "UTF8 encoding is not supported ";
+    }
+    return null;
+  }
 }
 

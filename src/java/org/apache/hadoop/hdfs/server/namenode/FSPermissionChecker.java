@@ -17,25 +17,66 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Stack;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.security.PermissionChecker;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /** Perform permission checking in {@link FSNamesystem}. */
-class FSPermissionChecker extends PermissionChecker {
+class FSPermissionChecker {
   static final Log LOG = LogFactory.getLog(UserGroupInformation.class);
 
+  private final UserGroupInformation ugi;
+  public final String user;
+  private final Set<String> groups = new HashSet<String>();
+  public final boolean isSuper;
+  
   FSPermissionChecker(String fsOwner, String supergroup
       ) throws AccessControlException{
-    super(fsOwner, supergroup);
+    try {
+      ugi = UserGroupInformation.getCurrentUser();
+    } catch (IOException e) {
+      throw new AccessControlException(e); 
+    } 
+    
+    groups.addAll(Arrays.asList(ugi.getGroupNames()));
+    user = ugi.getShortUserName();
+    
+    isSuper = user.equals(fsOwner) || groups.contains(supergroup);
   }
 
+  /**
+   * Check if the callers group contains the required values.
+   * @param group group to check
+   */
+  public boolean containsGroup(String group) {return groups.contains(group);}
+
+  /**
+   * Verify if the caller has the required permission. This will result into 
+   * an exception if the caller is not allowed to access the resource.
+   * @param owner owner of the system
+   * @param supergroup supergroup of the system
+   */
+  public static void checkSuperuserPrivilege(UserGroupInformation owner, 
+                                             String supergroup) 
+                     throws AccessControlException {
+    FSPermissionChecker checker = 
+      new FSPermissionChecker(owner.getShortUserName(), supergroup);
+    if (!checker.isSuper) {
+      throw new AccessControlException("Access denied for user " 
+          + checker.user + ". Superuser privilege is required");
+    }
+  }
+  
   /**
    * Check whether current user have permissions to access the path.
    * Traverse is always checked.
@@ -64,10 +105,12 @@ class FSPermissionChecker extends PermissionChecker {
    * If path is not a directory, there is no effect.
    * @return a PermissionChecker object which caches data for later use.
    * @throws AccessControlException
+   * @throws UnresolvedLinkException
    */
   void checkPermission(String path, INodeDirectory root, boolean doCheckOwner,
       FsAction ancestorAccess, FsAction parentAccess, FsAction access,
-      FsAction subAccess) throws AccessControlException {
+      FsAction subAccess) 
+      throws AccessControlException, UnresolvedLinkException {
     if (LOG.isDebugEnabled()) {
       LOG.debug("ACCESS CHECK: " + this
           + ", doCheckOwner=" + doCheckOwner
@@ -78,7 +121,8 @@ class FSPermissionChecker extends PermissionChecker {
     }
     // check if (parentAccess != null) && file exists, then check sb
     synchronized(root) {
-      INode[] inodes = root.getExistingPathINodes(path);
+      // Resolve symlinks, the check is performed on the link target.
+      INode[] inodes = root.getExistingPathINodes(path, true);
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;
           ancestorIndex--);

@@ -25,6 +25,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.security.Permission;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -47,7 +48,6 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.FSDataset;
 import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
@@ -541,11 +541,27 @@ public class TestDFSShell extends TestCase {
   public void testText() throws Exception {
     Configuration conf = new HdfsConfiguration();
     MiniDFSCluster cluster = null;
-    PrintStream bak = null;
     try {
       cluster = new MiniDFSCluster(conf, 2, true, null);
-      FileSystem fs = cluster.getFileSystem();
-      Path root = new Path("/texttest");
+      final FileSystem dfs = cluster.getFileSystem();
+      textTest(new Path("/texttest").makeQualified(dfs.getUri(),
+            dfs.getWorkingDirectory()), conf);
+
+      conf.set("fs.default.name", dfs.getUri().toString());
+      final FileSystem lfs = FileSystem.getLocal(conf);
+      textTest(new Path(TEST_ROOT_DIR, "texttest").makeQualified(lfs.getUri(),
+            lfs.getWorkingDirectory()), conf);
+    } finally {
+      if (null != cluster) {
+        cluster.shutdown();
+      }
+    }
+  }
+
+  private void textTest(Path root, Configuration conf) throws Exception {
+    PrintStream bak = null;
+    try {
+      final FileSystem fs = root.getFileSystem(conf);
       fs.mkdirs(root);
       OutputStream zout = new GZIPOutputStream(
           fs.create(new Path(root, "file.gz")));
@@ -564,20 +580,16 @@ public class TestDFSShell extends TestCase {
 
       String[] argv = new String[2];
       argv[0] = "-text";
-      argv[1] = new Path(root, "file.gz").toUri().getPath();
-      int ret = ToolRunner.run(new FsShell(), argv);
-      assertTrue("-text returned -1", 0 >= ret);
+      argv[1] = new Path(root, "file.gz").toString();
+      int ret = ToolRunner.run(new FsShell(conf), argv);
+      assertEquals("'-text " + argv[1] + " returned " + ret, 0, ret);
       file.reset();
       out.reset();
       assertTrue("Output doesn't match input",
           Arrays.equals(file.toByteArray(), out.toByteArray()));
-
     } finally {
       if (null != bak) {
         System.setOut(bak);
-      }
-      if (null != cluster) {
-        cluster.shutdown();
       }
     }
   }
@@ -697,7 +709,8 @@ public class TestDFSShell extends TestCase {
 
       final FileSystem localfs = FileSystem.getLocal(conf);
       Path localpath = new Path(TEST_ROOT_DIR, "testcount");
-      localpath = localpath.makeQualified(localfs);
+      localpath = localpath.makeQualified(localfs.getUri(),
+          localfs.getWorkingDirectory());
       localfs.mkdirs(localpath);
       
       final String localstr = localpath.toString();
@@ -1121,33 +1134,38 @@ public class TestDFSShell extends TestCase {
   }
 
   public void testRemoteException() throws Exception {
-    UnixUserGroupInformation tmpUGI = new UnixUserGroupInformation("tmpname",
-        new String[] {
-        "mygroup"});
+    UserGroupInformation tmpUGI = 
+      UserGroupInformation.createUserForTesting("tmpname", new String[] {"mygroup"});
     MiniDFSCluster dfs = null;
     PrintStream bak = null;
     try {
-      Configuration conf = new HdfsConfiguration();
+      final Configuration conf = new HdfsConfiguration();
       dfs = new MiniDFSCluster(conf, 2, true, null);
       FileSystem fs = dfs.getFileSystem();
       Path p = new Path("/foo");
       fs.mkdirs(p);
       fs.setPermission(p, new FsPermission((short)0700));
-      UnixUserGroupInformation.saveToConf(conf,
-          UnixUserGroupInformation.UGI_PROPERTY_NAME, tmpUGI);
-      FsShell fshell = new FsShell(conf);
       bak = System.err;
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      PrintStream tmp = new PrintStream(out);
-      System.setErr(tmp);
-      String[] args = new String[2];
-      args[0] = "-ls";
-      args[1] = "/foo";
-      int ret = ToolRunner.run(fshell, args);
-      assertTrue("returned should be -1", (ret == -1));
-      String str = out.toString();
-      assertTrue("permission denied printed", str.indexOf("Permission denied") != -1);
-      out.reset();
+      
+      tmpUGI.doAs(new PrivilegedExceptionAction<Object>() {
+        @Override
+        public Object run() throws Exception {
+          FsShell fshell = new FsShell(conf);
+          ByteArrayOutputStream out = new ByteArrayOutputStream();
+          PrintStream tmp = new PrintStream(out);
+          System.setErr(tmp);
+          String[] args = new String[2];
+          args[0] = "-ls";
+          args[1] = "/foo";
+          int ret = ToolRunner.run(fshell, args);
+          assertEquals("returned should be -1", -1, ret);
+          String str = out.toString();
+          assertTrue("permission denied printed", 
+                     str.indexOf("Permission denied") != -1);
+          out.reset();           
+          return null;
+        }
+      });
     } finally {
       if (bak != null) {
         System.setErr(bak);
@@ -1218,7 +1236,7 @@ public class TestDFSShell extends TestCase {
   }
 
   public void testLsr() throws Exception {
-    Configuration conf = new HdfsConfiguration();
+    final Configuration conf = new HdfsConfiguration();
     MiniDFSCluster cluster = new MiniDFSCluster(conf, 2, true, null);
     DistributedFileSystem dfs = (DistributedFileSystem)cluster.getFileSystem();
 
@@ -1231,13 +1249,16 @@ public class TestDFSShell extends TestCase {
       final Path sub = new Path(root, "sub");
       dfs.setPermission(sub, new FsPermission((short)0));
 
-      final UserGroupInformation ugi = UserGroupInformation.getCurrentUGI();
-      final String tmpusername = ugi.getUserName() + "1";
-      UnixUserGroupInformation tmpUGI = new UnixUserGroupInformation(
+      final UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
+      final String tmpusername = ugi.getShortUserName() + "1";
+      UserGroupInformation tmpUGI = UserGroupInformation.createUserForTesting(
           tmpusername, new String[] {tmpusername});
-      UnixUserGroupInformation.saveToConf(conf,
-            UnixUserGroupInformation.UGI_PROPERTY_NAME, tmpUGI);
-      String results = runLsr(new FsShell(conf), root, -1);
+      String results = tmpUGI.doAs(new PrivilegedExceptionAction<String>() {
+        @Override
+        public String run() throws Exception {
+          return runLsr(new FsShell(conf), root, -1);
+        }
+      });
       assertTrue(results.contains("zzz"));
     } finally {
       cluster.shutdown();

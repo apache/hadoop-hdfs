@@ -49,6 +49,8 @@ public class NameNodeMetrics implements Updater {
     
     private NameNodeActivityMBean namenodeActivityMBean;
     
+    public MetricsTimeVaryingInt numCreateFileOps = 
+                    new MetricsTimeVaryingInt("CreateFileOps", registry);
     public MetricsTimeVaryingInt numFilesCreated =
                           new MetricsTimeVaryingInt("FilesCreated", registry);
     public MetricsTimeVaryingInt numFilesAppended =
@@ -59,21 +61,27 @@ public class NameNodeMetrics implements Updater {
                     new MetricsTimeVaryingInt("FilesRenamed", registry);
     public MetricsTimeVaryingInt numGetListingOps = 
                     new MetricsTimeVaryingInt("GetListingOps", registry);
-    public MetricsTimeVaryingInt numCreateFileOps = 
-                    new MetricsTimeVaryingInt("CreateFileOps", registry);
     public MetricsTimeVaryingInt numDeleteFileOps = 
                           new MetricsTimeVaryingInt("DeleteFileOps", registry);
+    public MetricsTimeVaryingInt numFilesDeleted = new MetricsTimeVaryingInt(
+        "FilesDeleted", registry, 
+        "Number of files and directories deleted by delete or rename operation");
     public MetricsTimeVaryingInt numFileInfoOps =
                           new MetricsTimeVaryingInt("FileInfoOps", registry);
     public MetricsTimeVaryingInt numAddBlockOps = 
                           new MetricsTimeVaryingInt("AddBlockOps", registry);
+    public MetricsTimeVaryingInt numcreateSymlinkOps = 
+                          new MetricsTimeVaryingInt("CreateSymlinkOps", registry);
+    public MetricsTimeVaryingInt numgetLinkTargetOps = 
+                          new MetricsTimeVaryingInt("GetLinkTargetOps", registry);
 
-    public MetricsTimeVaryingRate transactions =
-                    new MetricsTimeVaryingRate("Transactions", registry, "Journal Transaction");
+    public MetricsTimeVaryingRate transactions = new MetricsTimeVaryingRate(
+      "Transactions", registry, "Journal Transaction");
     public MetricsTimeVaryingRate syncs =
                     new MetricsTimeVaryingRate("Syncs", registry, "Journal Sync");
-    public MetricsTimeVaryingInt transactionsBatchedInSync = 
-                    new MetricsTimeVaryingInt("JournalTransactionsBatchedInSync", registry, "Journal Transactions Batched In Sync");
+    public MetricsTimeVaryingInt transactionsBatchedInSync = new MetricsTimeVaryingInt(
+      "JournalTransactionsBatchedInSync", registry,
+      "Journal Transactions Batched In Sync");
     public MetricsTimeVaryingRate blockReport =
                     new MetricsTimeVaryingRate("blockReport", registry, "Block Report");
     public MetricsIntValue safeModeTime =
@@ -92,7 +100,7 @@ public class NameNodeMetrics implements Updater {
       String processName = nameNodeRole.toString();
       JvmMetrics.init(processName, sessionId);
 
-      // Now the Mbean for the name node - this alos registers the MBean
+      // Now the Mbean for the name node - this also registers the MBean
       namenodeActivityMBean = new NameNodeActivityMBean(registry);
       
       // Create a record for NameNode metrics

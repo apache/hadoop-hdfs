@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.PrivilegedExceptionAction;
 
 import javax.net.SocketFactory;
 import javax.servlet.ServletContext;
@@ -34,12 +35,12 @@ import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
+import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.znerd.xmlenc.XMLOutputter;
 
@@ -53,12 +54,15 @@ public class FileChecksumServlets {
     /** {@inheritDoc} */
     public void doGet(HttpServletRequest request, HttpServletResponse response
         ) throws ServletException, IOException {
-      final UserGroupInformation ugi = getUGI(request);
       final ServletContext context = getServletContext();
+      final Configuration conf = 
+        (Configuration) context.getAttribute("name.conf");
+      final UserGroupInformation ugi = getUGI(request, conf);
       final NameNode namenode = (NameNode)context.getAttribute("name.node");
       final DatanodeID datanode = namenode.getNamesystem().getRandomDatanode();
       try {
-        final URI uri = createRedirectUri("/getFileChecksum", ugi, datanode, request); 
+        final URI uri = createRedirectUri("/getFileChecksum", ugi, datanode, 
+                                          request, namenode); 
         response.sendRedirect(uri.toURL().toString());
       } catch(URISyntaxException e) {
         throw new ServletException(e); 
@@ -77,7 +81,6 @@ public class FileChecksumServlets {
     /** {@inheritDoc} */
     public void doGet(HttpServletRequest request, HttpServletResponse response
         ) throws ServletException, IOException {
-      final UnixUserGroupInformation ugi = getUGI(request);
       final PrintWriter out = response.getWriter();
       final String filename = getFilename(request, response);
       final XMLOutputter xml = new XMLOutputter(out, "UTF-8");
@@ -86,17 +89,26 @@ public class FileChecksumServlets {
       final Configuration conf = new HdfsConfiguration(DataNode.getDataNode().getConf());
       final int socketTimeout = conf.getInt(DFSConfigKeys.DFS_CLIENT_SOCKET_TIMEOUT_KEY, HdfsConstants.READ_TIMEOUT);
       final SocketFactory socketFactory = NetUtils.getSocketFactory(conf, ClientProtocol.class);
-      UnixUserGroupInformation.saveToConf(conf,
-          UnixUserGroupInformation.UGI_PROPERTY_NAME, ugi);
-      final ClientProtocol nnproxy = DFSClient.createNamenode(conf);
-
+      
       try {
+        ClientProtocol nnproxy = getUGI(request, conf).doAs
+        (new PrivilegedExceptionAction<ClientProtocol>() {
+          @Override
+          public ClientProtocol run() throws IOException {
+            return DFSClient.createNamenode(conf);
+          }
+        });
+        
         final MD5MD5CRC32FileChecksum checksum = DFSClient.getFileChecksum(
             filename, nnproxy, socketFactory, socketTimeout);
         MD5MD5CRC32FileChecksum.write(xml, checksum);
       } catch(IOException ioe) {
         new RemoteException(ioe.getClass().getName(), ioe.getMessage()
             ).writeXml(filename, xml);
+      } catch (InterruptedException e) {
+        new RemoteException(e.getClass().getName(), e.getMessage()
+        ).writeXml(filename, xml);
+        
       }
       xml.endDocument();
     }

@@ -90,7 +90,7 @@ public class HsftpFileSystem extends HftpFileSystem {
         fis = null;
       }
       // initialize default trust manager with truststore file and pass
-      if (conf.getBoolean("ssl.client.do.not.authenticate.server", false)) {
+      if (sslConf.getBoolean("ssl.client.do.not.authenticate.server", false)) {
         // by pass trustmanager validation
         tms = new DummyTrustManager[] { new DummyTrustManager() };
       } else {
@@ -140,7 +140,7 @@ public class HsftpFileSystem extends HftpFileSystem {
           for (X509Certificate cert : clientCerts) {
             long expTime = cert.getNotAfter().getTime();
             if (expTime < expTimeThreshold) {
-              StringBuffer sb = new StringBuffer();
+              StringBuilder sb = new StringBuilder();
               sb.append("\n Client certificate "
                   + cert.getSubjectX500Principal().getName());
               int dayOffSet = (int) ((expTime - System.currentTimeMillis()) / MM_SECONDS_PER_DAY);

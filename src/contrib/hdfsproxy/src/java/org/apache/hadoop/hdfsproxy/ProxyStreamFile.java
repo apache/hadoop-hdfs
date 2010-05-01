@@ -19,16 +19,15 @@ package org.apache.hadoop.hdfsproxy;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.PrivilegedExceptionAction;
 
 import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSClient;
-import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.server.namenode.StreamFile;
-import org.apache.hadoop.security.UnixUserGroupInformation;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.conf.Configuration;
 
 /** {@inheritDoc} */
 public class ProxyStreamFile extends StreamFile {
@@ -37,42 +36,32 @@ public class ProxyStreamFile extends StreamFile {
 
   /** {@inheritDoc} */
   @Override
-  public void init() throws ServletException {
-    ServletContext context = getServletContext();
-    if (context.getAttribute("name.conf") == null) {
-      context.setAttribute("name.conf", new HdfsConfiguration());
-    }
-  }
-
-  /** {@inheritDoc} */
-  @Override
   protected DFSClient getDFSClient(HttpServletRequest request)
-      throws IOException {
+      throws IOException, InterruptedException {
     ServletContext context = getServletContext();
-    Configuration conf = new HdfsConfiguration((Configuration) context
-        .getAttribute("name.conf"));
-    UnixUserGroupInformation.saveToConf(conf,
-        UnixUserGroupInformation.UGI_PROPERTY_NAME, getUGI(request));
-    InetSocketAddress nameNodeAddr = (InetSocketAddress) context
-        .getAttribute("name.node.address");
-    return new DFSClient(nameNodeAddr, conf);
+    final Configuration conf =
+        (Configuration) context.getAttribute("name.conf");
+    final InetSocketAddress nameNodeAddr =
+        (InetSocketAddress) context.getAttribute("name.node.address");
+
+    DFSClient client = getUGI(request, conf).doAs
+        ( new PrivilegedExceptionAction<DFSClient>() {
+          @Override
+          public DFSClient run() throws IOException {
+            return new DFSClient(nameNodeAddr, conf);
+          }
+        });
+
+    return client;
   }
 
   /** {@inheritDoc} */
   @Override
-  protected UnixUserGroupInformation getUGI(HttpServletRequest request) {
+  protected UserGroupInformation getUGI(HttpServletRequest request,
+                                        Configuration conf) {
     String userID = (String) request
         .getAttribute("org.apache.hadoop.hdfsproxy.authorized.userID");
-    String groupName = (String) request
-        .getAttribute("org.apache.hadoop.hdfsproxy.authorized.role");
-    UnixUserGroupInformation ugi;
-    if (groupName != null) {
-      // get group info from ldap
-      ugi = new UnixUserGroupInformation(userID, groupName.split(","));
-    } else {// stronger ugi management
-      ugi = ProxyUgiManager.getUgiForUser(userID);
-    }
-    return ugi;
+    return ProxyUtil.getProxyUGIFor(userID);
   }
 
 }

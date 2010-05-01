@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,7 @@ public class BlockManager {
   // Default initial capacity and load factor of map
   public static final int DEFAULT_INITIAL_MAP_CAPACITY = 16;
   public static final float DEFAULT_MAP_LOAD_FACTOR = 0.75f;
+  public static final int DEFAULT_MAX_CORRUPT_FILES_RETURNED = 500;
 
   private final FSNamesystem namesystem;
 
@@ -105,7 +107,9 @@ public class BlockManager {
   int minReplication;
   // Default number of replicas
   int defaultReplication;
-
+  // How many entries are returned by getCorruptInodes()
+  int maxCorruptFilesReturned;
+  
   // variable to enable check for enough racks 
   boolean shouldCheckForEnoughRacks = true;
 
@@ -140,6 +144,8 @@ public class BlockManager {
                          namesystem,
                          namesystem.clusterMap);
 
+    this.maxCorruptFilesReturned = conf.getInt("dfs.corruptfilesreturned.max",
+        DEFAULT_MAX_CORRUPT_FILES_RETURNED);
     this.defaultReplication = conf.getInt("dfs.replication", 3);
     this.maxReplication = conf.getInt("dfs.replication.max", 512);
     this.minReplication = conf.getInt(DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_KEY,
@@ -245,26 +251,23 @@ public class BlockManager {
   }
 
   /**
-   * Commit the last block of the file.
+   * Commit a block of a file
    * 
    * @param fileINode file inode
+   * @param block block to be committed
    * @param commitBlock - contains client reported block length and generation
    * @throws IOException if the block does not have at least a minimal number
    * of replicas reported from data-nodes.
    */
-  void commitLastBlock(INodeFileUnderConstruction fileINode, 
+  private void commitBlock(INodeFileUnderConstruction fileINode,
+                       BlockInfoUnderConstruction block,
                        Block commitBlock) throws IOException {
-    if(commitBlock == null)
-      return; // not committing, this is a block allocation retry
-    BlockInfo lastBlock = fileINode.getLastBlock();
-    if(lastBlock == null)
-      return; // no blocks in file yet
-    if(lastBlock.isComplete())
-      return; // already completed (e.g. by syncBlock)
-    assert lastBlock.getNumBytes() <= commitBlock.getNumBytes() :
+    if (block.getBlockUCState() == BlockUCState.COMMITTED)
+      return;
+    assert block.getNumBytes() <= commitBlock.getNumBytes() :
       "commitBlock length is less than the stored one "
-      + commitBlock.getNumBytes() + " vs. " + lastBlock.getNumBytes();
-    ((BlockInfoUnderConstruction)lastBlock).commitBlock(commitBlock);
+      + commitBlock.getNumBytes() + " vs. " + block.getNumBytes();
+    block.commitBlock(commitBlock);
     
     // Adjust disk space consumption if required
     long diff = fileINode.getPreferredBlockSize() - commitBlock.getNumBytes();    
@@ -280,6 +283,32 @@ public class BlockManager {
                 + e.getMessage());
       }
     }
+  }
+  
+  /**
+   * Commit the last block of the file and mark it as complete if it has
+   * meets the minimum replication requirement
+   * 
+   * @param fileINode file inode
+   * @param commitBlock - contains client reported block length and generation
+   * @throws IOException if the block does not have at least a minimal number
+   * of replicas reported from data-nodes.
+   */
+  void commitOrCompleteLastBlock(INodeFileUnderConstruction fileINode, 
+      Block commitBlock) throws IOException {
+    
+    if(commitBlock == null)
+      return; // not committing, this is a block allocation retry
+    BlockInfo lastBlock = fileINode.getLastBlock();
+    if(lastBlock == null)
+      return; // no blocks in file yet
+    if(lastBlock.isComplete())
+      return; // already completed (e.g. by syncBlock)
+    
+    commitBlock(fileINode, (BlockInfoUnderConstruction)lastBlock, commitBlock);
+
+    if(countNodes(lastBlock).liveReplicas() >= minReplication)
+      completeBlock(fileINode,fileINode.numBlocks()-1);
   }
 
   /**
@@ -864,7 +893,7 @@ public class BlockManager {
           replIndex--;
         }
         if (NameNode.stateChangeLog.isInfoEnabled()) {
-          StringBuffer targetList = new StringBuffer("datanode(s)");
+          StringBuilder targetList = new StringBuilder("datanode(s)");
           for (int k = 0; k < targets.length; k++) {
             targetList.append(' ');
             targetList.append(targets[k].getName());
@@ -1355,12 +1384,38 @@ public class BlockManager {
     return new NumberReplicas(live, count, corrupt, excess);
   }
 
+  private void logBlockReplicationInfo(Block block, DatanodeDescriptor srcNode,
+      NumberReplicas num) {
+    int curReplicas = num.liveReplicas();
+    int curExpectedReplicas = getReplication(block);
+    INode fileINode = blocksMap.getINode(block);
+    Iterator<DatanodeDescriptor> nodeIter = blocksMap.nodeIterator(block);
+    StringBuilder nodeList = new StringBuilder();
+    while (nodeIter.hasNext()) {
+      DatanodeDescriptor node = nodeIter.next();
+      nodeList.append(node.name);
+      nodeList.append(" ");
+    }
+    FSNamesystem.LOG.info("Block: " + block + ", Expected Replicas: "
+        + curExpectedReplicas + ", live replicas: " + curReplicas
+        + ", corrupt replicas: " + num.corruptReplicas()
+        + ", decommissioned replicas: " + num.decommissionedReplicas()
+        + ", excess replicas: " + num.excessReplicas()
+        + ", Is Open File: " + fileINode.isUnderConstruction()
+        + ", Datanodes having this block: " + nodeList + ", Current Datanode: "
+        + srcNode.name + ", Is current datanode decommissioning: "
+        + srcNode.isDecommissionInProgress());
+  }
+  
   /**
    * Return true if there are any blocks on this node that have not
    * yet reached their replication factor. Otherwise returns false.
    */
   boolean isReplicationInProgress(DatanodeDescriptor srcNode) {
     boolean status = false;
+    int underReplicatedBlocks = 0;
+    int decommissionOnlyReplicas = 0;
+    int underReplicatedInOpenFiles = 0;
     final Iterator<? extends Block> it = srcNode.getBlockIterator();
     while(it.hasNext()) {
       final Block block = it.next();
@@ -1372,15 +1427,25 @@ public class BlockManager {
         int curExpectedReplicas = getReplication(block);
         if (isNeededReplication(block, curExpectedReplicas, curReplicas)) {
           if (curExpectedReplicas > curReplicas) {
-            //Set to true only if strictly under-replicated
-            status = true;
+            //Log info about one block for this node which needs replication
+            if (!status) {
+              status = true;
+              logBlockReplicationInfo(block, srcNode, num);
+            }
+            underReplicatedBlocks++;
+            if ((curReplicas == 0) && (num.decommissionedReplicas() > 0)) {
+              decommissionOnlyReplicas++;
+            }
+            if (fileINode.isUnderConstruction()) {
+              underReplicatedInOpenFiles++;
+            }
           }
           if (!neededReplications.contains(block) &&
             pendingReplications.getNumReplicas(block) == 0) {
             //
             // These blocks have been reported from the datanode
             // after the startDecommission method has been executed. These
-            // blocks were in flight when the decommission was started.
+            // blocks were in flight when the decommissioning was started.
             //
             neededReplications.add(block,
                                    curReplicas,
@@ -1390,6 +1455,9 @@ public class BlockManager {
         }
       }
     }
+    srcNode.decommissioningStatus.set(underReplicatedBlocks,
+        decommissionOnlyReplicas, 
+        underReplicatedInOpenFiles);
     return status;
   }
 
@@ -1514,7 +1582,7 @@ public class BlockManager {
       dn.addBlocksToBeInvalidated(blocksToInvalidate);
 
       if (NameNode.stateChangeLog.isInfoEnabled()) {
-        StringBuffer blockList = new StringBuffer();
+        StringBuilder blockList = new StringBuilder();
         for (Block blk : blocksToInvalidate) {
           blockList.append(' ');
           blockList.append(blk);
@@ -1643,5 +1711,26 @@ public class BlockManager {
     return corruptReplicas.getCorruptReplicaBlockIds(numExpectedBlocks,
                                                      startingBlockId);
   }  
+  
+  /**
+   * @return inodes of files with corrupt blocks, with a maximum of 
+   * MAX_CORRUPT_FILES_RETURNED inodes listed in total
+   */
+  INode[] getCorruptInodes() {
+    LinkedHashSet<INode> set = new LinkedHashSet<INode>();
+
+    for (Block blk : 
+            neededReplications.getQueue(
+                UnderReplicatedBlocks.QUEUE_WITH_CORRUPT_BLOCKS)){
+      INode inode = blocksMap.getINode(blk);
+      if (inode != null && countNodes(blk).liveReplicas() == 0) {
+        set.add(inode);
+        if (set.size() >= this.maxCorruptFilesReturned) {
+          break;  
+        }
+      } 
+    }
+    return set.toArray(new INode[set.size()]);
+  }
   
 }
