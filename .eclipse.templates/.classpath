@@ -9,8 +9,8 @@
 	<classpathentry kind="src" path="src/contrib/thriftfs/src/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="var" path="ANT_HOME/lib/ant.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/common/hadoop-core-0.22.0-SNAPSHOT.jar"/>
-	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/test/hadoop-core-test-0.22.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/common/hadoop-core-0.21.0-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/test/hadoop-core-test-0.21.0-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/common/commons-cli-1.2.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/common/commons-codec-1.4.jar"/>
 	<classpathentry kind="lib" path="build/ivy/lib/Hadoop-Hdfs/common/commons-el-1.0.jar"/>

@@ -861,6 +861,8 @@ Release 0.21.0 - Unreleased
 
     HDFS-1104. Fsck triggers full GC on NameNode. (hairong)
 
+    HDFS-1173. Fix references to 0.22 in 0.21 branch. (tomwhite)
+
 Release 0.20.3 - Unreleased
 
   IMPROVEMENTS
