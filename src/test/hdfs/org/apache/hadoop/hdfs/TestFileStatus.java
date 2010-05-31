@@ -89,7 +89,7 @@ public class TestFileStatus extends TestCase {
       Path path = new Path("/");
       System.out.println("Path : \"" + path.toString() + "\"");
       assertTrue("/ should be a directory", 
-                 fs.getFileStatus(path).isDir() == true);
+                 fs.getFileStatus(path).isDirectory() == true);
       
       // make sure getFileInfo returns null for files which do not exist
       HdfsFileStatus fileInfo = dfsClient.getFileInfo("/noSuchFile");
@@ -116,7 +116,7 @@ public class TestFileStatus extends TestCase {
       // test getFileStatus on a file
       FileStatus status = fs.getFileStatus(file1);
       assertTrue(file1 + " should be a file", 
-                  status.isDir() == false);
+                  status.isDirectory() == false);
       assertTrue(status.getBlockSize() == blockSize);
       assertTrue(status.getReplication() == 1);
       assertTrue(status.getLen() == fileSize);
@@ -129,7 +129,7 @@ public class TestFileStatus extends TestCase {
       assertEquals(1, stats.length);
       status = stats[0];
       assertTrue(file1 + " should be a file", 
-          status.isDir() == false);
+          status.isDirectory() == false);
       assertTrue(status.getBlockSize() == blockSize);
       assertTrue(status.getReplication() == 1);
       assertTrue(status.getLen() == fileSize);
@@ -141,7 +141,7 @@ public class TestFileStatus extends TestCase {
       status = itor.next();
       assertEquals(stats[0], status);
       assertTrue(file1 + " should be a file", 
-          status.isDir() == false);
+          status.isDirectory() == false);
 
       // test file status on a directory
       Path dir = new Path("/test/mkdirs");
@@ -174,7 +174,7 @@ public class TestFileStatus extends TestCase {
       
       // test getFileStatus on an empty directory
       status = fs.getFileStatus(dir);
-      assertTrue(dir + " should be a directory", status.isDir());
+      assertTrue(dir + " should be a directory", status.isDirectory());
       assertTrue(dir + " should be zero size ", status.getLen() == 0);
       assertEquals(dir.makeQualified(fs.getUri(), 
           fs.getWorkingDirectory()).toString(), 
