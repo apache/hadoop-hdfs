@@ -883,6 +883,8 @@ Release 0.21.0 - Unreleased
 
     HDFS-1173. Fix references to 0.22 in 0.21 branch. (tomwhite)
 
+    HDFS-1000. Updates libhdfs to the new API for UGI (ddas)
+
 Release 0.20.3 - Unreleased
 
   IMPROVEMENTS
