@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs.server.protocol;
 
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.security.ExportedAccessKeys;
@@ -32,6 +33,7 @@ import org.apache.hadoop.security.KerberosInfo;
  * It's used to get part of the name node state
  *****************************************************************************/
 @KerberosInfo(DFSConfigKeys.DFS_NAMENODE_USER_NAME_KEY)
+@InterfaceAudience.Private
 public interface NamenodeProtocol extends VersionedProtocol {
   /**
    * Compared to the previous version the following changes have been introduced:

@@ -20,9 +20,12 @@ package org.apache.hadoop.hdfs.security;
 
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+
 /**
  * Access token verification failed.
  */
+@InterfaceAudience.Private
 public class InvalidAccessTokenException extends IOException {
   private static final long serialVersionUID = 168L;
 

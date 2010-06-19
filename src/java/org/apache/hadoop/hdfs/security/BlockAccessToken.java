@@ -22,9 +22,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 
+@InterfaceAudience.Private
 public class BlockAccessToken implements Writable {
   public static final BlockAccessToken DUMMY_TOKEN = new BlockAccessToken();
   private Text tokenID;

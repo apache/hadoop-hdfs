@@ -44,6 +44,7 @@ import javax.net.SocketFactory;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.ContentSummary;
@@ -110,6 +111,7 @@ import org.apache.hadoop.util.StringUtils;
  * filesystem tasks.
  *
  ********************************************************/
+@InterfaceAudience.Private
 public class DFSClient implements FSConstants, java.io.Closeable {
   public static final Log LOG = LogFactory.getLog(DFSClient.class);
   public static final long SERVER_DEFAULTS_VALIDITY_PERIOD = 60 * 60 * 1000L; // 1 hour
@@ -1417,6 +1419,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   /**
    * The Hdfs implementation of {@link FSDataInputStream}
    */
+  @InterfaceAudience.Private
   public static class DFSDataInputStream extends FSDataInputStream {
     public DFSDataInputStream(DFSInputStream in)
       throws IOException {

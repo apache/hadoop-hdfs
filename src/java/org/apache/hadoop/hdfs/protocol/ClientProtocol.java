@@ -22,6 +22,8 @@ import java.io.IOException;
 
 import org.apache.avro.reflect.Nullable;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FileStatus;
@@ -52,6 +54,8 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenSelector;
  **********************************************************************/
 @KerberosInfo(DFSConfigKeys.DFS_NAMENODE_USER_NAME_KEY)
 @TokenInfo(DelegationTokenSelector.class)
+@InterfaceAudience.Private
+@InterfaceStability.Evolving
 public interface ClientProtocol extends VersionedProtocol {
 
   /**

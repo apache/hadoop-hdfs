@@ -23,6 +23,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableFactories;
 import org.apache.hadoop.io.WritableFactory;
@@ -30,6 +31,7 @@ import org.apache.hadoop.io.WritableFactory;
 /**
  * Object for passing access keys
  */
+@InterfaceAudience.Private
 public class ExportedAccessKeys implements Writable {
   public static final ExportedAccessKeys DUMMY_KEYS = new ExportedAccessKeys();
   private boolean isAccessTokenEnabled;

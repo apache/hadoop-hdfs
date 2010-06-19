@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.protocol;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.hdfs.security.BlockAccessToken;
 import org.apache.hadoop.io.*;
 
@@ -27,6 +29,8 @@ import java.io.*;
  * objects.  It tells where to find a Block.
  * 
  ****************************************************/
+@InterfaceAudience.Private
+@InterfaceStability.Evolving
 public class LocatedBlock implements Writable {
 
   static {                                      // register a ctor

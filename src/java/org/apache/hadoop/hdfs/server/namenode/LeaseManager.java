@@ -29,6 +29,7 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
@@ -55,6 +56,7 @@ import org.apache.hadoop.hdfs.protocol.FSConstants;
  *      and removes the lease once all files have been removed
  * 2.10) Namenode commit changes to edit log
  */
+@InterfaceAudience.Private
 public class LeaseManager {
   public static final Log LOG = LogFactory.getLog(LeaseManager.class);
 

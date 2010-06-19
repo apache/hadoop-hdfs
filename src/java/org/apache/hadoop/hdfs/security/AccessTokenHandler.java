@@ -37,6 +37,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableUtils;
@@ -49,6 +50,8 @@ import org.apache.hadoop.security.UserGroupInformation;
  * master and slave can generate and verify access tokens. Typically, master
  * mode is used by NN and slave mode is used by DN.
  */
+
+@InterfaceAudience.Private
 public class AccessTokenHandler {
   private static final Log LOG = LogFactory.getLog(AccessTokenHandler.class);
 

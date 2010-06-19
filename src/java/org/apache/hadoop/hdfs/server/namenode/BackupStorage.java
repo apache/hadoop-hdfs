@@ -24,6 +24,7 @@ import java.net.URI;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.namenode.FSImage;
@@ -32,6 +33,7 @@ import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.io.LongWritable;
 
+@InterfaceAudience.Private
 public class BackupStorage extends FSImage {
   // Names of the journal spool directory and the spool file
   private static final String STORAGE_JSPOOL_DIR = "jspool";

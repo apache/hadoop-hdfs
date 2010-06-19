@@ -24,6 +24,7 @@ import java.io.IOException;
 
 import javax.crypto.Mac;
 
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableUtils;
@@ -31,6 +32,7 @@ import org.apache.hadoop.io.WritableUtils;
 /**
  * Key used for generating and verifying access tokens
  */
+@InterfaceAudience.Private
 public class BlockAccessKey implements Writable {
   private long keyID;
   private Text key;

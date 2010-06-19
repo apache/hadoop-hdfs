@@ -24,6 +24,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.hdfs.security.BlockAccessToken;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
@@ -32,6 +34,8 @@ import org.apache.hadoop.io.WritableUtils;
 /**
  * Transfer data to/from datanode using a streaming protocol.
  */
+@InterfaceAudience.Private
+@InterfaceStability.Evolving
 public interface DataTransferProtocol {
   
   
@@ -213,6 +217,8 @@ public interface DataTransferProtocol {
 
 
   /** Sender */
+  @InterfaceAudience.Private
+  @InterfaceStability.Evolving
   public static class Sender {
     /** Initialize a operation. */
     public static void op(DataOutputStream out, Op op) throws IOException {
@@ -457,6 +463,8 @@ public interface DataTransferProtocol {
   }
   
   /** reply **/
+  @InterfaceAudience.Private
+  @InterfaceStability.Evolving
   public static class PipelineAck implements Writable {
     private long seqno;
     private Status replies[];

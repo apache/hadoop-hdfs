@@ -513,6 +513,8 @@ Release 0.21.0 - Unreleased
     HDFS-1170.  Add more assertions to TestLargeDirectoryDelete.
     (Steve Loughran via tomwhite)
 
+    HDFS-752. Add interfaces classification to to HDFS source code. (suresh)
+
   OPTIMIZATIONS
 
     HDFS-946. NameNode should not return full path name when lisitng a
