@@ -530,17 +530,6 @@ Release 0.21.0 - 2010-07-01
 
   BUG FIXES
 
-    HDFS-1311. Running tests with 'testcase' cause triple execution of the
-    same test case (Cos)
-
-    HDFS-1299. 'compile-fault-inject' never should be called directly. (cos)
-
-    HDFS-1193. -mvn-system-deploy target is broken which inturn fails the
-    mvn-deploy task leading to unstable mapreduce build (Giridharan
-    Kesavan via cos)
-
-    HDFS-1159. clean-cache target removes wrong ivy cache (cos)
-
     HDFS-76. Better error message to users when commands fail because of 
     lack of quota. Allow quota to be set even if the limit is lower than
     current consumption. (Boris Shkolnik via rangadi)
@@ -911,6 +900,17 @@ Release 0.21.0 - 2010-07-01
     writer to very end of file. (sam rash via hairong)
 
     HDFS-1212. Harmonize HDFS JAR library versions with Common. (tomwhite)
+
+    HDFS-1159. clean-cache target removes wrong ivy cache (cos)
+
+    HDFS-1193. -mvn-system-deploy target is broken which inturn fails the
+    mvn-deploy task leading to unstable mapreduce build (Giridharan
+    Kesavan via cos)
+
+    HDFS-1299. 'compile-fault-inject' never should be called directly. (cos)
+
+    HDFS-1311. Running tests with 'testcase' cause triple execution of the
+    same test case (Cos)
 
     HDFS-1267. fuse-dfs does not compile. (Devaraj Das via tomwhite)
 
