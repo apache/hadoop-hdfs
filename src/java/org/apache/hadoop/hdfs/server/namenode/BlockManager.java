@@ -349,19 +349,44 @@ public class BlockManager {
   }
 
   /**
-   * Convert the last block of the file to an under construction block.
+   * Convert the last block of the file to an under construction block.<p>
+   * The block is converted only if the file has blocks and the last one
+   * is a partial block (its size is less than the preferred block size).
+   * The converted block is returned to the client.
+   * The client uses the returned block locations to form the data pipeline
+   * for this block.<br>
+   * The methods returns null if there is no partial block at the end.
+   * The client is supposed to allocate a new block with the next call.
+   *
    * @param fileINode file
-   * @param targets data-nodes that will form the pipeline for this block
+   * @return the last block locations if the block is partial or null otherwise
    */
-  void convertLastBlockToUnderConstruction(
-      INodeFileUnderConstruction fileINode,
-      DatanodeDescriptor[] targets) throws IOException {
+  LocatedBlock convertLastBlockToUnderConstruction(
+      INodeFileUnderConstruction fileINode) throws IOException {
     BlockInfo oldBlock = fileINode.getLastBlock();
-    if(oldBlock == null)
-      return;
+    if(oldBlock == null ||
+        fileINode.getPreferredBlockSize() == oldBlock.getNumBytes())
+      return null;
+    assert oldBlock == getStoredBlock(oldBlock) :
+      "last block of the file is not in blocksMap";
+
+    DatanodeDescriptor[] targets = getNodes(oldBlock);
+
     BlockInfoUnderConstruction ucBlock =
       fileINode.setLastBlock(oldBlock, targets);
     blocksMap.replaceBlock(ucBlock);
+
+    // Remove block from replication queue.
+    updateNeededReplications(oldBlock, 0, 0);
+
+    // remove this block from the list of pending blocks to be deleted. 
+    for (DatanodeDescriptor dd : targets) {
+      String datanodeId = dd.getStorageID();
+      removeFromInvalidates(datanodeId, oldBlock);
+    }
+
+    long fileLength = fileINode.computeContentSummary().getLength();
+    return getBlockLocation(ucBlock, fileLength - ucBlock.getNumBytes());
   }
 
   /**

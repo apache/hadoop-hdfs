@@ -1134,7 +1134,23 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
-  private synchronized void startFileInternal(String src,
+  /**
+   * Create new or open an existing file for append.<p>
+   * 
+   * In case of opening the file for append, the method returns the last
+   * block of the file if this is a partial block, which can still be used
+   * for writing more data. The client uses the returned block locations
+   * to form the data pipeline for this block.<br>
+   * The method returns null if the last block is full or if this is a 
+   * new file. The client then allocates a new block with the next call
+   * using {@link NameNode#addBlock()}.<p>
+   *
+   * For description of parameters and exceptions thrown see 
+   * {@link ClientProtocol#create()}
+   * 
+   * @return the last block locations if the block is partial or null otherwise
+   */
+  private synchronized LocatedBlock startFileInternal(String src,
                                               PermissionStatus permissions,
                                               String holder, 
                                               String clientMachine, 
@@ -1252,9 +1268,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
               + src + " on client " + clientMachine);
           else {
             //append & create a nonexist file equals to overwrite
-            this.startFileInternal(src, permissions, holder, clientMachine,
+            return startFileInternal(src, permissions, holder, clientMachine,
                 EnumSet.of(CreateFlag.OVERWRITE), createParent, replication, blockSize);
-            return;
           }
         } else if (myFile.isDirectory()) {
           throw new IOException("failed to append to directory " + src 
@@ -1292,6 +1307,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         dir.replaceNode(src, node, cons);
         leaseManager.addLease(cons.getClientName(), src);
 
+        // convert last block to under-construction
+        LocatedBlock lb = 
+          blockManager.convertLastBlockToUnderConstruction(cons);
+
+        if (lb != null && isAccessTokenEnabled) {
+          lb.setAccessToken(accessTokenHandler.generateToken(lb.getBlock()
+              .getBlockId(), EnumSet.of(AccessTokenHandler.AccessMode.WRITE)));
+        }
+        /*if (lb != null && isBlockTokenEnabled) {
+          lb.setBlockToken(blockTokenSecretManager.generateToken(lb.getBlock(), 
+              EnumSet.of(BlockTokenSecretManager.AccessMode.WRITE)));
+        }*/
+        return lb;
       } else {
        // Now we can add the name to the filesystem. This file has no
        // blocks associated with it.
@@ -1317,6 +1345,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                    +ie.getMessage());
       throw ie;
     }
+    return null;
   }
 
   /**
@@ -1328,52 +1357,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throw new IOException("Append to hdfs not supported." +
                             " Please refer to dfs.support.append configuration parameter.");
     }
-    startFileInternal(src, null, holder, clientMachine, EnumSet.of(CreateFlag.APPEND), 
-                      false, (short)blockManager.maxReplication, (long)0);
+    LocatedBlock lb = 
+      startFileInternal(src, null, holder, clientMachine,
+                        EnumSet.of(CreateFlag.APPEND), 
+                        false, (short)blockManager.maxReplication, (long)0);
     getEditLog().logSync();
 
-    //
-    // Create a LocatedBlock object for the last block of the file
-    // to be returned to the client. Return null if the file does not
-    // have a partial block at the end.
-    //
-    LocatedBlock lb = null;
-    synchronized (this) {
-      INodeFileUnderConstruction file = (INodeFileUnderConstruction)dir.getFileINode(src);
-      BlockInfo lastBlock = file.getLastBlock();
-      if (lastBlock != null) {
-        assert lastBlock == blockManager.getStoredBlock(lastBlock) :
-          "last block of the file is not in blocksMap";
-        if (file.getPreferredBlockSize() > lastBlock.getNumBytes()) {
-          long fileLength = file.computeContentSummary().getLength();
-          DatanodeDescriptor[] targets = blockManager.getNodes(lastBlock);
-          // remove the replica locations of this block from the node
-          for (int i = 0; i < targets.length; i++) {
-            targets[i].removeBlock(lastBlock);
-          }
-          // convert last block to under-construction and set its locations
-          blockManager.convertLastBlockToUnderConstruction(file, targets);
-
-          lb = new LocatedBlock(lastBlock, targets, 
-                                fileLength-lastBlock.getNumBytes());
-          if (isAccessTokenEnabled) {
-            lb.setAccessToken(accessTokenHandler.generateToken(lb.getBlock()
-                .getBlockId(), EnumSet.of(AccessTokenHandler.AccessMode.WRITE)));
-          }
-
-          // Remove block from replication queue.
-          blockManager.updateNeededReplications(lastBlock, 0, 0);
-
-          // remove this block from the list of pending blocks to be deleted. 
-          // This reduces the possibility of triggering HADOOP-1349.
-          //
-          for (DatanodeDescriptor dd : targets) {
-            String datanodeId = dd.getStorageID();
-            blockManager.removeFromInvalidates(datanodeId, lastBlock);
-          }
-        }
-      }
-    }
     if (lb != null) {
       if (NameNode.stateChangeLog.isDebugEnabled()) {
         NameNode.stateChangeLog.debug("DIR* NameSystem.appendFile: file "
