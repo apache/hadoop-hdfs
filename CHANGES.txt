@@ -923,6 +923,8 @@ Release 0.21.0 - 2010-08-13
 
     HDFS-1413. Fix broken links to HDFS Wiki. (shv)
 
+    HDFS-1420. Clover build doesn't generate per-test coverage (cos)
+
 Release 0.20.3 - Unreleased
 
   IMPROVEMENTS
