@@ -391,6 +391,8 @@ Release 0.22.0 - Unreleased
     HDFS-1467. Append pipeline never succeeds with more than one replica.
     (Todd Lipcon via eli)
 
+    HDFS-1503. TestSaveNamespace fails. (Todd Lipcon via cos)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
