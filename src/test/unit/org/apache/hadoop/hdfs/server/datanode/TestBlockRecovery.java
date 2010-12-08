@@ -128,8 +128,7 @@ public class TestBlockRecovery {
   private void testSyncReplicas(ReplicaRecoveryInfo replica1, 
       ReplicaRecoveryInfo replica2,
       InterDatanodeProtocol dn1,
-      InterDatanodeProtocol dn2,
-      long expectLen) throws IOException {
+      InterDatanodeProtocol dn2) throws IOException {
     
     DatanodeInfo[] locs = new DatanodeInfo[]{
         mock(DatanodeInfo.class), mock(DatanodeInfo.class)};
@@ -142,13 +141,6 @@ public class TestBlockRecovery {
         new DatanodeID("aa", "bb", 11, 22), dn2, replica2);
     syncList.add(record1);
     syncList.add(record2);
-    
-    when(dn1.updateReplicaUnderRecovery((Block)anyObject(), anyLong(), 
-        anyLong())).thenReturn(new Block(block.getBlockId(), 
-            expectLen, block.getGenerationStamp()));
-    when(dn2.updateReplicaUnderRecovery((Block)anyObject(), anyLong(), 
-        anyLong())).thenReturn(new Block(block.getBlockId(), 
-            expectLen, block.getGenerationStamp()));
     dn.syncBlock(rBlock, syncList);
   }
   
@@ -168,7 +160,7 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);    
 
@@ -179,7 +171,7 @@ public class TestBlockRecovery {
         REPLICA_LEN2, GEN_STAMP-2, ReplicaState.FINALIZED);
 
     try {
-      testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+      testSyncReplicas(replica1, replica2, dn1, dn2);
       Assert.fail("Two finalized replicas should not have different lengthes!");
     } catch (IOException e) {
       Assert.assertTrue(e.getMessage().startsWith(
@@ -205,7 +197,7 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     
@@ -218,7 +210,7 @@ public class TestBlockRecovery {
     dn1 = mock(InterDatanodeProtocol.class);
     dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2, never()).updateReplicaUnderRecovery(
         block, RECOVERY_ID, REPLICA_LEN1);
@@ -242,7 +234,7 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2, never()).updateReplicaUnderRecovery(
         block, RECOVERY_ID, REPLICA_LEN1);
@@ -256,7 +248,7 @@ public class TestBlockRecovery {
     dn1 = mock(InterDatanodeProtocol.class);
     dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2, never()).updateReplicaUnderRecovery(
         block, RECOVERY_ID, REPLICA_LEN1);
@@ -278,8 +270,8 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     long minLen = Math.min(REPLICA_LEN1, REPLICA_LEN2);
-    testSyncReplicas(replica1, replica2, dn1, dn2, minLen);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, minLen);
     verify(dn2).updateReplicaUnderRecovery(block, RECOVERY_ID, minLen);    
   }
@@ -300,7 +292,7 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
-    testSyncReplicas(replica1, replica2, dn1, dn2, REPLICA_LEN1);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, REPLICA_LEN1);
     verify(dn2, never()).updateReplicaUnderRecovery(
         block, RECOVERY_ID, REPLICA_LEN1);    
@@ -322,9 +314,9 @@ public class TestBlockRecovery {
     InterDatanodeProtocol dn1 = mock(InterDatanodeProtocol.class);
     InterDatanodeProtocol dn2 = mock(InterDatanodeProtocol.class);
 
-    long minLen = Math.min(REPLICA_LEN1, REPLICA_LEN2);
-    testSyncReplicas(replica1, replica2, dn1, dn2, minLen);
+    testSyncReplicas(replica1, replica2, dn1, dn2);
     
+    long minLen = Math.min(REPLICA_LEN1, REPLICA_LEN2);
     verify(dn1).updateReplicaUnderRecovery(block, RECOVERY_ID, minLen);
     verify(dn2).updateReplicaUnderRecovery(block, RECOVERY_ID, minLen);    
   }  

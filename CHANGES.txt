@@ -1,10 +1,5 @@
 Hadoop HDFS Change Log
 
-    HDFS-1502. TestBlockRecovery triggers NPE in assert. (hairong via cos)
-
-    HDFS-1532. Exclude Findbugs warning in FSImageFormat$Saver. (Todd Lipcon
-    via cos)
-
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
