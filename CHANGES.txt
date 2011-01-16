@@ -34,6 +34,8 @@ Release 0.21.1 - Unreleased
 
     HDFS-1552. Remove java5 dependencies from build. (cos) 
 
+    HDFS-996. JUnit tests should never depend on anything in conf (cos)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
