@@ -952,7 +952,10 @@ Release 0.21.0 - 2010-08-13
 
     HDFS-1267. fuse-dfs does not compile. (Devaraj Das via tomwhite)
 
-Release 0.20.3 - Unreleased
+    HDFS-1598.  Directory listing on hftp:// does not show .*.crc files.
+    (szetszwo)
+
+Release 0.20.3 - 2011-1-5
 
   IMPROVEMENTS
 
