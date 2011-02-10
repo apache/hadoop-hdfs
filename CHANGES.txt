@@ -240,6 +240,8 @@ Release 0.22.0 - Unreleased
     HDFS-1434. Refactor Datanode#startDataNode method into smaller methods.
     (suresh)
 
+    HDFS-1602. Fix HADOOP-4885 for it is doesn't work as expected. (boryas)
+
   BUG FIXES
 
     HDFS-1039. Adding test for  JspHelper.getUGI(jnp via boryas)

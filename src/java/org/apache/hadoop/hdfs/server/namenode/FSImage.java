@@ -1602,8 +1602,9 @@ public class FSImage extends Storage {
     for (Iterator<StorageDirectory> it = 
       dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
       sd = it.next();
-      if(sd.getRoot().canRead())
-        return getImageFile(sd, NameNodeFile.IMAGE); 
+      File fsImage = getImageFile(sd, NameNodeFile.IMAGE);
+      if(sd.getRoot().canRead() && fsImage.exists())
+        return fsImage;
     }
     return null;
   }
@@ -1627,7 +1628,10 @@ public class FSImage extends Storage {
       try {
         
         if(root.exists() && root.canWrite()) { 
-          format(sd);
+          // when we try to restore we just need to remove all the data
+          // without saving current in-memory state (which could've changed).
+          sd.clearDirectory();
+          
           LOG.info("restoring dir " + sd.getRoot().getAbsolutePath());
           if(sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
             File eFile = getEditFile(sd);
