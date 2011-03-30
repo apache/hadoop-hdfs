@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -711,7 +712,9 @@ public class SecondaryNameNode implements Runnable {
       if (loadImage) {
         loadFSImage(getStorage().getStorageFile(sdName, NameNodeFile.IMAGE));
       }
-      loadFSEdits(sdEdits);
+      List<File> editsFiles =
+        FSImageOldStorageInspector.getEditsInStorageDir(sdEdits);
+      loadEdits(editsFiles);
       
       sig.validateStorageInfo(this);
       saveNamespace(false);

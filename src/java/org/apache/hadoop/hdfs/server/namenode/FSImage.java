@@ -48,6 +48,7 @@ import org.apache.hadoop.hdfs.server.common.Util;
 import static org.apache.hadoop.hdfs.server.common.Util.now;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
+import org.apache.hadoop.hdfs.server.namenode.FSImageStorageInspector.LoadPlan;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NNStorageListener;
@@ -208,44 +209,13 @@ public class FSImage implements NNStorageListener, Closeable {
     // check whether all is consistent before transitioning.
     Map<StorageDirectory, StorageState> dataDirStates = 
              new HashMap<StorageDirectory, StorageState>();
-    boolean isFormatted = false;
-    for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
-      StorageDirectory sd = it.next();
-      StorageState curState;
-      try {
-        curState = sd.analyzeStorage(startOpt);
-        // sd is locked but not opened
-        switch(curState) {
-        case NON_EXISTENT:
-          // name-node fails if any of the configured storage dirs are missing
-          throw new InconsistentFSStateException(sd.getRoot(),
-                      "storage directory does not exist or is not accessible.");
-        case NOT_FORMATTED:
-          break;
-        case NORMAL:
-          break;
-        default:  // recovery is possible
-          sd.doRecover(curState);      
-        }
-        if (curState != StorageState.NOT_FORMATTED 
-            && startOpt != StartupOption.ROLLBACK) {
-          sd.read(); // read and verify consistency with other directories
-          isFormatted = true;
-        }
-        if (startOpt == StartupOption.IMPORT && isFormatted)
-          // import of a checkpoint is allowed only into empty image directories
-          throw new IOException("Cannot import image from a checkpoint. " 
-              + " NameNode already contains an image in "+ sd.getRoot());
-      } catch (IOException ioe) {
-        sd.unlock();
-        throw ioe;
-      }
-      dataDirStates.put(sd,curState);
-    }
+
+    boolean isFormatted = recoverStorageDirs(startOpt, dataDirStates);
     
     if (!isFormatted && startOpt != StartupOption.ROLLBACK 
                      && startOpt != StartupOption.IMPORT)
       throw new IOException("NameNode is not formatted.");
+
     if (storage.getLayoutVersion() < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION) {
       NNStorage.checkVersionUpgradable(storage.getLayoutVersion());
     }
@@ -301,6 +271,53 @@ public class FSImage implements NNStorageListener, Closeable {
       editLog.open();
     
     return needToSave;
+  }
+
+  /**
+   * For each storage directory, performs recovery of incomplete transitions
+   * (eg. upgrade, rollback, checkpoint) and inserts the directory's storage
+   * state into the dataDirStates map.
+   * @param dataDirStates output of storage directory states
+   * @return true if there is at least one valid formatted storage directory
+   */
+  private boolean recoverStorageDirs(StartupOption startOpt,
+      Map<StorageDirectory, StorageState> dataDirStates) throws IOException {
+    boolean isFormatted = false;
+    for (Iterator<StorageDirectory> it = 
+                      storage.dirIterator(); it.hasNext();) {
+      StorageDirectory sd = it.next();
+      StorageState curState;
+      try {
+        curState = sd.analyzeStorage(startOpt);
+        // sd is locked but not opened
+        switch(curState) {
+        case NON_EXISTENT:
+          // name-node fails if any of the configured storage dirs are missing
+          throw new InconsistentFSStateException(sd.getRoot(),
+                      "storage directory does not exist or is not accessible.");
+        case NOT_FORMATTED:
+          break;
+        case NORMAL:
+          break;
+        default:  // recovery is possible
+          sd.doRecover(curState);      
+        }
+        if (curState != StorageState.NOT_FORMATTED 
+            && startOpt != StartupOption.ROLLBACK) {
+          sd.read(); // read and verify consistency with other directories
+          isFormatted = true;
+        }
+        if (startOpt == StartupOption.IMPORT && isFormatted)
+          // import of a checkpoint is allowed only into empty image directories
+          throw new IOException("Cannot import image from a checkpoint. " 
+              + " NameNode already contains an image in " + sd.getRoot());
+      } catch (IOException ioe) {
+        sd.unlock();
+        throw ioe;
+      }
+      dataDirStates.put(sd,curState);
+    }
+    return isFormatted;
   }
 
   private void doUpgrade() throws IOException {
@@ -475,51 +492,17 @@ public class FSImage implements NNStorageListener, Closeable {
     return editLog;
   }
 
-  //
-  // Atomic move sequence, to recover from interrupted checkpoint
-  //
-  boolean recoverInterruptedCheckpoint(StorageDirectory nameSD,
-                                       StorageDirectory editsSD) 
-                                       throws IOException {
-    boolean needToSave = false;
-    File curFile = NNStorage.getStorageFile(nameSD, NameNodeFile.IMAGE);
-    File ckptFile = NNStorage.getStorageFile(nameSD, NameNodeFile.IMAGE_NEW);
+  private FSImageStorageInspector inspectStorageDirs() throws IOException {
+    FSImageStorageInspector inspector = new FSImageOldStorageInspector();
 
-    //
-    // If we were in the midst of a checkpoint
-    //
-    if (ckptFile.exists()) {
-      needToSave = true;
-      if (NNStorage.getStorageFile(editsSD, NameNodeFile.EDITS_NEW).exists()) {
-        //
-        // checkpointing migth have uploaded a new
-        // merged image, but we discard it here because we are
-        // not sure whether the entire merged image was uploaded
-        // before the namenode crashed.
-        //
-        if (!ckptFile.delete()) {
-          throw new IOException("Unable to delete " + ckptFile);
-        }
-      } else {
-        //
-        // checkpointing was in progress when the namenode
-        // shutdown. The fsimage.ckpt was created and the edits.new
-        // file was moved to edits. We complete that checkpoint by
-        // moving fsimage.new to fsimage. There is no need to 
-        // update the fstime file here. renameTo fails on Windows
-        // if the destination file already exists.
-        //
-        if (!ckptFile.renameTo(curFile)) {
-          if (!curFile.delete())
-            LOG.warn("Unable to delete dir " + curFile + " before rename");
-          if (!ckptFile.renameTo(curFile)) {
-            throw new IOException("Unable to rename " + ckptFile +
-                                  " to " + curFile);
-          }
-        }
-      }
+    // Process each of the storage directories to find the pair of
+    // newest image file and edit file
+    for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
+      StorageDirectory sd = it.next();
+      inspector.inspectDirectory(sd);
     }
-    return needToSave;
+
+    return inspector;
   }
 
   /**
@@ -538,123 +521,68 @@ public class FSImage implements NNStorageListener, Closeable {
    * @throws IOException
    */
   boolean loadFSImage() throws IOException {
-    long latestNameCheckpointTime = Long.MIN_VALUE;
-    long latestEditsCheckpointTime = Long.MIN_VALUE;
-    boolean needToSave = false;
-    isUpgradeFinalized = true;
+    FSImageStorageInspector inspector = inspectStorageDirs();
     
-    StorageDirectory latestNameSD = null;
-    StorageDirectory latestEditsSD = null;
+    isUpgradeFinalized = inspector.isUpgradeFinalized();
     
-    Collection<String> imageDirs = new ArrayList<String>();
-    Collection<String> editsDirs = new ArrayList<String>();
+    boolean needToSave = inspector.needToSave();
     
-    // Set to determine if all of storageDirectories share the same checkpoint
-    Set<Long> checkpointTimes = new HashSet<Long>();
+    // Plan our load. This will throw if it's impossible to load from the
+    // data that's available.
+    LoadPlan loadPlan = inspector.createLoadPlan();    
+    LOG.debug("Planning to load image using following plan:\n" + loadPlan);
 
-    // Process each of the storage directories to find the pair of
-    // newest image file and edit file
-    for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
-      StorageDirectory sd = it.next();
-
-      // Was the file just formatted?
-      if (!sd.getVersionFile().exists()) {
-        needToSave |= true;
-        continue;
-      }
-      
-      boolean imageExists = false;
-      boolean editsExists = false;
-      
-      // Determine if sd is image, edits or both
-      if (sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {
-        imageExists = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE).exists();
-        imageDirs.add(sd.getRoot().getCanonicalPath());
-      }
-      
-      if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
-        editsExists = NNStorage.getStorageFile(sd, NameNodeFile.EDITS).exists();
-        editsDirs.add(sd.getRoot().getCanonicalPath());
-      }
-      
-      long checkpointTime = storage.readCheckpointTime(sd);
-
-      checkpointTimes.add(checkpointTime);
-      
-      if (sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE) && 
-         (latestNameCheckpointTime < checkpointTime) && imageExists) {
-        latestNameCheckpointTime = checkpointTime;
-        latestNameSD = sd;
-      }
-      
-      if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS) && 
-           (latestEditsCheckpointTime < checkpointTime) && editsExists) {
-        latestEditsCheckpointTime = checkpointTime;
-        latestEditsSD = sd;
-      }
-      
-      // check that we have a valid, non-default checkpointTime
-      if (checkpointTime <= 0L)
-        needToSave |= true;
-      
-      // set finalized flag
-      isUpgradeFinalized = isUpgradeFinalized && !sd.getPreviousDir().exists();
-    }
-
-    // We should have at least one image and one edits dirs
-    if (latestNameSD == null)
-      throw new IOException("Image file is not found in " + imageDirs);
-    if (latestEditsSD == null)
-      throw new IOException("Edits file is not found in " + editsDirs);
-
-    // Make sure we are loading image and edits from same checkpoint
-    if (latestNameCheckpointTime > latestEditsCheckpointTime
-        && latestNameSD != latestEditsSD
-        && latestNameSD.getStorageDirType() == NameNodeDirType.IMAGE
-        && latestEditsSD.getStorageDirType() == NameNodeDirType.EDITS) {
-      // This is a rare failure when NN has image-only and edits-only
-      // storage directories, and fails right after saving images,
-      // in some of the storage directories, but before purging edits.
-      // See -NOTE- in saveNamespace().
-      LOG.error("This is a rare failure scenario!!!");
-      LOG.error("Image checkpoint time " + latestNameCheckpointTime +
-                " > edits checkpoint time " + latestEditsCheckpointTime);
-      LOG.error("Name-node will treat the image as the latest state of " +
-                "the namespace. Old edits will be discarded.");
-    } else if (latestNameCheckpointTime != latestEditsCheckpointTime)
-      throw new IOException("Inconsistent storage detected, " +
-                      "image and edits checkpoint times do not match. " +
-                      "image checkpoint time = " + latestNameCheckpointTime +
-                      "edits checkpoint time = " + latestEditsCheckpointTime);
-    
-    // If there was more than one checkpointTime recorded we should save
-    needToSave |= checkpointTimes.size() != 1;
     
     // Recover from previous interrupted checkpoint, if any
-    needToSave |= recoverInterruptedCheckpoint(latestNameSD, latestEditsSD);
+    needToSave |= loadPlan.doRecovery();
 
     //
     // Load in bits
     //
-    latestEditsSD.read();
-    long editsVersion = storage.getLayoutVersion();
-    latestNameSD.read();
-    long imageVersion = storage.getLayoutVersion();
+    StorageDirectory sdForProperties =
+      loadPlan.getStorageDirectoryForProperties();
+    // TODO need to discuss what the correct logic is for determing which
+    // storage directory to read properties from
+    sdForProperties.read();
 
-    loadFSImage(NNStorage.getStorageFile(latestNameSD, NameNodeFile.IMAGE));
-    
-    // Load latest edits
-    if (latestNameCheckpointTime > latestEditsCheckpointTime) {
-      // the image is already current, discard edits
-      needToSave |= true;
-    } else { // latestNameCheckpointTime == latestEditsCheckpointTime
-      needToSave |= loadFSEdits(latestEditsSD);
-    }
-    needToSave |= (editsVersion != FSConstants.LAYOUT_VERSION 
-                    || imageVersion != FSConstants.LAYOUT_VERSION);
-    
+    loadFSImage(loadPlan.getImageFile());
+    needToSave |= loadEdits(loadPlan.getEditsFiles());
+
+    /* TODO(todd) Need to discuss whether we should force a re-save
+     * of the image if one of the edits or images has an old format
+     * version. We used to do:
+     *
+     * needToSave |= (editsVersion != FSConstants.LAYOUT_VERSION 
+                    || imageVersion != FSConstants.LAYOUT_VERSION); */
     return needToSave;
   }
+
+  /**
+   * Load the specified list of edit files into the image.
+   * @return true if the image should be re-saved
+   */
+  protected boolean loadEdits(List<File> editLogs) throws IOException {
+    FSEditLogLoader loader = new FSEditLogLoader(namesystem);
+    long startingTxId = storage.getCheckpointTxId() + 1;
+    int numLoaded = 0;
+    // Load latest edits
+    for (File edits : editLogs) {
+      EditLogFileInputStream editIn = new EditLogFileInputStream(edits);
+      numLoaded += loader.loadFSEdits(editIn, startingTxId);
+      startingTxId += numLoaded;
+      editIn.close();
+    }
+
+    // update the counts
+    getFSNamesystem().dir.updateCountForINodeWithQuota();    
+    
+    // update the txid for the edit log
+    editLog.setNextTxId(storage.getCheckpointTxId() + numLoaded + 1);
+
+    // If we loaded any edits, need to save.
+    return numLoaded > 0;
+  }
+
 
   /**
    * Load in the filesystem image from file. It's a big list of
@@ -679,40 +607,6 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.setCheckpointTxId(loader.getLoadedImageTxId());
   }
 
-  /**
-   * Load and merge edits from two edits files
-   * 
-   * @param sd storage directory
-   * @return true if the image should be re-saved
-   * @throws IOException
-   */
-  boolean loadFSEdits(StorageDirectory sd) throws IOException {
-    FSEditLogLoader loader = new FSEditLogLoader(namesystem);
-    
-    EditLogFileInputStream edits =
-      new EditLogFileInputStream(NNStorage.getStorageFile(sd,
-                                                          NameNodeFile.EDITS));
-    long startingTxId = storage.getCheckpointTxId() + 1;
-    long numLoaded = loader.loadFSEdits(edits, startingTxId);
-    startingTxId += numLoaded;
-
-    edits.close();
-    File editsNew = NNStorage.getStorageFile(sd, NameNodeFile.EDITS_NEW);
-    
-    if (editsNew.exists() && editsNew.length() > 0) {
-      edits = new EditLogFileInputStream(editsNew);
-      numLoaded += loader.loadFSEdits(edits, startingTxId);
-      edits.close();
-    }
-    
-    // update the counts.
-    getFSNamesystem().dir.updateCountForINodeWithQuota();    
-    
-    // update the txid for the edit log
-    editLog.setNextTxId(storage.getCheckpointTxId() + numLoaded + 1);
-    
-    return numLoaded > 0;
-  }
 
   /**
    * Save the contents of the FS image to the file.

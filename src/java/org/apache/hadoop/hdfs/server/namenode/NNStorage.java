@@ -407,7 +407,7 @@ public class NNStorage extends Storage implements Closeable {
    * @return If file exists and can be read, last checkpoint time. If not, 0L.
    * @throws IOException On errors processing file pointed to by sd
    */
-  long readCheckpointTime(StorageDirectory sd) throws IOException {
+  static long readCheckpointTime(StorageDirectory sd) throws IOException {
     File timeFile = getStorageFile(sd, NameNodeFile.TIME);
     long timeStamp = 0L;
     if (timeFile.exists() && timeFile.canRead()) {
