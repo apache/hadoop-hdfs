@@ -52,6 +52,9 @@ public class TestEditLog extends TestCase {
   // 2 * NUM_TRANSACTIONS Transactions concurrently.
   static final int NUM_TRANSACTIONS = 100;
   static final int NUM_THREADS = 100;
+  
+  private static final File TEST_DIR = new File(
+    System.getProperty("test.build.data","build/test/data"));
 
   /** An edits log with 3 edits from 0.20 - the result of
    * a fresh namesystem followed by hadoop fs -touchz /myfile */
@@ -369,6 +372,52 @@ public class TestEditLog extends TestCase {
       threadB.shutdown();
       if(fileSys != null) fileSys.close();
       if(cluster != null) cluster.shutdown();
+    }
+  }
+  
+  public void testGetValidLength() throws Exception {
+    assertTrue(TEST_DIR.mkdirs() || TEST_DIR.exists());
+
+    // For each of a combination of valid bytes followed by invalid,
+    // make sure we determine the proper non-zero size of the file.
+    // Sizes designed to find off-by-one errors around 1024 byte chunk size.
+    final int VALID_SIZES[] = new int[] {0, 1, 789, 1023, 1024, 1025};
+    final int ZERO_SIZES[] = new int[] {0, 1, 1024-789-1, 1024-789,
+        1024-789+1, 1023, 1024, 1025};
+    
+    for (int validPart : VALID_SIZES) {
+      for (int zeroPart : ZERO_SIZES) {
+        doValidLengthTest(validPart, zeroPart);
+        doValidLengthTest(validPart*3, zeroPart*3);
+      }
+    }
+  }
+
+  private void doValidLengthTest(int validPart, int zeroPart) throws Exception {
+    File file = new File(TEST_DIR, "validLengthTest");
+    FileOutputStream fos = new FileOutputStream(file);
+    try {
+      try {
+        byte[] valid = new byte[validPart];
+        for (int i = 0; i < validPart; i++) {
+          valid[i] = (byte)(i % 10); // make sure we cycle through 0 bytes occasionally
+        }
+        // The valid data shouldn't end in a 0, or else we'd think it was one shorter
+        // than actual length
+        if (validPart > 0) valid[validPart - 1] = 1;
+        fos.write(valid);
+        
+        byte[] zeros = new byte[zeroPart];
+        fos.write(zeros);
+      } finally {
+        fos.close();
+      }
+      
+      long computedValid = EditLogFileInputStream.getValidLength(file, 1024);
+      assertEquals("Testing valid=" + validPart + " zero=" + zeroPart,
+          validPart, computedValid);
+    } finally {
+      file.delete();
     }
   }
 }

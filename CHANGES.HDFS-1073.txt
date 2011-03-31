@@ -8,3 +8,4 @@ HDFS-1521. Persist transaction ID on disk between NN restarts.
            (Ivan Kelly and Todd Lipcon via todd)
 HDFS-1538. Refactor more startup and image loading code out of FSImage.
            (todd)
+HDFS-1729. Add code to detect valid length of an edits file. (todd)
