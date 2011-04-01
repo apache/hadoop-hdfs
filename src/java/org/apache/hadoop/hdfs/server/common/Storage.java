@@ -179,6 +179,16 @@ public abstract class Storage extends StorageInfo {
     return new DirIterator(dirType);
   }
   
+  public Iterable<StorageDirectory> dirIterable(final StorageDirType dirType) {
+    return new Iterable<StorageDirectory>() {
+      @Override
+      public Iterator<StorageDirectory> iterator() {
+        return dirIterator(dirType);
+      }
+    };
+  }
+  
+  
   /**
    * generate storage list (debug line)
    */

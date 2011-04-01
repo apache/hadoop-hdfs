@@ -177,6 +177,15 @@ public interface NamenodeProtocol extends VersionedProtocol {
    */
   public void endCheckpoint(NamenodeRegistration registration,
                             CheckpointSignature sig) throws IOException;
+  
+  
+  /**
+   * Return a structure containing details about all edit logs
+   * available to be fetched from the NameNode.
+   * @param sinceTxId return only logs that contain transactions >= sinceTxId
+   */
+  public RemoteEditLogManifest getEditLogManifest(long sinceTxId)
+    throws IOException;
 
   /**
    * Get the size of the active name-node journal (edit log) in bytes.

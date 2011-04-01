@@ -78,6 +78,7 @@ import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.NodeRegistration;
+import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.hdfs.server.namenode.GetDelegationTokenServlet;
 import org.apache.hadoop.hdfs.server.namenode.CancelDelegationTokenServlet;
@@ -1119,6 +1120,12 @@ public class NameNode implements NamenodeProtocols, FSConstants {
   @Deprecated @Override
   public void rollFsImage(CheckpointSignature sig) throws IOException {
     namesystem.rollFSImage(sig);
+  }
+  
+  @Override
+  public RemoteEditLogManifest getEditLogManifest(long sinceTxId)
+  throws IOException {
+    return namesystem.getEditLogManifest(sinceTxId);
   }
     
   public void finalizeUpgrade() throws IOException {

@@ -37,6 +37,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
+import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
+import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 
 import com.google.common.collect.Lists;
 
@@ -218,6 +220,22 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
   @Override
   public boolean needToSave() {
     return false; // TODO do we need to do this ever?
+  }
+  
+  
+  RemoteEditLogManifest getEditLogManifest(long sinceTxId) {
+    List<RemoteEditLog> logs = Lists.newArrayList();
+    for (LogGroup g : logGroups.values()) {
+      if (!g.hasFinalized) continue;
+
+      FoundEditLog fel = g.getBestNonCorruptLog();
+      if (fel.getLastTxId() < sinceTxId) continue;
+      
+      logs.add(new RemoteEditLog(fel.getStartTxId(),
+          fel.getLastTxId()));
+    }
+    
+    return new RemoteEditLogManifest(logs);
   }
 
   /**

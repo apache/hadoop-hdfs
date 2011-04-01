@@ -42,6 +42,7 @@ import org.apache.hadoop.hdfs.server.namenode.NNStorage.NNStorageListener;
 import org.apache.hadoop.hdfs.server.namenode.JournalStream.JournalType;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
+import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -808,6 +809,21 @@ public class FSEditLog implements NNStorageListener {
     }
     if(al!=null) disableAndReportErrorOnStreams(al);
     return size;
+  }
+  
+  /**
+   * Return a manifest of what finalized edit logs are available
+   */
+  public RemoteEditLogManifest getEditLogManifest(long sinceTxId)
+      throws IOException {
+    FSImageTransactionalStorageInspector inspector =
+        new FSImageTransactionalStorageInspector();
+
+    for (StorageDirectory sd : storage.dirIterable(NameNodeDirType.EDITS)) {
+      inspector.inspectDirectory(sd);
+    }
+    
+    return inspector.getEditLogManifest(sinceTxId);
   }
   
   /**

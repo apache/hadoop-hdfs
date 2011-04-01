@@ -318,6 +318,34 @@ public class TestFSImageStorageInspector {
         new File("/foo3/current/edits_inprogress_457")
       }, plan.getEditsFiles().toArray(new File[0]));
 
+    // Check log manifest
+    assertEquals("[[123,456]]", inspector.getEditLogManifest(123).toString());
+    assertEquals("[[123,456]]", inspector.getEditLogManifest(456).toString());
+    assertEquals("[]", inspector.getEditLogManifest(457).toString());
+  }
+  
+  @Test
+  public void testLogManifest() throws IOException { 
+    FSImageTransactionalStorageInspector inspector =
+        new FSImageTransactionalStorageInspector();
+    inspector.inspectDirectory(
+        mockDirectoryWithEditLogs("/foo1/current/edits_1-1",
+                                  "/foo1/current/edits_2-200"));
+    inspector.inspectDirectory(
+        mockDirectoryWithEditLogs("/foo2/current/edits_1-inprogress",
+                                  "/foo2/current/edits_201-400"));
+    inspector.inspectDirectory(
+        mockDirectoryWithEditLogs("/foo3/current/edits_1-1",
+                                  "/foo3/current/edts_2-200"));
+    
+    assertEquals("[[1,1], [2,200], [201,400]]",
+                 inspector.getEditLogManifest(1).toString());
+    assertEquals("[[2,200], [201,400]]",
+                 inspector.getEditLogManifest(2).toString());
+    assertEquals("[[2,200], [201,400]]",
+                 inspector.getEditLogManifest(10).toString());
+    assertEquals("[[201,400]]",
+                 inspector.getEditLogManifest(201).toString());
   }
 
   private StorageDirectory mockDirectoryWithEditLogs(String... fileNames) {

@@ -62,6 +62,7 @@ import org.apache.hadoop.hdfs.server.protocol.KeyUpdateCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
+import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
@@ -4336,6 +4337,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     } finally {
       writeUnlock();
     }
+  }
+  
+  public RemoteEditLogManifest getEditLogManifest(long sinceTxId) throws IOException {
+    return getEditLog().getEditLogManifest(sinceTxId);
   }
 
   NamenodeCommand startCheckpoint(
