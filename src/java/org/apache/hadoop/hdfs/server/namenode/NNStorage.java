@@ -71,7 +71,8 @@ public class NNStorage extends Storage implements Closeable {
     TIME      ("fstime"),
     EDITS     ("edits"),
     IMAGE_NEW ("fsimage.ckpt"),
-    EDITS_NEW ("edits.new");
+    EDITS_NEW ("edits.new"), // from "old" pre-HDFS-1073 format
+    EDITS_INPROGRESS ("edits_inprogress");
 
     private String fileName = null;
     private NameNodeFile(String name) { this.fileName = name; }

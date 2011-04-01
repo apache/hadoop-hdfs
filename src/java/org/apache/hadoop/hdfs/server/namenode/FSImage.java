@@ -71,6 +71,8 @@ public class FSImage implements NNStorageListener, Closeable {
   private static final SimpleDateFormat DATE_FORM =
       new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
+  private static final int FIRST_TXNID_BASED_LAYOUT_VERSION=-29;
+  
   // checkpoint states
   enum CheckpointStates{START, ROLLED_EDITS, UPLOAD_START, UPLOAD_DONE; }
 
@@ -493,7 +495,39 @@ public class FSImage implements NNStorageListener, Closeable {
   }
 
   private FSImageStorageInspector inspectStorageDirs() throws IOException {
-    FSImageStorageInspector inspector = new FSImageOldStorageInspector();
+    int minLayoutVersion = Integer.MAX_VALUE; // the newest
+    int maxLayoutVersion = Integer.MIN_VALUE; // the oldest
+    
+    // First determine what range of layout versions we're going to inspect
+    for (Iterator<StorageDirectory> it = storage.dirIterator();
+         it.hasNext();) {
+      StorageDirectory sd = it.next();
+      if (!sd.getVersionFile().exists()) {
+        LOG.info("Storage directory " + sd + " contains no VERSION file. Skipping...");
+        continue;
+      }
+      sd.read(); // sets layoutVersion
+      minLayoutVersion = Math.min(minLayoutVersion, storage.getLayoutVersion());
+      maxLayoutVersion = Math.max(maxLayoutVersion, storage.getLayoutVersion());
+    }
+    
+    if (minLayoutVersion > maxLayoutVersion) {
+      throw new IOException("No storage directories contained VERSION information");
+    }
+    assert minLayoutVersion <= maxLayoutVersion;
+    
+    // If we have any storage directories with the new layout version
+    // (ie edits_<txnid>) then use the new inspector, which will ignore
+    // the old format dirs.
+    FSImageStorageInspector inspector;
+    if (minLayoutVersion <= FIRST_TXNID_BASED_LAYOUT_VERSION) {
+      inspector = new FSImageTransactionalStorageInspector();
+      if (maxLayoutVersion > FIRST_TXNID_BASED_LAYOUT_VERSION) {
+        LOG.warn("Ignoring one or more storage directories with old layouts");
+      }
+    } else {
+      inspector = new FSImageOldStorageInspector();
+    }
 
     // Process each of the storage directories to find the pair of
     // newest image file and edit file
