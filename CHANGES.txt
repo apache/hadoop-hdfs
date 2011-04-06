@@ -263,6 +263,8 @@ Trunk (unreleased changes)
 
     HDFS-1602. Fix testStorageRestore (boryas)
 
+    HDFS-1730. Move DaemonFactory from HDFS to Common (Erik Steffl)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
