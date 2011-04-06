@@ -244,7 +244,10 @@ Trunk (unreleased changes)
 
     HDFS-1684. Balancer cannot start with with multiple namenodes.  (szetszwo)
 
-    HDFS-1445: Fast Snapshot via batch hardlinks. (Matt Foley)
+    HDFS-1445. Fast Snapshot via batch hardlinks. (Matt Foley)
+
+    HDFS-1656. Fixes an issue to do with fetching of delegation tokens in
+    HftpFileSystem. (Kan Zhang via ddas)
 
 Release 0.22.0 - Unreleased
 
