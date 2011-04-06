@@ -232,6 +232,8 @@ Trunk (unreleased changes)
 
     HDFS-1810. Remove duplicate jars from ivy. (Luke Lu)
 
+    HDFS-1543. Remove system test artifacts from default build. (Luke Lu)
+
   OPTIMIZATIONS
 
   BUG FIXES
