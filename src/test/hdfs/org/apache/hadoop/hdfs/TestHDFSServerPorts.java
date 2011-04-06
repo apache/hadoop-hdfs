@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.BackupNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.test.GenericTestUtils;
 
@@ -48,6 +49,7 @@ import org.apache.hadoop.test.GenericTestUtils;
  * a free port and start on it.
  */
 public class TestHDFSServerPorts extends TestCase {
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
   public static final Log LOG = LogFactory.getLog(TestHDFSServerPorts.class);
   
   public static final String NAME_NODE_HOST = "localhost:";

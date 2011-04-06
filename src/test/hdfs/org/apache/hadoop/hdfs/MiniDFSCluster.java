@@ -83,7 +83,7 @@ public class MiniDFSCluster {
   private static final String NAMESERVICE_ID_PREFIX = "nameserviceId";
   private static final Log LOG = LogFactory.getLog(MiniDFSCluster.class);
 
-  { DefaultMetricsSystem.setMiniClusterMode(true); }
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   /**
    * Class to construct instances of MiniDFSClusters with specific options.
