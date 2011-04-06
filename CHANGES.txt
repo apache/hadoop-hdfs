@@ -228,6 +228,8 @@ Trunk (unreleased changes)
 
     HDFS-1117. Metrics 2.0 HDFS instrumentation. (Luke Lu)
 
+    HDFS-1544. Ivy resolve force mode off by default. (Luke Lu)
+
   OPTIMIZATIONS
 
   BUG FIXES
