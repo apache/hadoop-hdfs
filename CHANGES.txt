@@ -255,6 +255,8 @@ Trunk (unreleased changes)
     HDFS-1809. Missing DefaultMetricsSystem initialization breaks some tests.
     (suresh)
 
+    HDFS-1602. Fix testStorageRestore (boryas)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES

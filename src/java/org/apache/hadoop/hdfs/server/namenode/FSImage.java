@@ -1674,13 +1674,23 @@ public class FSImage extends Storage {
     return bpid;
   }
   
-  /** Create new dfs name directory.  Caution: this destroys all files
-   * in this filesystem. */
+  /**
+   *  Create new dfs name directory.  Caution: this destroys all files
+   * in this filesystem. 
+   * */
   void format(StorageDirectory sd) throws IOException {
+    format(sd, true);
+  }
+  
+  /**
+   *  if saveCurrent is true - save current image to the SD 
+   */
+  void format(StorageDirectory sd, boolean saveCurrent) throws IOException {
     sd.clearDirectory(); // create currrent dir
     sd.lock();
     try {
-      saveCurrent(sd);
+      if(saveCurrent)
+        saveCurrent(sd);
     } finally {
       sd.unlock();
     }
@@ -2150,8 +2160,10 @@ public class FSImage extends Storage {
     for (Iterator<StorageDirectory> it = 
       dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
       sd = it.next();
-      if(sd.getRoot().canRead())
-        return getImageFile(sd, NameNodeFile.IMAGE); 
+      File fsImage = getImageFile(sd, NameNodeFile.IMAGE);
+      if(sd.getRoot().canRead() && fsImage.exists()) {
+        return fsImage;
+      } 
     }
     return null;
   }
@@ -2160,7 +2172,7 @@ public class FSImage extends Storage {
    * See if any of removed storages iw "writable" again, and can be returned 
    * into service
    */
-  synchronized void attemptRestoreRemovedStorage() {   
+  synchronized void attemptRestoreRemovedStorage(boolean saveCurrentImage) {   
     // if directory is "alive" - copy the images there...
     if(!restoreFailedStorage || removedStorageDirs.size() == 0) 
       return; //nothing to restore
@@ -2175,7 +2187,7 @@ public class FSImage extends Storage {
       try {
         
         if(root.exists() && root.canWrite()) { 
-          format(sd);
+          format(sd, saveCurrentImage);
           LOG.info("restoring dir " + sd.getRoot().getAbsolutePath());
           if(sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
             File eFile = getEditFile(sd);
