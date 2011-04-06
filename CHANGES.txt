@@ -265,6 +265,9 @@ Trunk (unreleased changes)
 
     HDFS-1730. Move DaemonFactory from HDFS to Common (Erik Steffl)
 
+    HDFS-1703. Run the namenodes and secondary namenodes on hosts
+    returned by hdfs getconf (Erik Steffl)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
