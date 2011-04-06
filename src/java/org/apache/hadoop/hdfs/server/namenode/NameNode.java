@@ -83,6 +83,7 @@ import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.Server;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
@@ -199,7 +200,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     format(conf, false);
   }
 
-  static NameNodeMetrics myMetrics;
+  static NameNodeMetrics metrics;
 
   /** Return the {@link FSNamesystem} object.
    * @return {@link FSNamesystem} object.
@@ -209,11 +210,11 @@ public class NameNode implements NamenodeProtocols, FSConstants {
   }
 
   static void initMetrics(Configuration conf, NamenodeRole role) {
-    myMetrics = new NameNodeMetrics(conf, role);
+    metrics = NameNodeMetrics.create(conf, role);
   }
 
   public static NameNodeMetrics getNameNodeMetrics() {
-    return myMetrics;
+    return metrics;
   }
   
   public static InetSocketAddress getAddress(String address) {
@@ -629,8 +630,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     if(emptier != null) emptier.interrupt();
     if(server != null) server.stop();
     if(serviceRpcServer != null) serviceRpcServer.stop();
-    if (myMetrics != null) {
-      myMetrics.shutdown();
+    if (metrics != null) {
+      metrics.shutdown();
     }
     if (namesystem != null) {
       namesystem.shutdown();
@@ -740,7 +741,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
                                           long offset, 
                                           long length) 
       throws IOException {
-    myMetrics.numGetBlockLocations.inc();
+    metrics.incrGetBlockLocations();
     return namesystem.getBlockLocations(getClientMachine(), 
                                         src, offset, length);
   }
@@ -779,8 +780,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         new PermissionStatus(UserGroupInformation.getCurrentUser().getShortUserName(),
             null, masked),
         clientName, clientMachine, flag.get(), createParent, replication, blockSize);
-    myMetrics.numFilesCreated.inc();
-    myMetrics.numCreateFileOps.inc();
+    metrics.incrFilesCreated();
+    metrics.incrCreateFileOps();
   }
 
   /** {@inheritDoc} */
@@ -792,7 +793,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
           +src+" for "+clientName+" at "+clientMachine);
     }
     LocatedBlock info = namesystem.appendFile(src, clientName, clientMachine);
-    myMetrics.numFilesAppended.inc();
+    metrics.incrFilesAppended();
     return info;
   }
 
@@ -834,7 +835,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     LocatedBlock locatedBlock = 
       namesystem.getAdditionalBlock(src, clientName, previous, excludedNodesSet);
     if (locatedBlock != null)
-      myMetrics.numAddBlockOps.inc();
+      metrics.incrAddBlockOps();
     return locatedBlock;
   }
 
@@ -922,7 +923,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     }
     boolean ret = namesystem.renameTo(src, dst);
     if (ret) {
-      myMetrics.numFilesRenamed.inc();
+      metrics.incrFilesRenamed();
     }
     return ret;
   }
@@ -946,7 +947,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
                             + MAX_PATH_LENGTH + " characters, " + MAX_PATH_DEPTH + " levels.");
     }
     namesystem.renameTo(src, dst, options);
-    myMetrics.numFilesRenamed.inc();
+    metrics.incrFilesRenamed();
   }
 
   /**
@@ -964,7 +965,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     }
     boolean ret = namesystem.delete(src, recursive);
     if (ret) 
-      myMetrics.numDeleteFileOps.inc();
+      metrics.incrDeleteFileOps();
     return ret;
   }
 
@@ -1010,8 +1011,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     DirectoryListing files = namesystem.getListing(
         src, startAfter, needLocation);
     if (files != null) {
-      myMetrics.numGetListingOps.inc();
-      myMetrics.numFilesInGetListingOps.inc(files.getPartialListing().length);
+      metrics.incrGetListingOps();
+      metrics.incrFilesInGetListingOps(files.getPartialListing().length);
     }
     return files;
   }
@@ -1023,7 +1024,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
    *         or null if file not found
    */
   public HdfsFileStatus getFileInfo(String src)  throws IOException {
-    myMetrics.numFileInfoOps.inc();
+    metrics.incrFileInfoOps();
     return namesystem.getFileInfo(src, true);
   }
 
@@ -1035,7 +1036,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
    *         or null if file not found
    */
   public HdfsFileStatus getFileLinkInfo(String src) throws IOException { 
-    myMetrics.numFileInfoOps.inc();
+    metrics.incrFileInfoOps();
     return namesystem.getFileInfo(src, false);
   }
   
@@ -1176,7 +1177,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
   public void createSymlink(String target, String link, FsPermission dirPerms, 
                             boolean createParent) 
       throws IOException {
-    myMetrics.numcreateSymlinkOps.inc();
+    metrics.incrCreateSymlinkOps();
     /* We enforce the MAX_PATH_LENGTH limit even though a symlink target 
      * URI may refer to a non-HDFS file system. 
      */
@@ -1195,7 +1196,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
 
   /** @inheritDoc */
   public String getLinkTarget(String path) throws IOException {
-    myMetrics.numgetLinkTargetOps.inc();
+    metrics.incrGetLinkTargetOps();
     /* Resolves the first symlink in the given path, returning a
      * new path consisting of the target of the symlink and any 
      * remaining path components from the original path.
@@ -1582,8 +1583,11 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         return null; // avoid javac warning
       case BACKUP:
       case CHECKPOINT:
-        return new BackupNode(conf, startOpt.toNodeRole());
+        NamenodeRole role = startOpt.toNodeRole();
+        DefaultMetricsSystem.initialize(role.toString().replace(" ", ""));
+        return new BackupNode(conf, role);
       default:
+        DefaultMetricsSystem.initialize("NameNode");
         return new NameNode(conf);
     }
   }

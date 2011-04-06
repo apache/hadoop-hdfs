@@ -216,7 +216,8 @@ Trunk (unreleased changes)
     HDFS-1628. Display full path in AccessControlException.  (John George
     via szetszwo)
 
-    HDFS-1707. Federation: Failure in browsing data on new namenodes. (jitendra)
+    HDFS-1707. Federation: Failure in browsing data on new namenodes. 
+    (jitendra)
 
     HDFS-1683. Test Balancer with multiple NameNodes.  (szetszwo)
 
@@ -224,6 +225,8 @@ Trunk (unreleased changes)
 
     HDFS-1588. Remove hardcoded strings for configuration keys, "dfs.hosts"
     and "dfs.hosts.exlude". (Erik Steffl via suresh)
+
+    HDFS-1117. Metrics 2.0 HDFS instrumentation. (Luke Lu)
 
   OPTIMIZATIONS
 
