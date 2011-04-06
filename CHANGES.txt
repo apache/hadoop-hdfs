@@ -209,6 +209,8 @@ Trunk (unreleased changes)
     HDFS-1700. Federation: fsck needs to work with federation changes.
     (Matt Foley via suresh)
 
+    HDFS-1811. Create scripts to decommission datanodes. (Erik Steffl)
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
