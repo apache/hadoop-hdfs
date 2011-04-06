@@ -32,9 +32,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
  * be published as an interface.
  * 
  * <p>
- * Data Node runtime statistic  info is report in another MBean
- * @see org.apache.hadoop.hdfs.server.datanode.metrics.DataNodeActivityMBean
- *
+ * Data Node runtime statistic info is report in the metrics MBean
  */
 @InterfaceAudience.Private
 public interface FSDatasetMBean {

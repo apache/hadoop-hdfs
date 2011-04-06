@@ -31,9 +31,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
  * be published as an interface.
  * 
  * <p>
- * Name Node runtime activity statistic  info is report in another MBean
- * @see org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeActivityMBean
- *
+ * Name Node runtime activity statistic info is report in the metrics MBean
  */
 @InterfaceAudience.Private
 public interface FSNamesystemMBean {

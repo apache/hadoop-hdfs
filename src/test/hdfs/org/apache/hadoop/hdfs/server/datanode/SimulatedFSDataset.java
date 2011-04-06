@@ -893,8 +893,11 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
     DataNode.LOG.info("Registered FSDatasetState MBean");
   }
 
-  public void shutdown() {
-    if (mbeanName != null) MBeans.unregister(mbeanName);
+  public synchronized void shutdown() {
+    if (mbeanName != null) {
+      mbeanName = null;
+      MBeans.unregister(mbeanName);
+    }
   }
 
   public String getStorageInfo() {

@@ -4477,16 +4477,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     return isInSafeMode() ? "safeMode" : "Operational";
   }
   
-  private ObjectName mbeanName;
+  private ObjectName mBeanName, mxBeanName;
+
   /**
    * Register the FSNamesystem MBean using the name
    *        "hadoop:service=NameNode,name=FSNamesystemState"
    */
-  void registerMBean() {
+  synchronized void registerMBean() {
     // We can only implement one MXBean interface, so we keep the old one.
     try {
       StandardMBean bean = new StandardMBean(this, FSNamesystemMBean.class);
-      mbeanName = MBeans.register("NameNode", "FSNamesystemState", bean);
+      mBeanName = MBeans.register("NameNode", "FSNamesystemState", bean);
     } catch (NotCompliantMBeanException e) {
       throw new RuntimeException("Bad MBean setup", e);
     }
@@ -4496,9 +4497,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   /**
    * shutdown FSNamesystem
    */
-  public void shutdown() {
-    if (mbeanName != null)
-      MBeans.unregister(mbeanName);
+  public synchronized void shutdown() {
+    if (mBeanName != null) {
+      MBeans.unregister(mBeanName);
+      mBeanName = null;
+    }
+    if (mxBeanName != null) {
+      MBeans.unregister(mxBeanName);
+      mxBeanName = null;
+    }
   }
   
 
@@ -5144,8 +5151,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   /**
    * Register NameNodeMXBean
    */
-  private void registerMXBean() {
-    MBeans.register("NameNode", "NameNodeInfo", this);
+  private synchronized void registerMXBean() {
+    mxBeanName = MBeans.register("NameNode", "NameNodeInfo", this);
   }
 
   /**

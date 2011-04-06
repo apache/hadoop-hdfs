@@ -368,6 +368,8 @@ public class DataNode extends Configured
   private AbstractList<File> dataDirs;
   private Configuration conf;
 
+  private ObjectName mxBeanName;
+
   /**
    * Create the DataNode given a configuration and an array of dataDirs.
    * 'dataDirs' is where the blocks are stored.
@@ -1399,8 +1401,15 @@ public class DataNode extends Configured
         conf.get("dfs.datanode.http.address", "0.0.0.0:50075"));
   }
   
-  private void registerMXBean() {
-    MBeans.register("DataNode", "DataNodeInfo", this);
+  private synchronized void registerMXBean() {
+    mxBeanName = MBeans.register("DataNode", "DataNodeInfo", this);
+  }
+
+  private synchronized void unregisterMXBean() {
+    if (mxBeanName != null) {
+      MBeans.unregister(mxBeanName);
+      mxBeanName = null;
+    }
   }
   
   int getPort() {
@@ -1640,6 +1649,7 @@ public class DataNode extends Configured
     if (metrics != null) {
       metrics.shutdown();
     }
+    unregisterMXBean();
   }
   
   

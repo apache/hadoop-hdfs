@@ -1081,7 +1081,8 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
   // Used for synchronizing access to usage stats
   private final Object statsLock = new Object();
 
-  final boolean supportAppends;
+  boolean supportAppends = true;
+  boolean hasShutdown = false;
 
   /**
    * An FSDataset has a directory where it loads its data files.
@@ -2010,7 +2011,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
     return "FSDataset{dirpath='"+volumes+"'}";
   }
 
-  private ObjectName mbeanName;
+  private volatile ObjectName mbeanName;
   private Random rand = new Random();
   
   /**
@@ -2038,16 +2039,24 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
   }
 
   @Override // FSDatasetInterface
-  public void shutdown() {
-    if (mbeanName != null)
+  public synchronized void shutdown() {
+    if (hasShutdown) return;
+    hasShutdown = true;
+
+    if (mbeanName != null) {
       MBeans.unregister(mbeanName);
-    
+    }
+
     if (asyncDiskService != null) {
       asyncDiskService.shutdown();
     }
-    
-    if(volumes != null) {
-      volumes.shutdown();
+
+    if (volumes != null) {
+      for (FSVolume volume : volumes.volumes) {
+        if(volume != null) {
+          volume.shutdown();
+        }
+      }
     }
   }
 
