@@ -220,7 +220,8 @@
     </cactifywar>    	
 	</target>
 	
-	<target name="test" depends="compile,compile-test,test-junit,test-cactus" description="Automated Test Framework" if="test.available"/>
+        <!-- disable test-cactus for now -->
+	<target name="test" depends="compile,compile-test,test-junit" description="Automated Test Framework" if="test.available"/>
 	
 	<target name="test-junit" depends="compile,compile-test" if="test.available">
 		<junit fork="yes" printsummary="yes" errorProperty="tests.failed" failureProperty="tests.failed">

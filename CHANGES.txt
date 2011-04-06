@@ -230,6 +230,8 @@ Trunk (unreleased changes)
 
     HDFS-1544. Ivy resolve force mode off by default. (Luke Lu)
 
+    HDFS-1810. Remove duplicate jars from ivy. (Luke Lu)
+
   OPTIMIZATIONS
 
   BUG FIXES
