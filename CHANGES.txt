@@ -244,6 +244,8 @@ Trunk (unreleased changes)
 
     HDFS-1684. Balancer cannot start with with multiple namenodes.  (szetszwo)
 
+    HDFS-1445: Fast Snapshot via batch hardlinks. (Matt Foley)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
