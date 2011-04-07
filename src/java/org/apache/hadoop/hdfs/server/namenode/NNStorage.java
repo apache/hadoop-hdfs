@@ -754,14 +754,14 @@ public class NNStorage extends Storage implements Closeable {
   /**
    * @return A editlog File in storage directory 'sd'.
    */
-  File getEditFile(StorageDirectory sd) {
+  static File getEditFile(StorageDirectory sd) {
     return getStorageFile(sd, NameNodeFile.EDITS);
   }
 
   /**
    * @return A temporary editlog File in storage directory 'sd'.
    */
-  File getEditNewFile(StorageDirectory sd) {
+  static File getEditNewFile(StorageDirectory sd) {
     return getStorageFile(sd, NameNodeFile.EDITS_NEW);
   }
 
