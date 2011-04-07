@@ -12,5 +12,3 @@ HDFS-1729. Add code to detect valid length of an edits file. (todd)
 HDFS-1793. Add code to inspect a storage directory with txid-based filenames
            (todd)
 HDFS-1794. Add code to list which edit logs are available on a remote NN (todd)
-HDFS-1799. Refactor log rolling and filename management into a JournalManager
-           interface. (todd)

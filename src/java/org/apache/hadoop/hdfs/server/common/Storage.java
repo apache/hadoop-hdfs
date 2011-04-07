@@ -663,11 +663,6 @@ public abstract class Storage extends StorageInfo {
       lock.channel().close();
       lock = null;
     }
-    
-    @Override
-    public String toString() {
-      return "Storage Directory " + this.root;
-    }
   }
 
   /**

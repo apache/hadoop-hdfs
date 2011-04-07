@@ -235,7 +235,7 @@ public class BackupNode extends NameNode {
     }
     if(namesystem == null || namesystem.dir == null || getFSImage() == null)
       return true;
-    return false; // TODO fsImage.getEditLog().getNumJournals() == 0;
+    return fsImage.getEditLog().getNumEditStreams() == 0;
   }
 
   private NamespaceInfo handshake(Configuration conf) throws IOException {

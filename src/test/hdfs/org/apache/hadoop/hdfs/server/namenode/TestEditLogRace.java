@@ -341,11 +341,9 @@ public class TestEditLogRace {
       FSImage fsimage = namesystem.getFSImage();
       FSEditLog editLog = fsimage.getEditLog();
 
-      FileJournalManager journal = (FileJournalManager)
-          editLog.getJournals().get(0);
-      EditLogFileOutputStream spyElos =
-          spy((EditLogFileOutputStream)journal.getCurrentStream());
-      journal.setCurrentStreamForTests(spyElos);
+      ArrayList<EditLogOutputStream> streams = editLog.getEditStreams();
+      EditLogOutputStream spyElos = spy(streams.get(0));
+      streams.set(0, spyElos);
 
       final AtomicReference<Throwable> deferredException =
           new AtomicReference<Throwable>();
