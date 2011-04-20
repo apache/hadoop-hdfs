@@ -303,21 +303,19 @@ class FSDirectory implements Closeable {
     // NOTE: This does not update space counts for parents
     // create new inode
     INode newNode;
-    if (blocks == null) {
+    if (symlink.length() != 0) {
+      newNode = new INodeSymlink(symlink, modificationTime, atime, permissions);
+      ((INodeSymlink)newNode).setLinkValue(symlink);
+    } else if (blocks == null) {
       if (nsQuota >= 0 || dsQuota >= 0) {
         newNode = new INodeDirectoryWithQuota(
             permissions, modificationTime, nsQuota, dsQuota);
       } else {
         newNode = new INodeDirectory(permissions, modificationTime);
       }
-    } else  {
-      if (symlink.length() != 0) {
-        newNode = new INodeSymlink(symlink, modificationTime, atime, permissions);
-        ((INodeSymlink)newNode).setLinkValue(symlink);
-      } else {
-        newNode = new INodeFile(permissions, blocks.length, replication,
-                                modificationTime, atime, preferredBlockSize);
-      }
+    } else {
+      newNode = new INodeFile(permissions, blocks.length, replication,
+                              modificationTime, atime, preferredBlockSize);
     }
     // add new node to the parent
     INodeDirectory newParent = null;
