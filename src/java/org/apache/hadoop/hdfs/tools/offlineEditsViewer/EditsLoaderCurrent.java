@@ -17,26 +17,15 @@
  */
 package org.apache.hadoop.hdfs.tools.offlineEditsViewer;
 
-import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.EOFException;
-
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes;
 
 import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.ByteToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.ShortToken;
 import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.IntToken;
 import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.VIntToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.LongToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.VLongToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.StringUTF8Token;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.StringTextToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.BlobToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.BytesWritableToken;
-import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.EmptyToken;
 
 /**
  * EditsLoaderCurrent processes Hadoop EditLogs files and walks over
@@ -49,7 +38,7 @@ import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.EmptyTok
 class EditsLoaderCurrent implements EditsLoader {
 
   private static int [] supportedVersions = {
-    -18, -19, -20, -21, -22, -23, -24, -25, -26, -27, -28 };
+    -18, -19, -20, -21, -22, -23, -24, -25, -26, -27, -28, -30, -31 };
 
   private EditsVisitor v;
   private int editsVersion = 0;
@@ -77,7 +66,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_INVALID
    */
   private void visit_OP_INVALID() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
   }
@@ -103,7 +92,7 @@ class EditsLoaderCurrent implements EditsLoader {
    */
   private void visit_OP_ADD_or_OP_CLOSE(FSEditLogOpCodes editsOpCode)
     throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -149,7 +138,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_RENAME_OLD
    */
   private void visit_OP_RENAME_OLD() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -163,7 +152,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_DELETE
    */
   private void visit_OP_DELETE() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -176,7 +165,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_MKDIR
    */
   private void visit_OP_MKDIR() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -198,7 +187,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SET_REPLICATION
    */
   private void visit_OP_SET_REPLICATION() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -210,7 +199,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SET_PERMISSIONS
    */
   private void visit_OP_SET_PERMISSIONS() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -222,7 +211,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SET_OWNER
    */
   private void visit_OP_SET_OWNER() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -235,7 +224,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SET_GENSTAMP
    */
   private void visit_OP_SET_GENSTAMP() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -246,7 +235,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_TIMES
    */
   private void visit_OP_TIMES() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -260,7 +249,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SET_QUOTA
    */
   private void visit_OP_SET_QUOTA() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -273,7 +262,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_RENAME
    */
   private void visit_OP_RENAME() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -293,7 +282,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_CONCAT_DELETE
    */
   private void visit_OP_CONCAT_DELETE() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -317,7 +306,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_SYMLINK
    */
   private void visit_OP_SYMLINK() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -340,7 +329,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit OP_GET_DELEGATION_TOKEN
    */
   private void visit_OP_GET_DELEGATION_TOKEN() throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
     
@@ -366,7 +355,7 @@ class EditsLoaderCurrent implements EditsLoader {
    */
   private void visit_OP_RENEW_DELEGATION_TOKEN()
     throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -392,7 +381,7 @@ class EditsLoaderCurrent implements EditsLoader {
    */
   private void visit_OP_CANCEL_DELEGATION_TOKEN()
     throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
 
@@ -417,7 +406,7 @@ class EditsLoaderCurrent implements EditsLoader {
    */
   private void visit_OP_UPDATE_MASTER_KEY()
     throws IOException {
-    if(editsVersion <= -28) {
+    if(editsVersion  <= -31) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
     
@@ -530,6 +519,10 @@ class EditsLoaderCurrent implements EditsLoader {
         visitOpCode(editsOpCode);
 
         v.leaveEnclosingElement(); // DATA
+        
+        if (editsOpCode != FSEditLogOpCodes.OP_INVALID && editsVersion  <= -28) {
+          v.visitInt(EditsElement.CHECKSUM);
+        }
         v.leaveEnclosingElement(); // RECORD
       } while(editsOpCode != FSEditLogOpCodes.OP_INVALID);
 

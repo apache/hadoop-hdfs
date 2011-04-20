@@ -25,8 +25,13 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
@@ -39,17 +44,17 @@ import org.apache.hadoop.security.token.Token;
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public interface DataTransferProtocol {
-  
+  public static final Log LOG = LogFactory.getLog(DataTransferProtocol.class);
   
   /** Version for data transfers between clients and datanodes
    * This should change when serialization of DatanodeInfo, not just
    * when protocol changes. It is not very obvious. 
    */
   /*
-   * Version 20:
-   *    Added TRANSFER_RBW
+   * Version 22:
+   *    Add a new feature to replace datanode on failure.
    */
-  public static final int DATA_TRANSFER_VERSION = 20;
+  public static final int DATA_TRANSFER_VERSION = 22;
 
   /** Operation */
   public enum Op {
@@ -58,7 +63,8 @@ public interface DataTransferProtocol {
     READ_METADATA((byte)82),
     REPLACE_BLOCK((byte)83),
     COPY_BLOCK((byte)84),
-    BLOCK_CHECKSUM((byte)85);
+    BLOCK_CHECKSUM((byte)85),
+    TRANSFER_BLOCK((byte)86);
 
     /** The code for this operation. */
     public final byte code;
@@ -144,8 +150,10 @@ public interface DataTransferProtocol {
     PIPELINE_CLOSE_RECOVERY,
     // pipeline set up for block creation
     PIPELINE_SETUP_CREATE,
-    // similar to replication but transferring rbw instead of finalized
-    TRANSFER_RBW;
+    // transfer RBW for adding datanodes
+    TRANSFER_RBW,
+    // transfer Finalized for adding datanodes
+    TRANSFER_FINALIZED;
     
     final static private byte RECOVERY_BIT = (byte)1;
     
@@ -264,14 +272,23 @@ public interface DataTransferProtocol {
       if (src != null) {
         src.write(out);
       }
-      out.writeInt(targets.length - 1);
-      for (int i = 1; i < targets.length; i++) {
-        targets[i].write(out);
-      }
-
+      write(out, 1, targets);
       blockToken.write(out);
     }
-    
+
+    /** Send {@link Op#TRANSFER_BLOCK} */
+    public static void opTransferBlock(DataOutputStream out, Block blk,
+        String client, DatanodeInfo[] targets,
+        Token<BlockTokenIdentifier> blockToken) throws IOException {
+      op(out, Op.TRANSFER_BLOCK);
+
+      blk.writeId(out);
+      Text.writeString(out, client);
+      write(out, 0, targets);
+      blockToken.write(out);
+      out.flush();
+    }
+
     /** Send OP_REPLACE_BLOCK */
     public static void opReplaceBlock(DataOutputStream out,
         Block blk, String storageId, DatanodeInfo src,
@@ -306,6 +323,16 @@ public interface DataTransferProtocol {
       blockToken.write(out);
       out.flush();
     }
+
+    /** Write an array of {@link DatanodeInfo} */
+    private static void write(final DataOutputStream out,
+        final int start, 
+        final DatanodeInfo[] datanodeinfos) throws IOException {
+      out.writeInt(datanodeinfos.length - start);
+      for (int i = start; i < datanodeinfos.length; i++) {
+        datanodeinfos[i].write(out);
+      }
+    }
   }
 
   /** Receiver */
@@ -339,6 +366,9 @@ public interface DataTransferProtocol {
         break;
       case BLOCK_CHECKSUM:
         opBlockChecksum(in);
+        break;
+      case TRANSFER_BLOCK:
+        opTransferBlock(in);
         break;
       default:
         throw new IOException("Unknown op " + op + " in data stream");
@@ -377,14 +407,7 @@ public interface DataTransferProtocol {
       final String client = Text.readString(in); // working on behalf of this client
       final DatanodeInfo src = in.readBoolean()? DatanodeInfo.read(in): null;
 
-      final int nTargets = in.readInt();
-      if (nTargets < 0) {
-        throw new IOException("Mislabelled incoming datastream.");
-      }
-      final DatanodeInfo targets[] = new DatanodeInfo[nTargets];
-      for (int i = 0; i < targets.length; i++) {
-        targets[i] = DatanodeInfo.read(in);
-      }
+      final DatanodeInfo targets[] = readDatanodeInfos(in);
       final Token<BlockTokenIdentifier> blockToken = readBlockToken(in);
 
       opWriteBlock(in, blk, pipelineSize, stage,
@@ -399,6 +422,27 @@ public interface DataTransferProtocol {
         int pipelineSize, BlockConstructionStage stage, long newGs,
         long minBytesRcvd, long maxBytesRcvd, String client, DatanodeInfo src,
         DatanodeInfo[] targets, Token<BlockTokenIdentifier> blockToken)
+        throws IOException;
+
+    /** Receive {@link Op#TRANSFER_BLOCK} */
+    private void opTransferBlock(DataInputStream in) throws IOException {
+      final Block blk = new Block();
+      blk.readId(in);
+      final String client = Text.readString(in);
+      final DatanodeInfo targets[] = readDatanodeInfos(in);
+      final Token<BlockTokenIdentifier> blockToken = readBlockToken(in);
+
+      opTransferBlock(in, blk, client, targets, blockToken);
+    }
+
+    /**
+     * Abstract {@link Op#TRANSFER_BLOCK} method.
+     * For {@link BlockConstructionStage#TRANSFER_RBW}
+     * or {@link BlockConstructionStage#TRANSFER_FINALIZED}.
+     */
+    protected abstract void opTransferBlock(DataInputStream in, Block blk,
+        String client, DatanodeInfo[] targets,
+        Token<BlockTokenIdentifier> blockToken)
         throws IOException;
 
     /** Receive OP_REPLACE_BLOCK */
@@ -453,6 +497,21 @@ public interface DataTransferProtocol {
     protected abstract void opBlockChecksum(DataInputStream in,
         Block blk, Token<BlockTokenIdentifier> blockToken)
         throws IOException;
+
+    /** Read an array of {@link DatanodeInfo} */
+    private static DatanodeInfo[] readDatanodeInfos(final DataInputStream in
+        ) throws IOException {
+      final int n = in.readInt();
+      if (n < 0) {
+        throw new IOException("Mislabelled incoming datastream: "
+            + n + " = n < 0");
+      }
+      final DatanodeInfo[] datanodeinfos= new DatanodeInfo[n];
+      for (int i = 0; i < datanodeinfos.length; i++) {
+        datanodeinfos[i] = DatanodeInfo.read(in);
+      }
+      return datanodeinfos;
+    }
 
     /** Read an AccessToken */
     static private Token<BlockTokenIdentifier> readBlockToken(DataInputStream in
@@ -695,4 +754,93 @@ public interface DataTransferProtocol {
     }
   }
 
+  /**
+   * The setting of replace-datanode-on-failure feature.
+   */
+  public enum ReplaceDatanodeOnFailure {
+    /** The feature is disabled in the entire site. */
+    DISABLE,
+    /** Never add a new datanode. */
+    NEVER,
+    /**
+     * DEFAULT policy:
+     *   Let r be the replication number.
+     *   Let n be the number of existing datanodes.
+     *   Add a new datanode only if r >= 3 and either
+     *   (1) floor(r/2) >= n; or
+     *   (2) r > n and the block is hflushed/appended.
+     */
+    DEFAULT,
+    /** Always add a new datanode when an existing datanode is removed. */
+    ALWAYS;
+
+    /** Check if the feature is enabled. */
+    public void checkEnabled() {
+      if (this == DISABLE) {
+        throw new UnsupportedOperationException(
+            "This feature is disabled.  Please refer to "
+            + DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_ENABLE_KEY
+            + " configuration property.");
+      }
+    }
+
+    /** Is the policy satisfied? */
+    public boolean satisfy(
+        final short replication, final DatanodeInfo[] existings,
+        final boolean isAppend, final boolean isHflushed) {
+      final int n = existings == null? 0: existings.length;
+      if (n == 0 || n >= replication) {
+        //don't need to add datanode for any policy.
+        return false;
+      } else if (this == DISABLE || this == NEVER) {
+        return false;
+      } else if (this == ALWAYS) {
+        return true;
+      } else {
+        //DEFAULT
+        if (replication < 3) {
+          return false;
+        } else {
+          if (n <= (replication/2)) {
+            return true;
+          } else {
+            return isAppend || isHflushed;
+          }
+        }
+      }
+    }
+
+    /** Get the setting from configuration. */
+    public static ReplaceDatanodeOnFailure get(final Configuration conf) {
+      final boolean enabled = conf.getBoolean(
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_ENABLE_KEY,
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_ENABLE_DEFAULT);
+      if (!enabled) {
+        return DISABLE;
+      }
+
+      final String policy = conf.get(
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_POLICY_KEY,
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_POLICY_DEFAULT);
+      for(int i = 1; i < values().length; i++) {
+        final ReplaceDatanodeOnFailure rdof = values()[i];
+        if (rdof.name().equalsIgnoreCase(policy)) {
+          return rdof;
+        }
+      }
+      throw new HadoopIllegalArgumentException("Illegal configuration value for "
+          + DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_POLICY_KEY
+          + ": " + policy);
+    }
+
+    /** Write the setting to configuration. */
+    public void write(final Configuration conf) {
+      conf.setBoolean(
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_ENABLE_KEY,
+          this != DISABLE);
+      conf.set(
+          DFSConfigKeys.DFS_CLIENT_WRITE_REPLACE_DATANODE_ON_FAILURE_POLICY_KEY,
+          name());
+    }
+  }
 }

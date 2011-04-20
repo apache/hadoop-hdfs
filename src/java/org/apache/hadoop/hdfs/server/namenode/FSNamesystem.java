@@ -252,6 +252,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   private FsServerDefaults serverDefaults;
   // allow appending to hdfs files
   private boolean supportAppends = true;
+  private DataTransferProtocol.ReplaceDatanodeOnFailure dtpReplaceDatanodeOnFailure = 
+      DataTransferProtocol.ReplaceDatanodeOnFailure.DEFAULT;
 
   private volatile SafeModeInfo safeMode;  // safe mode information
   private Host2NodesMap host2DataNodeMap = new Host2NodesMap();
@@ -522,6 +524,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         + " blockKeyUpdateInterval=" + blockKeyUpdateInterval / (60 * 1000)
         + " min(s), blockTokenLifetime=" + blockTokenLifetime / (60 * 1000)
         + " min(s)");
+
+    this.dtpReplaceDatanodeOnFailure = DataTransferProtocol.ReplaceDatanodeOnFailure.get(conf);
   }
 
   /**
@@ -1312,22 +1316,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       long blockSize) throws SafeModeException, FileAlreadyExistsException,
       AccessControlException, UnresolvedLinkException, FileNotFoundException,
       ParentNotDirectoryException, IOException {
-    writeLock();
-    try {
-    boolean overwrite = flag.contains(CreateFlag.OVERWRITE);
-    boolean append = flag.contains(CreateFlag.APPEND);
-    boolean create = flag.contains(CreateFlag.CREATE);
-
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* NameSystem.startFile: src=" + src
           + ", holder=" + holder
           + ", clientMachine=" + clientMachine
           + ", createParent=" + createParent
           + ", replication=" + replication
-          + ", overwrite=" + overwrite
-          + ", append=" + append);
+          + ", createFlag=" + flag.toString());
     }
-
+    writeLock();
+    try {
     if (isInSafeMode())
       throw new SafeModeException("Cannot create file" + src, safeMode);
     if (!DFSUtil.isValidName(src)) {
@@ -1337,14 +1335,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     // Verify that the destination does not exist as a directory already.
     boolean pathExists = dir.exists(src);
     if (pathExists && dir.isDir(src)) {
-      throw new FileAlreadyExistsException("Cannot create file "+ src + "; already exists as a directory.");
+      throw new FileAlreadyExistsException("Cannot create file " + src
+          + "; already exists as a directory.");
     }
 
+    boolean overwrite = flag.contains(CreateFlag.OVERWRITE);
+    boolean append = flag.contains(CreateFlag.APPEND);
     if (isPermissionEnabled) {
       if (append || (overwrite && pathExists)) {
         checkPathAccess(src, FsAction.WRITE);
-      }
-      else {
+      } else {
         checkAncestorAccess(src, FsAction.WRITE);
       }
     }
@@ -1395,7 +1395,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                 ". Lease recovery is in progress. Try again later.");
 
         } else {
-          if(pendingFile.getLastBlock().getBlockUCState() ==
+          BlockInfoUnderConstruction lastBlock=pendingFile.getLastBlock();
+          if(lastBlock != null && lastBlock.getBlockUCState() ==
             BlockUCState.UNDER_RECOVERY) {
             throw new RecoveryInProgressException(
               "Recovery in progress, file [" + src + "], " +
@@ -1416,34 +1417,27 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       } catch(IOException e) {
         throw new IOException("failed to create "+e.getMessage());
       }
-      if (append) {
-        if (myFile == null) {
-          if(!create)
-            throw new FileNotFoundException("failed to append to non-existent file "
-              + src + " on client " + clientMachine);
-          else {
-            //append & create a nonexist file equals to overwrite
-            return startFileInternal(src, permissions, holder, clientMachine,
-                EnumSet.of(CreateFlag.OVERWRITE), createParent, replication, blockSize);
-          }
-        } else if (myFile.isDirectory()) {
-          throw new IOException("failed to append to directory " + src 
-                                +" on client " + clientMachine);
+      boolean create = flag.contains(CreateFlag.CREATE);
+      if (myFile == null) {
+        if (!create) {
+          throw new FileNotFoundException("failed to overwrite or append to non-existent file "
+            + src + " on client " + clientMachine);
         }
-      } else if (!dir.isValidToCreate(src)) {
+      } else {
+        // File exists - must be one of append or overwrite
         if (overwrite) {
           delete(src, true);
-        } else {
-          throw new IOException("failed to create file " + src 
-                                +" on client " + clientMachine
-                                +" either because the filename is invalid or the file exists");
+        } else if (!append) {
+          throw new FileAlreadyExistsException("failed to create file " + src
+              + " on client " + clientMachine
+              + " because the file exists");
         }
       }
 
       DatanodeDescriptor clientNode = 
         host2DataNodeMap.getDatanodeByHost(clientMachine);
 
-      if (append) {
+      if (append && myFile != null) {
         //
         // Replace current node with a INodeUnderConstruction.
         // Recreate in-memory lease record.
@@ -1633,6 +1627,53 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           EnumSet.of(BlockTokenSecretManager.AccessMode.WRITE)));
     }
     return b;
+  }
+
+  /** @see NameNode#getAdditionalDatanode(String, Block, DatanodeInfo[], DatanodeInfo[], int, String) */
+  LocatedBlock getAdditionalDatanode(final String src, final Block blk,
+      final DatanodeInfo[] existings,  final HashMap<Node, Node> excludes,
+      final int numAdditionalNodes, final String clientName
+      ) throws IOException {
+    //check if the feature is enabled
+    dtpReplaceDatanodeOnFailure.checkEnabled();
+
+    final DatanodeDescriptor clientnode;
+    final long preferredblocksize;
+    readLock();
+    try {
+      //check safe mode
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot add datanode; src=" + src
+            + ", blk=" + blk, safeMode);
+      }
+
+      //check lease
+      final INodeFileUnderConstruction file = checkLease(src, clientName);
+      clientnode = file.getClientNode();
+      preferredblocksize = file.getPreferredBlockSize();
+    } finally {
+      readUnlock();
+    }
+
+    //find datanode descriptors
+    final List<DatanodeDescriptor> chosen = new ArrayList<DatanodeDescriptor>();
+    for(DatanodeInfo d : existings) {
+      final DatanodeDescriptor descriptor = getDatanode(d);
+      if (descriptor != null) {
+        chosen.add(descriptor);
+      }
+    }
+
+    // choose new datanodes.
+    final DatanodeInfo[] targets = blockManager.replicator.chooseTarget(
+        src, numAdditionalNodes, clientnode, chosen, true,
+        excludes, preferredblocksize);
+    final LocatedBlock lb = new LocatedBlock(blk, targets);
+    if (isBlockTokenEnabled) {
+      lb.setBlockToken(blockTokenSecretManager.generateToken(lb.getBlock(), 
+          EnumSet.of(BlockTokenSecretManager.AccessMode.COPY)));
+    }
+    return lb;
   }
 
   /**
@@ -2661,7 +2702,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Get registrationID for datanodes based on the namespaceID.
    * 
    * @see #registerDatanode(DatanodeRegistration)
-   * @see FSImage#newNamespaceID()
    * @return registration ID
    */
   public String getRegistrationID() {
@@ -3103,6 +3143,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (node == null || !node.isAlive) {
       throw new IOException("ProcessReport from dead or unregisterted node: "
                             + nodeID.getName());
+    }
+    // To minimize startup time, we discard any second (or later) block reports
+    // that we receive while still in startup phase.
+    if (isInStartupSafeMode() && node.numBlocks() > 0) {
+      NameNode.stateChangeLog.info("BLOCK* NameSystem.processReport: "
+          + "discarded non-initial block report from " + nodeID.getName()
+          + " because namenode still in startup phase");
+      return;
     }
 
     blockManager.processReport(node, newReport);
@@ -4171,6 +4219,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return false;
     return safeMode.isOn();
   }
+  
+  /**
+   * Check whether the name node is in startup mode.
+   */
+  synchronized boolean isInStartupSafeMode() {
+    if (safeMode == null)
+      return false;
+    return safeMode.isOn() && !safeMode.isManual();
+  }
 
   /**
    * Check whether replication queues are populated.
@@ -4542,7 +4599,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       bean = new StandardMBean(this,FSNamesystemMBean.class);
       mbeanName = MBeanUtil.registerMBean("NameNode", "FSNamesystemState", bean);
     } catch (NotCompliantMBeanException e) {
-      e.printStackTrace();
+      LOG.warn("Exception in initializing StandardMBean as FSNamesystemMBean",
+	  e);
     }
 
     LOG.info("Registered FSNamesystemStatusMBean");

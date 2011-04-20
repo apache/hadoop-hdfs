@@ -20,12 +20,15 @@ package org.apache.hadoop.hdfs.server.namenode;
 import junit.framework.TestCase;
 import java.io.*;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.*;
 
 import org.apache.hadoop.hdfs.HdfsConfiguration;
@@ -143,12 +146,7 @@ public class TestEditLog extends TestCase {
   
   private int testLoad(byte[] data, FSNamesystem namesys) throws IOException {
     FSEditLogLoader loader = new FSEditLogLoader(namesys);
-    EditLogInputStream mockStream = Mockito.mock(EditLogInputStream.class);
-    ByteArrayInputStream bais = new ByteArrayInputStream(data);
-    Mockito.doReturn(new DataInputStream(bais))
-      .when(mockStream).getDataInputStream();
-    
-    return loader.loadFSEdits(mockStream, 1);
+    return loader.loadFSEdits(new EditLogByteInputStream(data), 1);
   }
 
   /**
@@ -375,6 +373,39 @@ public class TestEditLog extends TestCase {
     }
   }
   
+  public void testEditChecksum() throws Exception {
+    // start a cluster 
+    Configuration conf = new HdfsConfiguration();
+    MiniDFSCluster cluster = null;
+    FileSystem fileSys = null;
+    cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES).build();
+    cluster.waitActive();
+    fileSys = cluster.getFileSystem();
+    final FSNamesystem namesystem = cluster.getNamesystem();
+
+    FSImage fsimage = namesystem.getFSImage();
+    final FSEditLog editLog = fsimage.getEditLog();
+    fileSys.mkdirs(new Path("/tmp"));
+    File editFile = editLog.getFsEditName();
+    editLog.close();
+    cluster.shutdown();
+      long fileLen = editFile.length();
+    System.out.println("File name: " + editFile + " len: " + fileLen);
+    RandomAccessFile rwf = new RandomAccessFile(editFile, "rw");
+    rwf.seek(fileLen-4); // seek to checksum bytes
+    int b = rwf.readInt();
+    rwf.seek(fileLen-4);
+    rwf.writeInt(b+1);
+    rwf.close();
+    
+    try {
+      cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES).format(false).build();
+      fail("should not be able to start");
+    } catch (ChecksumException e) {
+      // expected
+    }
+  }
+
   public void testGetValidLength() throws Exception {
     assertTrue(TEST_DIR.mkdirs() || TEST_DIR.exists());
 
@@ -420,4 +451,45 @@ public class TestEditLog extends TestCase {
       file.delete();
     }
   }
+
+  private static class EditLogByteInputStream extends EditLogInputStream {
+    private InputStream input;
+    private long len;
+
+    public EditLogByteInputStream(byte[] data) {
+      len = data.length;
+      input = new ByteArrayInputStream(data);
+    }
+
+    public int available() throws IOException {
+      return input.available();
+    }
+    
+    public int read() throws IOException {
+      return input.read();
+    }
+    
+    public long length() throws IOException {
+      return len;
+    }
+    
+    public int read(byte[] b, int off, int len) throws IOException {
+      return input.read(b, off, len);
+    }
+
+    public void close() throws IOException {
+      input.close();
+    }
+
+    @Override // JournalStream
+    public String getName() {
+      return "AnonEditLogByteInputStream";
+    }
+
+    @Override // JournalStream
+    public JournalType getType() {
+      return JournalType.FILE;
+    }
+  }
+
 }

@@ -71,7 +71,7 @@ public class FSImage implements NNStorageListener, Closeable {
   private static final SimpleDateFormat DATE_FORM =
       new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-  private static final int FIRST_TXNID_BASED_LAYOUT_VERSION=-29;
+  private static final int FIRST_TXNID_BASED_LAYOUT_VERSION=-32;
   
   // checkpoint states
   enum CheckpointStates{START, ROLLED_EDITS, UPLOAD_START, UPLOAD_DONE; }

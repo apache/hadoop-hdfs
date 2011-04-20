@@ -33,6 +33,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Arrays;
 
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.hdfs.protocol.Block;
@@ -153,24 +154,9 @@ class DataXceiver extends DataTransferProtocol.Receiver
         datanode.socketWriteTimeout);
     DataOutputStream out = new DataOutputStream(
                  new BufferedOutputStream(baseStream, SMALL_BUFFER_SIZE));
-
-    if (datanode.isBlockTokenEnabled) {
-      try {
-        datanode.blockTokenSecretManager.checkAccess(blockToken, null, block,
-            BlockTokenSecretManager.AccessMode.READ);
-      } catch (InvalidToken e) {
-        try {
-          ERROR_ACCESS_TOKEN.write(out);
-          out.flush();
-          LOG.warn("Block token verification failed, for client "
-              + remoteAddress + " for OP_READ_BLOCK for block " + block + " : "
-              + e.getLocalizedMessage());
-          throw e;
-        } finally {
-          IOUtils.closeStream(out);
-        }
-      }
-    }
+    checkAccess(out, true, block, blockToken,
+        DataTransferProtocol.Op.READ_BLOCK,
+        BlockTokenSecretManager.AccessMode.READ);
   
     // send the block
     BlockSender blockSender = null;
@@ -245,8 +231,25 @@ class DataXceiver extends DataTransferProtocol.Receiver
     updateCurrentThreadName("Receiving block " + block + " client=" + clientname);
     final boolean isDatanode = clientname.length() == 0;
     final boolean isClient = !isDatanode;
+    final boolean isTransfer = stage == BlockConstructionStage.TRANSFER_RBW
+        || stage == BlockConstructionStage.TRANSFER_FINALIZED;
+
+    // check single target for transfer-RBW/Finalized 
+    if (isTransfer && targets.length > 0) {
+      throw new IOException(stage + " does not support multiple targets "
+          + Arrays.asList(targets));
+    }
 
     if (LOG.isDebugEnabled()) {
+      LOG.debug("opWriteBlock: stage=" + stage + ", clientname=" + clientname 
+      		+ "\n  block  =" + block + ", newGs=" + newGs
+      		+ ", bytesRcvd=[" + minBytesRcvd + ", " + maxBytesRcvd + "]"
+          + "\n  targets=" + Arrays.asList(targets)
+          + "; pipelineSize=" + pipelineSize + ", srcDataNode=" + srcDataNode
+          );
+      LOG.debug("isDatanode=" + isDatanode
+          + ", isClient=" + isClient
+          + ", isTransfer=" + isTransfer);
       LOG.debug("writeBlock receive buf size " + s.getReceiveBufferSize() +
                 " tcp no delay " + s.getTcpNoDelay());
     }
@@ -261,30 +264,14 @@ class DataXceiver extends DataTransferProtocol.Receiver
              " src: " + remoteAddress +
              " dest: " + localAddress);
 
-    DataOutputStream replyOut = null;   // stream to prev target
-    replyOut = new DataOutputStream(new BufferedOutputStream(
-                   NetUtils.getOutputStream(s, datanode.socketWriteTimeout),
-                   SMALL_BUFFER_SIZE));
-    if (datanode.isBlockTokenEnabled) {
-      try {
-        datanode.blockTokenSecretManager.checkAccess(blockToken, null, block,
-            BlockTokenSecretManager.AccessMode.WRITE);
-      } catch (InvalidToken e) {
-        try {
-          if (isClient) {
-            ERROR_ACCESS_TOKEN.write(replyOut);
-            Text.writeString(replyOut, datanode.dnRegistration.getName());
-            replyOut.flush();
-          }
-          LOG.warn("Block token verification failed, for client "
-              + remoteAddress + " for OP_WRITE_BLOCK for block " + block
-              + " : " + e.getLocalizedMessage());
-          throw e;
-        } finally {
-          IOUtils.closeStream(replyOut);
-        }
-      }
-    }
+    // reply to upstream datanode or client 
+    final DataOutputStream replyOut = new DataOutputStream(
+        new BufferedOutputStream(
+            NetUtils.getOutputStream(s, datanode.socketWriteTimeout),
+            SMALL_BUFFER_SIZE));
+    checkAccess(replyOut, isClient, block, blockToken,
+        DataTransferProtocol.Op.WRITE_BLOCK,
+        BlockTokenSecretManager.AccessMode.WRITE);
 
     DataOutputStream mirrorOut = null;  // stream to next target
     DataInputStream mirrorIn = null;    // reply from next target
@@ -307,8 +294,7 @@ class DataXceiver extends DataTransferProtocol.Receiver
       }
 
       //
-      // Open network conn to backup machine, if 
-      // appropriate
+      // Connect to downstream machine, if appropriate
       //
       if (targets.length > 0) {
         InetSocketAddress mirrorTarget = null;
@@ -330,7 +316,6 @@ class DataXceiver extends DataTransferProtocol.Receiver
                          SMALL_BUFFER_SIZE));
           mirrorIn = new DataInputStream(NetUtils.getInputStream(mirrorSock));
 
-          // Write header: Copied from DFSClient.java!
           DataTransferProtocol.Sender.opWriteBlock(mirrorOut, originalBlock,
               pipelineSize, stage, newGs, minBytesRcvd, maxBytesRcvd, clientname,
               srcDataNode, targets, blockToken);
@@ -375,8 +360,8 @@ class DataXceiver extends DataTransferProtocol.Receiver
         }
       }
 
-      // send connect ack back to source (only for clients)
-      if (isClient) {
+      // send connect-ack to source for clients and not transfer-RBW/Finalized
+      if (isClient && !isTransfer) {
         if (LOG.isDebugEnabled() || mirrorInStatus != SUCCESS) {
           LOG.info("Datanode " + targets.length +
                    " forwarding connect ack to upstream firstbadlink is " +
@@ -391,7 +376,15 @@ class DataXceiver extends DataTransferProtocol.Receiver
       if (blockReceiver != null) {
         String mirrorAddr = (mirrorSock == null) ? null : mirrorNode;
         blockReceiver.receiveBlock(mirrorOut, mirrorIn, replyOut,
-            mirrorAddr, null, targets.length);
+            mirrorAddr, null, targets);
+
+        // send close-ack for transfer-RBW/Finalized 
+        if (isTransfer) {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("TRANSFER: send close-ack");
+          }
+          SUCCESS.write(replyOut);
+        }
       }
 
       // update its generation stamp
@@ -404,8 +397,7 @@ class DataXceiver extends DataTransferProtocol.Receiver
       // if this write is for a replication request or recovering
       // a failed close for client, then confirm block. For other client-writes,
       // the block is finalized in the PacketResponder.
-      if ((isDatanode  && stage != BlockConstructionStage.TRANSFER_RBW)
-          ||
+      if (isDatanode ||
           stage == BlockConstructionStage.PIPELINE_CLOSE_RECOVERY) {
         datanode.closeBlock(block, DataNode.EMPTY_DEL_HINT);
         LOG.info("Received block " + block + 
@@ -433,32 +425,38 @@ class DataXceiver extends DataTransferProtocol.Receiver
                   datanode.myMetrics.writesFromRemoteClient);
   }
 
+  @Override
+  protected void opTransferBlock(final DataInputStream in,
+      final Block blk, final String client,
+      final DatanodeInfo[] targets,
+      final Token<BlockTokenIdentifier> blockToken) throws IOException {
+    checkAccess(null, true, blk, blockToken,
+        DataTransferProtocol.Op.TRANSFER_BLOCK,
+        BlockTokenSecretManager.AccessMode.COPY);
+
+    updateCurrentThreadName(DataTransferProtocol.Op.TRANSFER_BLOCK + " " + blk);
+
+    final DataOutputStream out = new DataOutputStream(
+        NetUtils.getOutputStream(s, datanode.socketWriteTimeout));
+    try {
+      datanode.transferReplicaForPipelineRecovery(blk, targets, client);
+      SUCCESS.write(out);
+    } finally {
+      IOUtils.closeStream(out);
+    }
+  }
+
   /**
    * Get block checksum (MD5 of CRC32).
    */
   @Override
   protected void opBlockChecksum(DataInputStream in, Block block,
       Token<BlockTokenIdentifier> blockToken) throws IOException {
-    DataOutputStream out = new DataOutputStream(NetUtils.getOutputStream(s,
-        datanode.socketWriteTimeout));
-    if (datanode.isBlockTokenEnabled) {
-      try {
-        datanode.blockTokenSecretManager.checkAccess(blockToken, null, block,
-            BlockTokenSecretManager.AccessMode.READ);
-      } catch (InvalidToken e) {
-        try {
-          ERROR_ACCESS_TOKEN.write(out);
-          out.flush();
-          LOG.warn("Block token verification failed, for client "
-              + remoteAddress + " for OP_BLOCK_CHECKSUM for block " + block
-              + " : " + e.getLocalizedMessage());
-          throw e;
-        } finally {
-          IOUtils.closeStream(out);
-        }
-
-      }
-    }
+    final DataOutputStream out = new DataOutputStream(
+        NetUtils.getOutputStream(s, datanode.socketWriteTimeout));
+    checkAccess(out, true, block, blockToken,
+        DataTransferProtocol.Op.BLOCK_CHECKSUM,
+        BlockTokenSecretManager.AccessMode.READ);
 
     updateCurrentThreadName("Reading metadata for block " + block);
     final MetaDataInputStream metadataIn = 
@@ -649,7 +647,7 @@ class DataXceiver extends DataTransferProtocol.Receiver
 
       // receive a block
       blockReceiver.receiveBlock(null, null, null, null, 
-          dataXceiverServer.balanceThrottler, -1);
+          dataXceiverServer.balanceThrottler, null);
                     
       // notify name node
       datanode.notifyNamenodeReceivedBlock(block, sourceID);
@@ -711,6 +709,38 @@ class DataXceiver extends DataTransferProtocol.Receiver
       reply.flush();
     } finally {
       IOUtils.closeStream(reply);
+    }
+  }
+
+  private void checkAccess(DataOutputStream out, final boolean reply, 
+      final Block blk,
+      final Token<BlockTokenIdentifier> t,
+      final DataTransferProtocol.Op op,
+      final BlockTokenSecretManager.AccessMode mode) throws IOException {
+    if (datanode.isBlockTokenEnabled) {
+      try {
+        datanode.blockTokenSecretManager.checkAccess(t, null, blk, mode);
+      } catch(InvalidToken e) {
+        try {
+          if (reply) {
+            if (out == null) {
+              out = new DataOutputStream(
+                  NetUtils.getOutputStream(s, datanode.socketWriteTimeout));
+            }
+            ERROR_ACCESS_TOKEN.write(out);
+            if (mode == BlockTokenSecretManager.AccessMode.WRITE) {
+              Text.writeString(out, datanode.dnRegistration.getName());
+            }
+            out.flush();
+          }
+          LOG.warn("Block token verification failed: op=" + op
+              + ", remoteAddress=" + remoteAddress
+              + ", message=" + e.getLocalizedMessage());
+          throw e;
+        } finally {
+          IOUtils.closeStream(out);
+        }
+      }
     }
   }
 }
