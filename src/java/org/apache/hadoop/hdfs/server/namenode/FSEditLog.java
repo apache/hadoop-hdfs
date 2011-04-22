@@ -51,6 +51,8 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.security.token.delegation.DelegationKey;
 import org.apache.hadoop.util.PureJavaCrc32;
 
+import com.google.common.base.Preconditions;
+
 import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.*;
 
 /**
@@ -68,7 +70,15 @@ public class FSEditLog implements NNStorageListener {
 
   private volatile int sizeOutputFlushBuffer = 512*1024;
 
-  private ArrayList<EditLogOutputStream> editStreams = null;
+  private enum State {
+    UNINITIALIZED,
+    WRITING_EDITS,
+    WRITING_EDITS_NEW,
+    CLOSED;
+  }  
+  private State state = State.UNINITIALIZED;
+
+  private ArrayList<EditLogOutputStream> editStreams = new ArrayList<EditLogOutputStream>();
 
   // a monotonically increasing counter that represents transactionIds.
   private long txid = 0;
@@ -127,7 +137,40 @@ public class FSEditLog implements NNStorageListener {
     metrics = NameNode.getNameNodeMetrics();
     lastPrintTime = now();
   }
-  
+
+  /**
+   * Initialize the list of edit journals
+   */
+  private void initJournals() throws IOException {
+    assert editStreams.isEmpty();
+
+    Preconditions.checkState(state == State.UNINITIALIZED || state == State.CLOSED,
+        "Bad state: %s", state);
+
+    ArrayList<StorageDirectory> al = null;
+    for (Iterator<StorageDirectory> it 
+         = storage.dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
+      StorageDirectory sd = it.next();
+      File eFile = getEditFile(sd);
+      try {
+        addNewEditLogStream(eFile);
+      } catch (IOException e) {
+        LOG.warn("Unable to open edit log file " + eFile);
+        // Remove the directory from list of storage directories
+        if(al == null) al = new ArrayList<StorageDirectory>(1);
+        al.add(sd);
+        
+      }
+    }    
+    if(al != null) storage.reportErrorsOnDirectories(al);
+    
+    if (editStreams.isEmpty()) {
+      LOG.error("No edits directories configured!");
+    }
+    
+    state = State.CLOSED;
+  }
+ 
   private File getEditFile(StorageDirectory sd) {
     return storage.getEditFile(sd);
   }
@@ -153,7 +196,8 @@ public class FSEditLog implements NNStorageListener {
   }
 
   boolean isOpen() {
-    return getNumEditStreams() > 0;
+    return state == State.WRITING_EDITS ||
+      state == State.WRITING_EDITS_NEW;
   }
 
   /**
@@ -163,29 +207,18 @@ public class FSEditLog implements NNStorageListener {
    * @throws IOException
    */
   synchronized void open() throws IOException {
-    numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
-    if (editStreams == null)
-      editStreams = new ArrayList<EditLogOutputStream>();
-    
-    ArrayList<StorageDirectory> al = null;
-    for (Iterator<StorageDirectory> it 
-         = storage.dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
-      StorageDirectory sd = it.next();
-      File eFile = getEditFile(sd);
-      try {
-        addNewEditLogStream(eFile);
-      } catch (IOException e) {
-        LOG.warn("Unable to open edit log file " + eFile);
-        // Remove the directory from list of storage directories
-        if(al == null) al = new ArrayList<StorageDirectory>(1);
-        al.add(sd);
-        
-      }
+    if (state == State.UNINITIALIZED
+	|| state == State.CLOSED) {
+      initJournals();
     }
     
-    if(al != null) storage.reportErrorsOnDirectories(al);
+    Preconditions.checkState(state == State.CLOSED,
+        "Bad state: %s", state);
+
+    numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
+    
+    state = State.WRITING_EDITS;
   }
-  
   
   synchronized void addNewEditLogStream(File eFile) throws IOException {
     EditLogOutputStream eStream = new EditLogFileOutputStream(eFile,
@@ -206,10 +239,16 @@ public class FSEditLog implements NNStorageListener {
    * Shutdown the file store.
    */
   synchronized void close() {
-    waitForSyncToFinish();
-    if (editStreams == null || editStreams.isEmpty()) {
+    if (state == State.CLOSED) {
+      LOG.warn("Closing log when already closed", new Exception());
       return;
     }
+
+    waitForSyncToFinish();
+    if (editStreams.isEmpty()) {
+      return;
+    }
+
     printStatistics(true);
     numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
 
@@ -229,6 +268,8 @@ public class FSEditLog implements NNStorageListener {
     }
     disableAndReportErrorOnStreams(errorStreams);
     editStreams.clear();
+
+    state = State.CLOSED;
   }
 
   /**
@@ -314,6 +355,8 @@ public class FSEditLog implements NNStorageListener {
    * store yet.
    */
   void logEdit(FSEditLogOpCodes opCode, Writable ... writables) {
+    assert state != State.UNINITIALIZED && state != State.CLOSED;
+
     synchronized (this) {
       // wait if an automatic sync is scheduled
       waitIfAutoSyncScheduled();
@@ -846,6 +889,14 @@ public class FSEditLog implements NNStorageListener {
    *         in the new log
    */
   synchronized void rollEditLog() throws IOException {
+    Preconditions.checkState(state == State.WRITING_EDITS ||
+                             state == State.WRITING_EDITS_NEW,
+                             "Bad state: %s", state);
+    if (state == State.WRITING_EDITS_NEW){
+      LOG.debug("Tried to roll edit logs when already rolled");
+      return;
+    }
+
     waitForSyncToFinish();
     Iterator<StorageDirectory> it = storage.dirIterator(NameNodeDirType.EDITS);
     if(!it.hasNext()) 
@@ -869,6 +920,7 @@ public class FSEditLog implements NNStorageListener {
 
     divertFileStreams(
         Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS_NEW.getName());
+    state = State.WRITING_EDITS_NEW;
   }
 
   /**
@@ -879,6 +931,9 @@ public class FSEditLog implements NNStorageListener {
    * @throws IOException
    */
   synchronized void divertFileStreams(String dest) throws IOException {
+    Preconditions.checkState(state == State.WRITING_EDITS,
+        "Bad state: " + state);
+
     waitForSyncToFinish();
 
     assert getNumEditStreams() >= getNumEditsDirs() :
@@ -917,9 +972,13 @@ public class FSEditLog implements NNStorageListener {
    * Reopens the edits file.
    */
   synchronized void purgeEditLog() throws IOException {
+    Preconditions.checkState(state == State.WRITING_EDITS_NEW,
+                             "Bad state: " + state);
+
     waitForSyncToFinish();
     revertFileStreams(
         Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS_NEW.getName());
+    state = State.WRITING_EDITS;
   }
 
 
@@ -1290,7 +1349,10 @@ public class FSEditLog implements NNStorageListener {
   @Override // NNStorageListener
   public synchronized void directoryAvailable(StorageDirectory sd)
       throws IOException {
-    if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
+    // TODO this logic is very suspect, but will be re-done anyhow in a future
+    // patch on HDFS-1073
+    if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)
+        && (state == State.WRITING_EDITS || state == State.WRITING_EDITS_NEW)) {
       File eFile = getEditFile(sd);
       addNewEditLogStream(eFile);
     }
