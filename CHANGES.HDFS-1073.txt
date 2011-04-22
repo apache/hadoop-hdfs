@@ -14,3 +14,5 @@ HDFS-1793. Add code to inspect a storage directory with txid-based filenames
 HDFS-1794. Add code to list which edit logs are available on a remote NN (todd)
 HDFS-1858. Add state management variables to FSEditLog (Ivan Kelly and Todd
            Lipcon via todd)
+HDFS-1859. Add some convenience functions to iterate over edit log streams
+           (Ivan Kelly and Todd Lipcon via todd)

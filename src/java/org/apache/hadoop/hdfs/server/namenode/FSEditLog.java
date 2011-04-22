@@ -252,21 +252,13 @@ public class FSEditLog implements NNStorageListener {
     printStatistics(true);
     numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
 
-    ArrayList<EditLogOutputStream> errorStreams = null;
-    Iterator<EditLogOutputStream> it = getOutputStreamIterator(null);
-    while(it.hasNext()) {
-      EditLogOutputStream eStream = it.next();
-      try {
-        closeStream(eStream);
-      } catch (IOException e) {
-        LOG.warn("FSEditLog:close - failed to close stream " 
-            + eStream.getName());
-        if(errorStreams == null)
-          errorStreams = new ArrayList<EditLogOutputStream>(1);
-        errorStreams.add(eStream);
-      }
-    }
-    disableAndReportErrorOnStreams(errorStreams);
+    mapStreamsAndReportErrors(new StreamClosure() {
+        @Override
+        public void apply(EditLogOutputStream stream) throws IOException {
+          closeStream(stream);
+        }      
+      }, "Closing stream");
+   
     editStreams.clear();
 
     state = State.CLOSED;
@@ -354,7 +346,8 @@ public class FSEditLog implements NNStorageListener {
    * Write an operation to the edit log. Do not sync to persistent
    * store yet.
    */
-  void logEdit(FSEditLogOpCodes opCode, Writable ... writables) {
+
+  void logEdit(final FSEditLogOpCodes opCode, final Writable ... writables) {
     assert state != State.UNINITIALIZED && state != State.CLOSED;
 
     synchronized (this) {
@@ -363,7 +356,6 @@ public class FSEditLog implements NNStorageListener {
       
       if(getNumEditStreams() == 0)
         throw new java.lang.IllegalStateException(NO_JOURNAL_STREAMS_WARNING);
-      ArrayList<EditLogOutputStream> errorStreams = null;
 
       // Only start a new transaction for OPs which will be persisted to disk.
       // Obviously this excludes control op codes.
@@ -372,19 +364,15 @@ public class FSEditLog implements NNStorageListener {
         start = beginTransaction();
       }
 
-      for(EditLogOutputStream eStream : editStreams) {
-        if(!eStream.isOperationSupported(opCode.getOpCode()))
-          continue;
-        try {
-          eStream.write(opCode.getOpCode(), txid, writables);
-        } catch (IOException ie) {
-          LOG.error("logEdit: removing "+ eStream.getName(), ie);
-          if(errorStreams == null)
-            errorStreams = new ArrayList<EditLogOutputStream>(1);
-          errorStreams.add(eStream);
-        }
-      }
-      disableAndReportErrorOnStreams(errorStreams);
+      mapStreamsAndReportErrors(new StreamClosure() {
+          @Override
+          public void apply(EditLogOutputStream stream) throws IOException {
+            if(!stream.isOperationSupported(opCode.getOpCode()))
+              return;
+            stream.write(opCode.getOpCode(), txid, writables);
+          }      
+        }, "Writing op to stream");
+
       endTransaction(start);
       
       // check if it is time to schedule an automatic sync
@@ -1129,22 +1117,18 @@ public class FSEditLog implements NNStorageListener {
    * Write an operation to the edit log. Do not sync to persistent
    * store yet.
    */
-  synchronized void logEdit(int length, byte[] data) {
+  synchronized void logEdit(final int length, final byte[] data) {
     if(getNumEditStreams() == 0)
       throw new java.lang.IllegalStateException(NO_JOURNAL_STREAMS_WARNING);
-    ArrayList<EditLogOutputStream> errorStreams = null;
     long start = beginTransaction();
-    for(EditLogOutputStream eStream : editStreams) {
-      try {
-        eStream.write(data, 0, length);
-      } catch (IOException ie) {
-        LOG.warn("Error in editStream " + eStream.getName(), ie);
-        if(errorStreams == null)
-          errorStreams = new ArrayList<EditLogOutputStream>(1);
-        errorStreams.add(eStream);
-      }
-    }
-    disableAndReportErrorOnStreams(errorStreams);
+
+    mapStreamsAndReportErrors(new StreamClosure() {
+        @Override
+        public void apply(EditLogOutputStream stream) throws IOException {
+          stream.write(data, 0, length);
+        }
+      }, "Writing op to stream");
+
     endTransaction(start);
   }
 
@@ -1356,5 +1340,28 @@ public class FSEditLog implements NNStorageListener {
       File eFile = getEditFile(sd);
       addNewEditLogStream(eFile);
     }
+  }
+  
+  //// Iteration across streams
+  private interface StreamClosure {
+    public void apply(EditLogOutputStream jm) throws IOException;
+  }
+ 
+  /**
+   * Apply the given function across all of the edit streams, disabling
+   * any for which the closure throws an IOException.
+   * @param status message used for logging errors (e.g. "opening journal")
+   */
+  private void mapStreamsAndReportErrors(StreamClosure closure, String status) {
+    ArrayList<EditLogOutputStream> badStreams = new ArrayList<EditLogOutputStream>();
+    for (EditLogOutputStream stream : editStreams) {
+      try {
+        closure.apply(stream);
+      } catch (IOException ioe) {
+        LOG.error("Error " + status + " (stream " + stream + ")", ioe);
+        badStreams.add(stream);
+      }
+    }
+    disableAndReportErrorOnStreams(badStreams);
   }
 }
