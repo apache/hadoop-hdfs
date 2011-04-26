@@ -56,8 +56,8 @@ class DataXceiverServer implements Runnable, FSConstants {
    * Enforcing the limit is required in order to avoid data-node
    * running out of memory.
    */
-  static final int MAX_XCEIVER_COUNT = 256;
-  int maxXceiverCount = MAX_XCEIVER_COUNT;
+  int maxXceiverCount = 
+    DFSConfigKeys.DFS_DATANODE_MAX_RECEIVER_THREADS_DEFAULT;
 
   /** A manager to make sure that cluster balancing does not
    * take too much resources.
@@ -115,9 +115,10 @@ class DataXceiverServer implements Runnable, FSConstants {
     this.ss = ss;
     this.datanode = datanode;
     
-    this.maxXceiverCount = conf.getInt("dfs.datanode.max.xcievers",
-        MAX_XCEIVER_COUNT);
-    
+    this.maxXceiverCount = 
+      conf.getInt(DFSConfigKeys.DFS_DATANODE_MAX_RECEIVER_THREADS_KEY,
+                  DFSConfigKeys.DFS_DATANODE_MAX_RECEIVER_THREADS_DEFAULT);
+
     this.estimateBlockSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, DEFAULT_BLOCK_SIZE);
     
     //set up parameter for cluster balancing

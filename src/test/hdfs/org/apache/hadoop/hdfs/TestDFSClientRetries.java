@@ -380,7 +380,7 @@ public class TestDFSClientRetries extends TestCase {
     int bufferSize = 4096;
     
     Configuration conf = new HdfsConfiguration();
-    conf.setInt("dfs.datanode.max.xcievers",xcievers);
+    conf.setInt(DFSConfigKeys.DFS_DATANODE_MAX_RECEIVER_THREADS_KEY, xcievers);
     conf.setInt("dfs.client.max.block.acquire.failures", retries);
     conf.setInt("dfs.client.retry.window.base", timeWin);
 
