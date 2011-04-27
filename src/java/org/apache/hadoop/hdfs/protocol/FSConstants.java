@@ -91,7 +91,7 @@ public interface FSConstants {
   // Version is reflected in the data storage file.
   // Versions are negative.
   // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -27;
-  // Current version: 
-  // -27: remove intentionally corrupt pre-0.13 image directory
+  public static final int LAYOUT_VERSION = -33;
+  // Current version: 33
+  // -31, -32 are reserved for 0.20.203, 0.20.204
 }

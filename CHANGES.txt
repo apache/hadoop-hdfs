@@ -476,6 +476,10 @@ Release 0.22.0 - Unreleased
     HDFS-1823. start-dfs.sh script fails if HADOOP_HOME is not set.
     (tomwhite via eli)
 
+    HDFS-1822. Handle editlog opcode conflict with 0.20.203 during upgrade,
+    by throwing an error to indicate the editlog needs to be empty.
+    (suresh)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS

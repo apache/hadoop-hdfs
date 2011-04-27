@@ -29,17 +29,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NodeType;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
 * This test ensures the appropriate response (successful or failure) from
 * the system when the system is upgraded under various storage state and
 * version conditions.
 */
-public class TestDFSUpgrade extends TestCase {
+public class TestDFSUpgrade {
  
   private static final Log LOG = LogFactory.getLog(
                                                    "org.apache.hadoop.hdfs.TestDFSUpgrade");
@@ -141,6 +144,7 @@ public class TestDFSUpgrade extends TestCase {
    * This test attempts to upgrade the NameNode and DataNode under
    * a number of valid and invalid conditions.
    */
+  @Test
   public void testUpgrade() throws Exception {
     File[] baseDirs;
     UpgradeUtilities.initialize();
@@ -256,15 +260,15 @@ public class TestDFSUpgrade extends TestCase {
     } // end numDir loop
   }
  
-  protected void tearDown() throws Exception {
-    LOG.info("Shutting down MiniDFSCluster");
-    if (cluster != null) cluster.shutdown();
+  public void test203LayoutVersion() {
+    for (int lv : Storage.LAYOUT_VERSIONS_203) {
+      assertTrue(Storage.is203LayoutVersion(lv));
+    }
   }
-    
+  
   public static void main(String[] args) throws Exception {
     new TestDFSUpgrade().testUpgrade();
   }
-  
 }
 
 
