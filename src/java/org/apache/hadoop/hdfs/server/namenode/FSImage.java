@@ -71,8 +71,6 @@ public class FSImage implements NNStorageListener, Closeable {
   private static final SimpleDateFormat DATE_FORM =
       new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-  private static final int FIRST_TXNID_BASED_LAYOUT_VERSION=-32;
-  
   // checkpoint states
   enum CheckpointStates{START, ROLLED_EDITS, UPLOAD_START, UPLOAD_DONE; }
 
@@ -520,9 +518,9 @@ public class FSImage implements NNStorageListener, Closeable {
     // (ie edits_<txnid>) then use the new inspector, which will ignore
     // the old format dirs.
     FSImageStorageInspector inspector;
-    if (minLayoutVersion <= FIRST_TXNID_BASED_LAYOUT_VERSION) {
+    if (minLayoutVersion <= FSConstants.FIRST_TXNID_BASED_LAYOUT_VERSION) {
       inspector = new FSImageTransactionalStorageInspector();
-      if (maxLayoutVersion > FIRST_TXNID_BASED_LAYOUT_VERSION) {
+      if (maxLayoutVersion > FSConstants.FIRST_TXNID_BASED_LAYOUT_VERSION) {
         LOG.warn("Ignoring one or more storage directories with old layouts");
       }
     } else {

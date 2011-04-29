@@ -270,7 +270,7 @@ public class TestEditLogRace {
 
 
         LOG.info("Save " + i + ": entering safe mode");
-        namesystem.enterSafeMode();
+        namesystem.enterSafeMode(false);
 
         // Verify edit logs before the save
         // They should start with the first edit after the checkpoint
@@ -289,7 +289,6 @@ public class TestEditLogRace {
 
         namesystem.leaveSafeMode(false);
         LOG.info("Save " + i + ": complete");
-
       }
     } finally {
       stopTransactionWorkers();

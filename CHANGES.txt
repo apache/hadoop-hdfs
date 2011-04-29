@@ -34,6 +34,8 @@ Trunk (unreleased changes)
 
     HDFS-1070. Speedup namenode image loading and saving by storing only
     local file names. (hairong)
+    
+    HDFS-1751. Intrinsic limits for HDFS files, directories (daryn via boryas).
 
   IMPROVEMENTS
 
@@ -121,6 +123,29 @@ Trunk (unreleased changes)
     HDFS-1844. Move "fs -help" shell command tests from HDFS to COMMOM; see
     also HADOOP-7230.  (Daryn Sharp via szetszwo)
 
+    HDFS-1840. In DFSClient, terminate the lease renewing thread when all files
+    being written are closed for a grace period, and start a new thread when
+    new files are opened for write.  (szetszwo)
+
+    HDFS-1854. make failure message more useful in
+    DFSTestUtil.waitReplication(). (Matt Foley via eli)
+
+    HDFS-1562. Add rack policy tests. (eli)
+ 
+    HDFS-1856. TestDatanodeBlockScanner waits forever, errs without giving 
+    information. (Matt Foley via eli)
+
+    HDFS-1295. Improve namenode restart times by short-circuiting the
+    first block reports from datanodes. (Matt Foley via suresh)
+
+    HDFS-1843. Discover file not found early for file append. 
+    (Bharath Mundlapudi via jitendra)
+
+    HDFS-1862. Improve test reliability of HDFS-1594. (Aaron T. Myers via eli)
+
+    HDFS-1846. Preallocate edit log with OP_INVALID instead of zero bytes
+    to ensure blocks are actually allocated. (Aaron T. Myers via todd)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
@@ -192,6 +217,19 @@ Trunk (unreleased changes)
 
     HDFS-1831. Fix append bug in FileContext and implement CreateFlag
     check (related to HADOOP-7223). (suresh)
+
+    HDFS-1594. When the disk becomes full Namenode is getting shutdown and 
+    not able to recover. (Aaron T. Myers via eli)
+
+    HDFS-1822. Handle editlog opcode conflict with 0.20.203 during upgrade,
+    by throwing an error to indicate the editlog needs to be empty.
+    (suresh)
+
+    HDFS-1808. TestBalancer waits forever, errs without giving information.
+    (Matt Foley via eli)
+
+    HDFS-1829. TestNodeCount waits forever, errs without giving information.
+    (Matt Foley via eli)
 
 Release 0.22.0 - Unreleased
 
@@ -413,6 +451,9 @@ Release 0.22.0 - Unreleased
     file reading/writing. (Todd Lipcon via eli)
 
     HDFS-1582. Remove auto-generated native build files. (rvs via eli)
+
+    HDFS-1861. Rename dfs.datanode.max.xcievers and bump its default value.
+    (eli)
 
   OPTIMIZATIONS
 
@@ -657,6 +698,14 @@ Release 0.22.0 - Unreleased
     HDFS-1806. TestBlockReport.blockReport_08() and _09() are timing-dependent
     and likely to fail on fast servers. (Matt Foley via eli)
 
+    HDFS-1845. Symlink comes up as directory after namenode restart.
+    (John George via eli)
+
+    HDFS-1666. Disable failing hdfsproxy test TestAuthorizationFilter (todd)
+
+    HDFS-1823. start-dfs.sh script fails if HADOOP_HOME is not set.
+    (tomwhite via eli)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
@@ -711,6 +760,9 @@ Release 0.21.1 - Unreleased
 
     HDFS-1786. Some cli test cases expect a "null" message
     (Uma Maheswara Rao G via todd)
+
+    HDFS-1855. TestDatanodeBlockScanner.testBlockCorruptionRecoveryPolicy()
+    part 2 fails in two different ways. (Matt Foley via eli)
 
 Release 0.21.0 - 2010-08-13
 

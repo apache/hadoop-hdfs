@@ -88,7 +88,11 @@ public interface FSConstants {
   // Version is reflected in the data storage file.
   // Versions are negative.
   // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -31;
+  public static final int LAYOUT_VERSION = -34;
   // Current version: 
-  // -31: add persistent transaction ids
+  // -31, -32 and -33 are reserved for 0.20.203, 0.20.204 and 0.22.
+  // -34: persistent transaction IDs
+
+  // Record of version numbers for specific changes:
+  public static final int FIRST_TXNID_BASED_LAYOUT_VERSION = -35;
 }
