@@ -221,7 +221,10 @@ Trunk (unreleased changes)
     HDFS-1703. Improve start/stop scripts and add decommission tool for
     federation. (Tanping Wang, Erik Steffl via suresh)
 
-   HDFS-1754. Federation: testFsck fails. (boryas)
+    HDFS-1754. Federation: testFsck fails. (boryas)
+
+    HDFS-1755. Federation: The BPOfferService must always connect to namenode as 
+    the login user. (jitendra)
 
   IMPROVEMENTS
 
