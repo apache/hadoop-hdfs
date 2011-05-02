@@ -91,6 +91,7 @@ import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
+import org.apache.hadoop.hdfs.server.datanode.FSDataset.FSVolume;
 import org.apache.hadoop.hdfs.server.datanode.FSDataset.VolumeInfo;
 import org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter.SecureResources;
 import org.apache.hadoop.hdfs.server.datanode.metrics.DataNodeMetrics;
@@ -995,6 +996,9 @@ public class DataNode extends Configured
       if (blockScanner != null) {
         blockScanner.removeBlockPool(this.getBlockPoolId());
       }
+     
+      data.shutdownBlockPool(this.getBlockPoolId());
+      storage.removeBlockPoolStorage(this.getBlockPoolId());
     }
 
     /**
@@ -2606,6 +2610,22 @@ public class DataNode extends Configured
     conf = new Configuration();
     refreshNamenodes(conf);
   }
+  
+  @Override // ClientDatanodeProtocol
+  public void deleteBlockPool(String blockPoolId, boolean force)
+      throws IOException {
+    LOG.info("deleteBlockPool command received for block pool " + blockPoolId
+        + ", force=" + force);
+    if (blockPoolManager.get(blockPoolId) != null) {
+      LOG.warn("The block pool "+blockPoolId+
+          " is still running, cannot be deleted.");
+      throw new IOException(
+          "The block pool is still running. First do a refreshNamenodes to " +
+          "shutdown the block pool service");
+    }
+   
+    data.deleteBlockPool(blockPoolId, force);
+  }
 
   /**
    * @param addr rpc address of the namenode
@@ -2642,7 +2662,6 @@ public class DataNode extends Configured
   
   /** Methods used by fault injection tests */
   public DatanodeID getDatanodeId() {
-    LOG.info("SURESH machienname " + getMachineName());
     return new DatanodeID(getMachineName(), getStorageId(),
         infoServer.getPort(), getIpcPort());
   }

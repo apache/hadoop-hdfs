@@ -226,6 +226,9 @@ Trunk (unreleased changes)
     HDFS-1755. Federation: The BPOfferService must always connect to namenode as 
     the login user. (jitendra)
 
+    HDFS-1791. Federation: Add command to delete block pool directories 
+    from a datanode. (jitendra)
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
