@@ -48,7 +48,10 @@ fi
 #---------------------------------------------------------
 # secondary namenodes (if any)
 
-SECONDARY_NAMENODES=$($HADOOP_HOME/bin/hdfs getconf -secondarynamenodes)
+# if there are no secondary namenodes configured it returns
+# 0.0.0.0 or empty string
+SECONDARY_NAMENODES=$($HADOOP_HOME/bin/hdfs getconf -secondarynamenodes 2>&-)
+SECONDARY_NAMENODES=${SECONDARY_NAMENODES:-'0.0.0.0'}
 
 if [ "$SECONDARY_NAMENODES" = '0.0.0.0' ] ; then
   echo \
