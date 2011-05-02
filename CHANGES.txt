@@ -634,6 +634,9 @@ Release 0.21.1 - Unreleased
     HDFS-1189. Quota counts missed between clear quota and set quota.
     (John George via szetszwo)
 
+    HDFS-1728. SecondaryNameNode.checkpointSize is in bytes but not in MB.
+    (szetszwo)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
