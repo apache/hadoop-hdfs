@@ -229,6 +229,9 @@ Trunk (unreleased changes)
     HDFS-1791. Federation: Add command to delete block pool directories 
     from a datanode. (jitendra)
 
+    HDFS-1813. Federation: Authentication using BlockToken in RPC to datanode 
+               fails. (jitendra)
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)

@@ -1367,6 +1367,9 @@ public class DataNode extends Configured
     registerMXBean();
     initDataXceiver(conf);
     startInfoServer(conf);
+  
+    // BlockPoolTokenSecretManager is required to create ipc server.
+    this.blockPoolTokenSecretManager = new BlockPoolTokenSecretManager();
     initIpcServer(conf);
 
     metrics = DataNodeMetrics.create(conf, datanodeId.getName());
@@ -2006,10 +2009,6 @@ public class DataNode extends Configured
     dataXceiverServer.start();
     ipcServer.start();
     startPlugins(conf);
-    
-    // BlockPoolTokenSecretManager is created here, but it shouldn't be
-    // used until it is initialized in register().
-    this.blockPoolTokenSecretManager = new BlockPoolTokenSecretManager();
   }
 
   /**
@@ -2526,7 +2525,7 @@ public class DataNode extends Configured
           LOG.debug("Got: " + id.toString());
         }
         blockPoolTokenSecretManager.checkAccess(id, null, block,
-            BlockTokenSecretManager.AccessMode.WRITE);
+            BlockTokenSecretManager.AccessMode.READ);
       }
     }
 
