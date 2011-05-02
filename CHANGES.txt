@@ -214,6 +214,8 @@ Trunk (unreleased changes)
 
     HDFS-1811. Create scripts to decommission datanodes. (Erik Steffl)
 
+    HDFS-1745. Federation: Fix fault injection test failures. (suresh)
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
