@@ -1450,7 +1450,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
 
   private ReplicaInfo recoverCheck(ExtendedBlock b, long newGS, 
       long expectedBlockLen) throws IOException {
-    ReplicaInfo replicaInfo = getReplicaInfo(b);
+    ReplicaInfo replicaInfo = getReplicaInfo(b.getBlockPoolId(), b.getBlockId());
     
     // check state
     if (replicaInfo.getState() != ReplicaState.FINALIZED &&
