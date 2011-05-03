@@ -457,7 +457,7 @@ public class MiniDFSCluster {
                         String[] racks, String hosts[],
                         long[] simulatedCapacities) throws IOException {
     this.nameNodes = new NameNodeInfo[1]; // Single namenode in the cluster
-    initMiniDFSCluster(nameNodePort, conf, 1, format,
+    initMiniDFSCluster(nameNodePort, conf, numDataNodes, format,
         manageNameDfsDirs, manageDataDfsDirs, operation, racks, hosts,
         simulatedCapacities, null, true, false, false);
   }
@@ -630,6 +630,14 @@ public class MiniDFSCluster {
     conf.setClass("rpc.engine."+protocol.getName(), engine, Object.class);
   }
 
+  /**
+   * @return URI of the namenode from a single namenode MiniDFSCluster
+   */
+  public URI getURI() {
+    checkSingleNameNode();
+    return getURI(0);
+  }
+  
   /**
    * @return URI of the given namenode in MiniDFSCluster
    */
