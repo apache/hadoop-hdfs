@@ -306,6 +306,9 @@ Trunk (unreleased changes)
 
     HDFS-1748. Balancer utilization classification is incomplete.  (szetszwo)
 
+    HDFS-1860. when renewing/canceling DelegationToken over http we need to
+     pass exception information back to the caller.(boryas)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
