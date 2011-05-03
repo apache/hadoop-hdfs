@@ -72,9 +72,8 @@ class UnderReplicatedBlocks implements Iterable<Block> {
                           int curReplicas, 
                           int decommissionedReplicas,
                           int expectedReplicas) {
-    if (curReplicas<0) {
-      return LEVEL;
-    } else if (curReplicas>=expectedReplicas) {
+    assert curReplicas >= 0 : "Negative replicas!";
+    if (curReplicas >= expectedReplicas) {
       return 3; // Block doesn't have enough racks
     } else if(curReplicas==0) {
       // If there are zero non-decommissioned replica but there are
@@ -102,9 +101,7 @@ class UnderReplicatedBlocks implements Iterable<Block> {
                            int curReplicas, 
                            int decomissionedReplicas,
                            int expectedReplicas) {
-    if(curReplicas<0) {
-      return false;
-    }
+    assert curReplicas >= 0 : "Negative replicas!";
     int priLevel = getPriority(block, curReplicas, decomissionedReplicas,
                                expectedReplicas);
     if(priLevel != LEVEL && priorityQueues.get(priLevel).add(block)) {
@@ -145,8 +142,10 @@ class UnderReplicatedBlocks implements Iterable<Block> {
       }
       return true;
     } else {
+      // Try to remove the block from all queues if the block was
+      // not found in the queue for the given priority level.
       for(int i=0; i<LEVEL; i++) {
-        if(i!=priLevel && priorityQueues.get(i).remove(block)) {
+        if(priorityQueues.get(i).remove(block)) {
           if(NameNode.stateChangeLog.isDebugEnabled()) {
             NameNode.stateChangeLog.debug(
               "BLOCK* NameSystem.UnderReplicationBlock.remove: "
@@ -188,7 +187,7 @@ class UnderReplicatedBlocks implements Iterable<Block> {
           "BLOCK* NameSystem.UnderReplicationBlock.update:"
           + block
           + " has only "+curReplicas
-          + " replicas and need " + curExpectedReplicas
+          + " replicas and needs " + curExpectedReplicas
           + " replicas so is added to neededReplications"
           + " at priority level " + curPri);
       }

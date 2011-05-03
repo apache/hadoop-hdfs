@@ -225,6 +225,8 @@ Release 0.22.0 - Unreleased
     HDFS-1861. Rename dfs.datanode.max.xcievers and bump its default value.
     (eli)
 
+    HDFS-1562. Add rack policy tests. (eli)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
