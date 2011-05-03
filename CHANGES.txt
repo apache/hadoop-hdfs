@@ -299,6 +299,9 @@ Trunk (unreleased changes)
     HDFS-1876. One MiniDFSCluster constructor ignores numDataNodes parameter
     (todd)
 
+    HDFS-1831. Fix append bug in FileContext and implement CreateFlag
+    check (related to HADOOP-7223). (suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
