@@ -486,6 +486,9 @@ Release 0.22.0 - Unreleased
 
     HDFS-1160. Improve some FSDataset warnings and comments. (eli)
 
+    HDFS-1187. Modify fetchdt to allow renewing and canceling token.
+    (Owen O'Malley and Kan Zhang via jghoman)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
