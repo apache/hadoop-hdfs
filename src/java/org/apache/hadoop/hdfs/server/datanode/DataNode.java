@@ -1372,7 +1372,7 @@ public class DataNode extends Configured
     this.blockPoolTokenSecretManager = new BlockPoolTokenSecretManager();
     initIpcServer(conf);
 
-    metrics = DataNodeMetrics.create(conf, datanodeId.getName());
+    metrics = DataNodeMetrics.create(conf, getMachineName());
 
     blockPoolManager = new BlockPoolManager(conf);
   }
@@ -1740,25 +1740,6 @@ public class DataNode extends Configured
       return null;
     }
     return bpos.getUpgradeManager();
-  }
-
-  private void processDistributedUpgradeCommand(UpgradeCommand comm
-                                               ) throws IOException {
-    assert upgradeManager != null : "DataNode.upgradeManager is null.";
-    upgradeManager.processUpgradeCommand(comm);
-  }
-
-  /**
-   * Start distributed upgrade if it should be initiated by the data-node.
-   */
-  private void startDistributedUpgradeIfNeeded() throws IOException {
-    UpgradeManagerDatanode um = DataNode.getDataNode().upgradeManager;
-    assert um != null : "DataNode.upgradeManager is null.";
-    if(!um.getUpgradeState())
-      return;
-    um.setUpgradeState(false, um.getUpgradeVersion());
-    um.startUpgrade();
-    return;
   }
 
   private void transferBlock( ExtendedBlock block, 
