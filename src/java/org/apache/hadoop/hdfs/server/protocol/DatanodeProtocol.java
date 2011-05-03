@@ -91,8 +91,8 @@ public interface DatanodeProtocol extends VersionedProtocol {
   public DatanodeCommand[] sendHeartbeat(DatanodeRegistration registration,
                                        long capacity,
                                        long dfsUsed, long remaining,
-                                       int xmitsInProgress,
-                                       int xceiverCount) throws IOException;
+                                       int xmitsInProgress, int xceiverCount, 
+                                       int failedVolumes) throws IOException;
 
   /**
    * blockReport() tells the NameNode about all the locally-stored blocks.

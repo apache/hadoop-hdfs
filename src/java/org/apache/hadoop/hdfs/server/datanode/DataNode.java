@@ -845,7 +845,7 @@ public class DataNode extends Configured
   protected void checkDiskError( ) {
     try {
       data.checkDataDir();
-    } catch(DiskErrorException de) {
+    } catch (DiskErrorException de) {
       handleDiskError(de.getMessage());
     }
   }
@@ -858,8 +858,8 @@ public class DataNode extends Configured
     // shutdown the DN completely.
     int dpError = hasEnoughResources ? DatanodeProtocol.DISK_ERROR  
                                      : DatanodeProtocol.FATAL_DISK_ERROR;  
-    
-    myMetrics.volumesFailed.inc(1);
+
+    myMetrics.volumeFailures.inc(1);
     try {
       namenode.errorReport(dnRegistration, dpError, errMsgr);
     } catch (IOException e) {
@@ -915,7 +915,8 @@ public class DataNode extends Configured
                                                        data.getDfsUsed(),
                                                        data.getRemaining(),
                                                        xmitsInProgress.get(),
-                                                       getXceiverCount());
+                                                       getXceiverCount(),
+                                                       data.getNumFailedVolumes());
           myMetrics.heartbeats.inc(now() - startTime);
           if (!processCommand(cmds))
             continue;

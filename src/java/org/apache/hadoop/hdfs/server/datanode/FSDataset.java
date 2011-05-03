@@ -543,7 +543,8 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
   static class FSVolumeSet {
     FSVolume[] volumes = null;
     int curVolume = 0;
-      
+    int numFailedVolumes = 0;
+
     FSVolumeSet(FSVolume[] volumes) {
       this.volumes = volumes;
     }
@@ -551,7 +552,11 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
     private int numberOfVolumes() {
       return volumes.length;
     }
-      
+
+    private int numberOfFailedVolumes() {
+      return numFailedVolumes;
+    }
+
     synchronized FSVolume getNextVolume(long blockSize) throws IOException {
       
       if(volumes.length < 1) {
@@ -625,6 +630,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
           }
           removedVols.add(volumes[idx]);
           volumes[idx] = null; // Remove the volume
+          numFailedVolumes++;
         }
       }
       
@@ -915,6 +921,13 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
     synchronized(statsLock) {
       return volumes.getRemaining();
     }
+  }
+
+  /**
+   * Return the number of failed volumes in the FSDataset.
+   */
+  public int getNumFailedVolumes() {
+    return volumes.numberOfFailedVolumes();
   }
 
   /**

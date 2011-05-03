@@ -65,4 +65,9 @@ public interface FSDatasetMBean {
    */
   public String getStorageInfo();
 
+  /**
+   * Returns the number of failed volumes in the datanode.
+   * @return The number of failed volumes in the datanode.
+   */
+  public int getNumFailedVolumes();
 }
