@@ -302,6 +302,8 @@ Trunk (unreleased changes)
     HDFS-1831. Fix append bug in FileContext and implement CreateFlag
     check (related to HADOOP-7223). (suresh)
 
+    HDFS-1748. Balancer utilization classification is incomplete.  (szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
