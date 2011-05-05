@@ -85,9 +85,10 @@ class EditLogFileInputStream extends EditLogInputStream {
   }
 
   /**
-   * Return the length of non-zero bytes in the given file.
+   * Return the length of bytes in the given file after subtracting
+   * the trailer of 0xFF (OP_INVALID)s.
    * This seeks to the end of the file and reads chunks backwards until
-   * it finds a non-zero byte.
+   * it finds a non-0xFF byte.
    * @param chunkSizeToRead chunk size for disk reads
    * @throws IOException if the file cannot be read
    */
@@ -107,7 +108,7 @@ class EditLogFileInputStream extends EditLogInputStream {
         int readLen = (int) Math.min(size - pos, chunkSizeToRead);
         IOUtils.readFully(fis, buf, 0, readLen);
         for (int i = readLen - 1; i >= 0; i--) {
-          if (buf[i] != 0) {
+          if (buf[i] != FSEditLogOpCodes.OP_INVALID.getOpCode()) {
             return pos + i + 1; // + 1 since we count this byte!
           }
         }
