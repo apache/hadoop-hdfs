@@ -357,17 +357,17 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
         return;
       }
 
-      long maxLength = Long.MIN_VALUE;
+      long maxValidLength = Long.MIN_VALUE;
       for (FoundEditLog log : logs) {
         long validLength = log.getValidLength();
         LOG.warn("  Log " + log.getFile() + " valid length=" + validLength);
-        maxLength = Math.max(maxLength, validLength);
+        maxValidLength = Math.max(maxValidLength, validLength);
       }        
 
       for (FoundEditLog log : logs) {
-        if (log.getValidLength() < maxLength) {
+        if (log.getValidLength() < maxValidLength) {
           LOG.warn("Marking log at " + log.getFile() + " as corrupt since " +
-              "it is shorter than " + maxLength + " bytes");
+              "it is shorter than " + maxValidLength + " bytes");
           log.markCorrupt();
         }
       }
