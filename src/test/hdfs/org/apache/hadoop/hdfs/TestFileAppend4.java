@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.SimulatedFSDataset;
@@ -158,7 +159,7 @@ public class TestFileAppend4 {
       // Delay completeFile
       DelayAnswer delayer = new DelayAnswer();
       doAnswer(delayer).when(spyNN).complete(
-          anyString(), anyString(), (Block)anyObject());
+          anyString(), anyString(), (ExtendedBlock)anyObject());
  
       DFSClient client = new DFSClient(null, spyNN, conf, null);
       file1 = new Path("/testRecoverFinalized");
@@ -183,7 +184,7 @@ public class TestFileAppend4 {
       // has not been completed in the NN.
       // Lose the leases
       LOG.info("Killing lease checker");
-      client.leasechecker.interruptAndJoin();
+      client.leaserenewer.interruptAndJoin();
  
       FileSystem fs1 = cluster.getFileSystem();
       FileSystem fs2 = AppendTestUtil.createHdfsWithDifferentUsername(
@@ -228,7 +229,8 @@ public class TestFileAppend4 {
  
       // Delay completeFile
       DelayAnswer delayer = new DelayAnswer();
-      doAnswer(delayer).when(spyNN).complete(anyString(), anyString(), (Block)anyObject());
+      doAnswer(delayer).when(spyNN).complete(anyString(), anyString(),
+          (ExtendedBlock) anyObject());
  
       DFSClient client = new DFSClient(null, spyNN, conf, null);
       file1 = new Path("/testCompleteOtherLease");
@@ -253,7 +255,7 @@ public class TestFileAppend4 {
       // has not been completed in the NN.
       // Lose the leases
       LOG.info("Killing lease checker");
-      client.leasechecker.interruptAndJoin();
+      client.leaserenewer.interruptAndJoin();
  
       FileSystem fs1 = cluster.getFileSystem();
       FileSystem fs2 = AppendTestUtil.createHdfsWithDifferentUsername(

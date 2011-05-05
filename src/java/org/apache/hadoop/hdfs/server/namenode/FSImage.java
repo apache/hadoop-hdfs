@@ -44,6 +44,7 @@ import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageState;
+import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.Util;
 import static org.apache.hadoop.hdfs.server.common.Util.now;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
@@ -140,6 +141,10 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.setStorageDirectories(fsDirs, fsEditsDirs);
   }
 
+  public FSImage(StorageInfo storageInfo, String bpid) {
+    storage = new NNStorage(storageInfo, bpid);
+  }
+
   /**
    * Represents an Image (image and edit file).
    * @throws IOException 
@@ -221,12 +226,31 @@ public class FSImage implements NNStorageListener, Closeable {
     }
     if (startOpt != StartupOption.UPGRADE
         && storage.getLayoutVersion() < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION
-        && storage.getLayoutVersion() != FSConstants.LAYOUT_VERSION)
+        && storage.getLayoutVersion() != FSConstants.LAYOUT_VERSION) {
       throw new IOException(
           "\nFile system image contains an old layout version " 
           + storage.getLayoutVersion() + ".\nAn upgrade to version "
           + FSConstants.LAYOUT_VERSION + " is required.\n"
           + "Please restart NameNode with -upgrade option.");
+    }
+    
+    // Upgrade to federation requires -upgrade -clusterid <clusterID> option
+    if (startOpt == StartupOption.UPGRADE
+        && storage.getLayoutVersion() > Storage.LAST_PRE_FEDERATION_LAYOUT_VERSION) {
+      if (startOpt.getClusterId() == null) {
+        throw new IOException(
+            "\nFile system image contains an old layout version "
+                + storage.getLayoutVersion() + ".\nAn upgrade to version "
+                + FSConstants.LAYOUT_VERSION
+                + " is required.\nPlease restart NameNode with "
+                + "-upgrade -clusterid <clusterID> option.");
+      }
+      storage.setClusterID(startOpt.getClusterId());
+      
+      // Create new block pool Id
+      storage.setBlockPoolID(storage.newBlockPoolID());
+    }
+    
     // check whether distributed upgrade is reguired and/or should be continued
     storage.verifyDistributedUpgradeProgress(startOpt);
 
@@ -473,6 +497,7 @@ public class FSImage implements NNStorageListener, Closeable {
     realImage.getStorage().setStorageInfo(ckptImage.getStorage());
     storage.setCheckpointTime(ckptImage.getStorage().getCheckpointTime());
     fsNamesys.dir.fsImage = realImage;
+    realImage.getStorage().setBlockPoolID(ckptImage.getBlockPoolID());
     // and save it but keep the same checkpointTime
     saveNamespace(false);
   }
@@ -625,6 +650,7 @@ public class FSImage implements NNStorageListener, Closeable {
     FSImageFormat.Loader loader = new FSImageFormat.Loader(
         conf, getFSNamesystem());
     loader.load(curFile);
+    namesystem.setBlockPoolId(this.getBlockPoolID());
 
     // Check that the image digest we loaded matches up with what
     // we expected
@@ -1053,6 +1079,7 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.close();
   }
 
+
   /**
    * Retrieve checkpoint dirs from configuration.
    *
@@ -1106,5 +1133,21 @@ public class FSImage implements NNStorageListener, Closeable {
   @Override // NNStorageListener
   public void directoryAvailable(StorageDirectory sd) throws IOException {
     // do nothing
+  }
+
+  public int getLayoutVersion() {
+    return storage.getLayoutVersion();
+  }
+  
+  public int getNamespaceID() {
+    return storage.getNamespaceID();
+  }
+  
+  public String getClusterID() {
+    return storage.getClusterID();
+  }
+  
+  public String getBlockPoolID() {
+    return storage.getBlockPoolID();
   }
 }

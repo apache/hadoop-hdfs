@@ -50,7 +50,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSClient.DFSDataInputStream;
-import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.DataTransferProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
@@ -58,6 +58,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.TestTransferRbw;
+import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
 import org.apache.hadoop.io.IOUtils;
@@ -238,7 +239,7 @@ public class DFSTestUtil {
   public static boolean allBlockReplicasCorrupt(MiniDFSCluster cluster,
       Path file, int blockNo) throws IOException {
     DFSClient client = new DFSClient(new InetSocketAddress("localhost",
-        cluster.getNameNodePort()), cluster.getConfiguration());
+        cluster.getNameNodePort()), cluster.getConfiguration(0));
     LocatedBlocks blocks;
     try {
        blocks = client.getNamenode().getBlockLocations(
@@ -254,7 +255,7 @@ public class DFSTestUtil {
    * the requested number of racks, with the requested number of
    * replicas, and the requested number of replicas still needed.
    */
-  public static void waitForReplication(MiniDFSCluster cluster, Block b,
+  public static void waitForReplication(MiniDFSCluster cluster, ExtendedBlock b,
       int racks, int replicas, int neededReplicas)
       throws IOException, TimeoutException, InterruptedException {
     int curRacks = 0;
@@ -265,7 +266,7 @@ public class DFSTestUtil {
 
     do {
       Thread.sleep(1000);
-      int []r = NameNodeAdapter.getReplicaInfo(cluster.getNameNode(), b);
+      int []r = NameNodeAdapter.getReplicaInfo(cluster.getNameNode(), b.getLocalBlock());
       curRacks = r[0];
       curReplicas = r[1];
       curNeededReplicas = r[2];
@@ -288,11 +289,11 @@ public class DFSTestUtil {
    * given block in the file contains the given number of corrupt replicas.
    */
   public static void waitCorruptReplicas(FileSystem fs, FSNamesystem ns,
-      Path file, Block b, int corruptRepls)
+      Path file, ExtendedBlock b, int corruptRepls)
       throws IOException, TimeoutException {
     int count = 0;
-    final int ATTEMPTS = 20;
-    int repls = ns.numCorruptReplicas(b);
+    final int ATTEMPTS = 50;
+    int repls = ns.numCorruptReplicas(b.getLocalBlock());
     while (repls != corruptRepls && count < ATTEMPTS) {
       try {
         IOUtils.copyBytes(fs.open(file), new IOUtils.NullOutputStream(),
@@ -301,7 +302,7 @@ public class DFSTestUtil {
         // Swallow exceptions
       }
       System.out.println("Waiting for "+corruptRepls+" corrupt replicas");
-      repls = ns.numCorruptReplicas(b);
+      repls = ns.numCorruptReplicas(b.getLocalBlock());
       count++;
     }
     if (count == ATTEMPTS) {
@@ -342,11 +343,11 @@ public class DFSTestUtil {
    * Returns the index of the first datanode which has a copy
    * of the given block, or -1 if no such datanode exists.
    */
-  public static int firstDnWithBlock(MiniDFSCluster cluster, Block b)
+  public static int firstDnWithBlock(MiniDFSCluster cluster, ExtendedBlock b)
       throws IOException {
     int numDatanodes = cluster.getDataNodes().size();
     for (int i = 0; i < numDatanodes; i++) {
-      String blockContent = cluster.readBlockOnDataNode(i, b.getBlockName());
+      String blockContent = cluster.readBlockOnDataNode(i, b);
       if (blockContent != null) {
         return i;
       }
@@ -354,6 +355,88 @@ public class DFSTestUtil {
     return -1;
   }
 
+  /*
+   * Return the total capacity of all live DNs.
+   */
+  public static long getLiveDatanodeCapacity(FSNamesystem ns) {
+    ArrayList<DatanodeDescriptor> live = new ArrayList<DatanodeDescriptor>();
+    ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
+    ns.DFSNodesStatus(live, dead);
+    long capacity = 0;
+    for (final DatanodeDescriptor dn : live) {
+      capacity += dn.getCapacity();
+    }
+    return capacity;
+  }
+
+  /*
+   * Return the capacity of the given live DN.
+   */
+  public static long getDatanodeCapacity(FSNamesystem ns, int index) {
+    ArrayList<DatanodeDescriptor> live = new ArrayList<DatanodeDescriptor>();
+    ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
+    ns.DFSNodesStatus(live, dead);
+    return live.get(index).getCapacity();
+  }
+
+  /*
+   * Wait for the given # live/dead DNs, total capacity, and # vol failures. 
+   */
+  public static void waitForDatanodeStatus(FSNamesystem ns, int expectedLive, 
+      int expectedDead, long expectedVolFails, long expectedTotalCapacity, 
+      long timeout) throws InterruptedException, TimeoutException {
+    ArrayList<DatanodeDescriptor> live = new ArrayList<DatanodeDescriptor>();
+    ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
+    final int ATTEMPTS = 10;
+    int count = 0;
+    long currTotalCapacity = 0;
+    int volFails = 0;
+
+    do {
+      Thread.sleep(timeout);
+      live.clear();
+      dead.clear();
+      ns.DFSNodesStatus(live, dead);
+      currTotalCapacity = 0;
+      volFails = 0;
+      for (final DatanodeDescriptor dd : live) {
+        currTotalCapacity += dd.getCapacity();
+        volFails += dd.getVolumeFailures();
+      }
+      count++;
+    } while ((expectedLive != live.size() ||
+              expectedDead != dead.size() ||
+              expectedTotalCapacity != currTotalCapacity ||
+              expectedVolFails != volFails)
+             && count < ATTEMPTS);
+
+    if (count == ATTEMPTS) {
+      throw new TimeoutException("Timed out waiting for capacity."
+          + " Live = "+live.size()+" Expected = "+expectedLive
+          + " Dead = "+dead.size()+" Expected = "+expectedDead
+          + " Total capacity = "+currTotalCapacity
+          + " Expected = "+expectedTotalCapacity
+          + " Vol Fails = "+volFails+" Expected = "+expectedVolFails);
+    }
+  }
+
+  /*
+   * Wait for the given DN to consider itself dead.
+   */
+  public static void waitForDatanodeDeath(DataNode dn) 
+      throws InterruptedException, TimeoutException {
+    final int ATTEMPTS = 10;
+    int count = 0;
+    do {
+      Thread.sleep(1000);
+      count++;
+    } while (dn.isDatanodeUp() && count < ATTEMPTS);
+
+    if (count == ATTEMPTS) {
+      throw new TimeoutException("Timed out waiting for DN to die");
+    }
+  }
+  
   /** return list of filenames created as part of createFiles */
   public String[] getFileNames(String topDir) {
     if (nFiles == 0)
@@ -405,7 +488,7 @@ public class DFSTestUtil {
     files = null;
   }
   
-  public static Block getFirstBlock(FileSystem fs, Path path) throws IOException {
+  public static ExtendedBlock getFirstBlock(FileSystem fs, Path path) throws IOException {
     DFSDataInputStream in = 
       (DFSDataInputStream) ((DistributedFileSystem)fs).open(path);
     in.readByte();
@@ -553,7 +636,7 @@ public class DFSTestUtil {
   }
 
   /** For {@link TestTransferRbw} */
-  public static DataTransferProtocol.Status transferRbw(final Block b, 
+  public static DataTransferProtocol.Status transferRbw(final ExtendedBlock b, 
       final DFSClient dfsClient, final DatanodeInfo... datanodes) throws IOException {
     assertEquals(2, datanodes.length);
     final Socket s = DFSOutputStream.createSocketForPipeline(datanodes[0],
