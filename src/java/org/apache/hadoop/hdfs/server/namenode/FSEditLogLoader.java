@@ -168,7 +168,7 @@ public class FSEditLogLoader {
           break; // no more transactions
         }
 
-        if (logVersion <= -31) {
+        if (logVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
           // Read the txid
           long thisTxId = in.readLong();
           if (thisTxId != txId + 1) {

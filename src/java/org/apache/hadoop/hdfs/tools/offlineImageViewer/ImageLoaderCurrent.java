@@ -25,6 +25,7 @@ import java.util.Date;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo.AdminStates;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.FSImageSerialization;
@@ -155,7 +156,7 @@ class ImageLoaderCurrent implements ImageLoader {
 
       v.visit(ImageElement.GENERATION_STAMP, in.readLong());
 
-      if (imageVersion <= -31) {
+      if (imageVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
         v.visit(ImageElement.TRANSACTION_ID, in.readLong());
       }
 

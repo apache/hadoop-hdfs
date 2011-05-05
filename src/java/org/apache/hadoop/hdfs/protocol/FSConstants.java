@@ -94,5 +94,8 @@ public interface FSConstants {
   // -34: persistent transaction IDs
 
   // Record of version numbers for specific changes:
+  // Version where the edits log and image stored txn ID information
+  public static final int FIRST_STORED_TXIDS_VERSION = -34;
+  // Version where the edits log and image file names are based on txn IDs
   public static final int FIRST_TXNID_BASED_LAYOUT_VERSION = -35;
 }

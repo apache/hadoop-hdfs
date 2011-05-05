@@ -159,7 +159,7 @@ class FSImageFormat {
         
         // read the transaction ID of the last edit represented by
         // this image
-        if (imgVersion <= -31) {
+        if (imgVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
           imgTxId = in.readLong();
         } else {
           imgTxId = 0;

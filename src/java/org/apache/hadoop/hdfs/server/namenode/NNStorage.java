@@ -695,7 +695,7 @@ public class NNStorage extends Storage implements Closeable {
     }
 
     String sCheckpointId = props.getProperty(CHECKPOINT_TXID_PROPERTY);
-    if (layoutVersion <= -28) {
+    if (layoutVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
       if (sCheckpointId == null) {
         throw new InconsistentFSStateException(sd.getRoot(),
             "file " + STORAGE_FILE_VERSION
