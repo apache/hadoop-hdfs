@@ -19,3 +19,5 @@ HDFS-1859. Add some convenience functions to iterate over edit log streams
 HDFS-1894. Add constants for LAYOUT_VERSIONs in edits log branch (todd)
 HDFS-1892. Fix EditLogFileInputStream.getValidLength to be aware of OP_INVALID
            filler (todd)
+HDFS-1799. Refactor log rolling and filename management out of FSEditLog
+           (Ivan Kelly and Todd Lipcon via todd)

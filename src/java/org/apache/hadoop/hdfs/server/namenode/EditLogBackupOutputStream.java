@@ -134,6 +134,12 @@ class EditLogBackupOutputStream extends EditLogOutputStream {
     bufCurrent = bufReady = null;
   }
 
+  @Override
+  public void abort() throws IOException {
+    RPC.stopProxy(backupNode);
+    bufCurrent = bufReady = null;
+  }
+
   @Override // EditLogOutputStream
   void setReadyToFlush() throws IOException {
     assert bufReady.size() == 0 : "previous data is not flushed yet";

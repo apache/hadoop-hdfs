@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.DU;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.junit.Test;
 
 public class TestEditLogFileOutputStream {
@@ -39,7 +40,8 @@ public class TestEditLogFileOutputStream {
     NameNode.format(conf);
     NameNode nn = new NameNode(conf);
 
-    File editLog = nn.getFSImage().getEditLog().getFsEditName();
+    StorageDirectory sd = nn.getFSImage().getStorage().getStorageDir(0);
+    File editLog = NNStorage.getEditFile(sd);
 
     assertEquals("Edit log should only be 4 bytes long",
         4, editLog.length());

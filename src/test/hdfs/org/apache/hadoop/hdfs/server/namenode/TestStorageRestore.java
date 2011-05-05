@@ -112,15 +112,6 @@ public class TestStorageRestore extends TestCase {
     // set the restore feature on
     config.setBoolean(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY, true);
   }
-
-  /**
-   * clean up
-   */
-  public void tearDown() throws Exception {
-    if (hdfsDir.exists() && !FileUtil.fullyDelete(hdfsDir) ) {
-      throw new IOException("Could not delete hdfs directory in tearDown '" + hdfsDir + "'");
-    } 
-  }
   
   /**
    * invalidate storage by removing storage directories
@@ -256,8 +247,11 @@ public class TestStorageRestore extends TestCase {
       // should be different
       //assertTrue(fsImg1.length() != fsImg2.length());
       //assertTrue(fsImg1.length() != fsImg3.length());
-      assertTrue("edits1 = edits2", fsEdits1.length() != fsEdits2.length());
-      assertTrue("edits1 = edits3", fsEdits1.length() != fsEdits3.length());
+      long len1 = EditLogFileInputStream.getValidLength(fsEdits1);
+      long len2 = EditLogFileInputStream.getValidLength(fsEdits2);
+      long len3 = EditLogFileInputStream.getValidLength(fsEdits3);
+      assertTrue("edits1 = edits2", len1 != len2);
+      assertTrue("edits1 = edits3", len1 != len3);
       
       assertTrue(!md5_1.equals(md5_2));
       assertTrue(!md5_1.equals(md5_3));

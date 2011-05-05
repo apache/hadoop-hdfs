@@ -106,7 +106,7 @@ public class TestSecurityTokenEditLog extends TestCase {
       FSEditLog editLog = fsimage.getEditLog();
   
       // set small size of flush buffer
-      editLog.setBufferCapacity(2048);
+      editLog.setOutputBufferCapacity(2048);
       editLog.close();
       editLog.open();
       namesystem.getDelegationTokenSecretManager().startThreads();

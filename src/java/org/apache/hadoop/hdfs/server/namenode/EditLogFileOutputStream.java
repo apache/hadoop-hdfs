@@ -26,8 +26,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.zip.Checksum;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.io.DataOutputBuffer;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Writable;
 
 /**
@@ -35,6 +38,8 @@ import org.apache.hadoop.io.Writable;
  * stores edits in a local file.
  */
 class EditLogFileOutputStream extends EditLogOutputStream {
+  private static Log LOG = LogFactory.getLog(EditLogFileOutputStream.class);;
+
   private static int EDITS_FILE_HEADER_SIZE_BYTES = Integer.SIZE / Byte.SIZE;
 
   private File file;
@@ -43,6 +48,7 @@ class EditLogFileOutputStream extends EditLogOutputStream {
   private DataOutputBuffer bufCurrent; // current buffer for writing
   private DataOutputBuffer bufReady; // buffer ready for flushing
   final private int initBufferSize; // inital buffer size
+
   static ByteBuffer fill = ByteBuffer.allocateDirect(1024 * 1024); // preallocation, 1MB
 
   static {
@@ -128,6 +134,9 @@ class EditLogFileOutputStream extends EditLogOutputStream {
 
   @Override
   public void close() throws IOException {
+    setReadyToFlush();
+    flush();
+    
     // close should have been called after all pending transactions
     // have been flushed & synced.
     int bufSize = bufCurrent.size();
@@ -143,6 +152,13 @@ class EditLogFileOutputStream extends EditLogOutputStream {
     fp.close();
 
     bufCurrent = bufReady = null;
+    fp = null;
+  }
+  
+  @Override
+  public void abort() throws IOException {
+    IOUtils.cleanup(LOG, fp);
+    fp = null;
   }
 
   /**
@@ -220,5 +236,12 @@ class EditLogFileOutputStream extends EditLogOutputStream {
    */
   File getFile() {
     return file;
+  }
+
+  /**
+   * @return true if this stream is currently open.
+   */
+  public boolean isOpen() {
+    return fp != null;
   }
 }

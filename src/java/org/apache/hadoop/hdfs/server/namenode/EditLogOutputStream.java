@@ -64,6 +64,12 @@ implements JournalStream {
   abstract public void close() throws IOException;
 
   /**
+   * Close the stream without necessarily flushing any pending data.
+   * This may be called after a previous write or close threw an exception.
+   */
+  abstract public void abort() throws IOException;
+  
+  /**
    * All data that has been written to the stream so far will be flushed.
    * New data can be still written to the stream while flushing is performed.
    */
