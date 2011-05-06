@@ -57,6 +57,9 @@ Release 0.22.0 - Unreleased
     HDFS-1850. DN should transmit absolute failed volume count rather than
     increments to the NN. (eli)
 
+    HDFS-671. Documentation change for updated configuration keys.
+    (tomwhite via eli)
+
   IMPROVEMENTS
 
     HDFS-1304. Add a new unit test for HftpFileSystem.open(..).  (szetszwo)
