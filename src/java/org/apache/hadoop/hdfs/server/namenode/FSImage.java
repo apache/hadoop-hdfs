@@ -526,7 +526,7 @@ public class FSImage implements NNStorageListener, Closeable {
          it.hasNext();) {
       StorageDirectory sd = it.next();
       if (!sd.getVersionFile().exists()) {
-        LOG.info("Storage directory " + sd + " contains no VERSION file. Skipping...");
+        LOG.warn("Storage directory " + sd + " contains no VERSION file. Skipping...");
         continue;
       }
       sd.read(); // sets layoutVersion

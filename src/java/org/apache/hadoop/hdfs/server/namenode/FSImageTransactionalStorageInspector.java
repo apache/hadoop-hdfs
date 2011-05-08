@@ -159,8 +159,6 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
    * the storage directory that was inspected first will be preferred.
    * 
    * Returns null if no images were found.
-   * 
-   * TODO this is only used by unit tests I think?
    */
   FoundFSImage getLatestImage() {
     FoundFSImage ret = null;
@@ -394,6 +392,7 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
       }
     }    
   }
+
   /**
    * Record of an image that has been located and had its filename parsed.
    */
