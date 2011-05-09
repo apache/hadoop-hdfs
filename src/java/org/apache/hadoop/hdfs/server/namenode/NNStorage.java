@@ -19,9 +19,10 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import static org.apache.hadoop.hdfs.server.common.Util.now;
 
-import java.io.DataOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
@@ -55,8 +56,12 @@ import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.namenode.JournalStream.JournalType;
 import org.apache.hadoop.conf.Configuration;
 
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.net.DNS;
+
+import com.google.common.base.Charsets;
+import com.google.common.base.Preconditions;
 
 /**
  * NNStorage is responsible for management of the StorageDirectories used by
@@ -74,7 +79,8 @@ public class NNStorage extends Storage implements Closeable {
   //
   enum NameNodeFile {
     IMAGE     ("fsimage"),
-    TIME      ("fstime"),
+    TIME      ("fstime"), // from "old" pre-HDFS-1073 format
+    SEEN_TXID ("seen_txid"),
     EDITS     ("edits"),
     IMAGE_NEW ("fsimage.ckpt"),
     EDITS_NEW ("edits.new"), // from "old" pre-HDFS-1073 format
@@ -151,14 +157,13 @@ public class NNStorage extends Storage implements Closeable {
   private Object restorationLock = new Object();
   private boolean disablePreUpgradableLayoutCheck = false;
 
-  private long checkpointTime = -1L;  // The age of the image
 
   /**
    * TxId of the last transaction that was included in the most
    * recent fsimage file. This does not include any transactions
    * that have since been written to the edit log.
    */
-  protected long checkpointTxId;
+  protected long checkpointTxId = -1;
 
   /**
    * list of failed (and thus removed) storages
@@ -420,85 +425,56 @@ public class NNStorage extends Storage implements Closeable {
     }
     return list;
   }
-
+  
   /**
-   * Determine the checkpoint time of the specified StorageDirectory
+   * Determine the last transaction ID noted in this storage directory.
+   * This txid is stored in a special seen_txid file since it might not
+   * correspond to the latest image or edit log. For example, an image-only
+   * directory will have this txid incremented when edits logs roll, even
+   * though the edits logs are in a different directory.
    *
    * @param sd StorageDirectory to check
-   * @return If file exists and can be read, last checkpoint time. If not, 0L.
+   * @return If file exists and can be read, last recorded txid. If not, 0L.
    * @throws IOException On errors processing file pointed to by sd
    */
-  static long readCheckpointTime(StorageDirectory sd) throws IOException {
-    File timeFile = getStorageFile(sd, NameNodeFile.TIME);
-    long timeStamp = 0L;
-    if (timeFile.exists() && timeFile.canRead()) {
-      DataInputStream in = new DataInputStream(new FileInputStream(timeFile));
+  static long readTransactionIdFile(StorageDirectory sd) throws IOException {
+    File txidFile = getStorageFile(sd, NameNodeFile.SEEN_TXID);
+    long txid = 0L;
+    if (txidFile.exists() && txidFile.canRead()) {
+      BufferedReader br = new BufferedReader(new FileReader(txidFile));
       try {
-        timeStamp = in.readLong();
+        txid = Long.valueOf(br.readLine());
       } finally {
-        in.close();
+        IOUtils.cleanup(LOG, br);
       }
     }
-    return timeStamp;
+    return txid;
   }
-
+  
   /**
    * Write last checkpoint time into a separate file.
    *
    * @param sd
    * @throws IOException
    */
-  public void writeCheckpointTime(StorageDirectory sd) throws IOException {
-    if (checkpointTime < 0L)
-      return; // do not write negative time
-    File timeFile = getStorageFile(sd, NameNodeFile.TIME);
-    if (timeFile.exists() && ! timeFile.delete()) {
-        LOG.error("Cannot delete chekpoint time file: "
-                  + timeFile.getCanonicalPath());
+  void writeTransactionIdFile(StorageDirectory sd, long txid) throws IOException {
+    Preconditions.checkArgument(txid >= 0, "bad txid: " + txid);
+    
+    File txIdFile = getStorageFile(sd, NameNodeFile.SEEN_TXID);
+    if (txIdFile.exists() && ! txIdFile.delete()) {
+        LOG.error("Cannot delete checkpoint time file: "
+                  + txIdFile.getCanonicalPath());
     }
-    FileOutputStream fos = new FileOutputStream(timeFile);
-    DataOutputStream out = new DataOutputStream(fos);
+    LOG.info("===> writing txid " + txid + " to " + txIdFile);
+    FileOutputStream fos = new FileOutputStream(txIdFile);
     try {
-      out.writeLong(checkpointTime);
-      out.flush();
+      fos.write(String.valueOf(txid).getBytes());
+      fos.write('\n');
+      fos.flush();
       fos.getChannel().force(true);
     } finally {
-      out.close();
+      IOUtils.cleanup(LOG, fos);
     }
-  }
-
-  /**
-   * Record new checkpoint time in order to
-   * distinguish healthy directories from the removed ones.
-   * If there is an error writing new checkpoint time, the corresponding
-   * storage directory is removed from the list.
-   */
-  public void incrementCheckpointTime() {
-    setCheckpointTimeInStorage(checkpointTime + 1);
-  }
-
-  /**
-   * The age of the namespace state.<p>
-   * Reflects the latest time the image was saved.
-   * Modified with every save or a checkpoint.
-   * Persisted in VERSION file.
-   *
-   * @return the current checkpoint time.
-   */
-  public long getCheckpointTime() {
-    return checkpointTime;
-  }
-
-  /**
-   * Set the checkpoint time.
-   *
-   * This method does not persist the checkpoint time to storage immediately.
-   * 
-   * @see #setCheckpointTimeInStorage
-   * @param newCpT the new checkpoint time.
-   */
-  public void setCheckpointTime(long newCpT) {
-    checkpointTime = newCpT;
   }
 
   /**
@@ -516,22 +492,23 @@ public class NNStorage extends Storage implements Closeable {
   }
 
   /**
-   * Set the current checkpoint time. Writes the new checkpoint
-   * time to all available storage directories.
-   * @param newCpT The new checkpoint time.
+   * Write a small file in all available storage directories that
+   * indicates that the namespace has reached some given transaction ID.
+   * 
+   * This is used when the image is loaded to avoid accidental rollbacks
+   * in the case where an edit log is fully deleted but there is no
+   * checkpoint. See {@link TestNameEditsConfigs#testNameEditsConfigsFailure()}
+   * @param newCpT the txid that has been reached
    */
-  public void setCheckpointTimeInStorage(long newCpT) {
-    checkpointTime = newCpT;
-    // Write new checkpoint time in all storage directories
-    for(Iterator<StorageDirectory> it =
-                          dirIterator(); it.hasNext();) {
-      StorageDirectory sd = it.next();
+  public void writeTransactionIdFileToStorage(long txid) {
+    // Write txid marker in all storage directories
+    for (StorageDirectory sd : storageDirs) {
       try {
-        writeCheckpointTime(sd);
+        writeTransactionIdFile(sd, txid);
       } catch(IOException e) {
         // Close any edits stream associated with this dir and remove directory
-        LOG.warn("incrementCheckpointTime failed on "
-                 + sd.getRoot().getPath() + ";type="+sd.getStorageDirType());
+        LOG.warn("writeTransactionIdToStorage failed on " + sd,
+            e);
       }
     }
   }
@@ -600,6 +577,7 @@ public class NNStorage extends Storage implements Closeable {
       listener.formatOccurred(sd);
     }
     sd.write();
+    writeTransactionIdFile(sd, 0);
 
     LOG.info("Storage directory " + sd.getRoot()
              + " has been successfully formatted.");
@@ -614,7 +592,6 @@ public class NNStorage extends Storage implements Closeable {
     this.clusterID = clusterId;
     this.blockpoolID = newBlockPoolID();
     this.cTime = 0L;
-    this.setCheckpointTime(now());
     for (Iterator<StorageDirectory> it =
                            dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
@@ -738,12 +715,10 @@ public class NNStorage extends Storage implements Closeable {
           " has checkpoint transaction id when version is " 
           + layoutVersion);
     }
-
-    this.setCheckpointTime(readCheckpointTime(sd));
   }
 
   /**
-   * Write last checkpoint time and version file into the storage directory.
+   * Write version file into the storage directory.
    *
    * The version file should always be written last.
    * Missing or corrupted version file indicates that
@@ -775,7 +750,6 @@ public class NNStorage extends Storage implements Closeable {
 
     props.setProperty(MESSAGE_DIGEST_PROPERTY, imageDigest.toString());
     props.setProperty(CHECKPOINT_TXID_PROPERTY, String.valueOf(checkpointTxId));
-    writeCheckpointTime(sd);
   }
 
   /**
@@ -958,8 +932,7 @@ public class NNStorage extends Storage implements Closeable {
     if (this.storageDirs.remove(sd)) {
       this.removedStorageDirs.add(sd);
     }
-    incrementCheckpointTime();
-
+    
     lsd = listStorageDirectories();
     LOG.debug("at the end current list of storage dirs:" + lsd);
   }

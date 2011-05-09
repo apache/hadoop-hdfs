@@ -46,13 +46,10 @@ public class TestNameEditsConfigs extends TestCase {
       System.getProperty("test.build.data", "build/test/data"), "dfs/");
 
   protected void setUp() throws java.lang.Exception {
-    if(base_dir.exists())
-      tearDown();
-  }
-
-  protected void tearDown() throws java.lang.Exception {
-    if (!FileUtil.fullyDelete(base_dir)) 
-      throw new IOException("Cannot remove directory " + base_dir);
+    if(base_dir.exists()) {
+      if (!FileUtil.fullyDelete(base_dir)) 
+        throw new IOException("Cannot remove directory " + base_dir);
+    }
   }
 
   private void writeFile(FileSystem fileSys, Path name, int repl)
@@ -402,6 +399,12 @@ public class TestNameEditsConfigs extends TestCase {
     }
 
     // Add old shared directory for name and edits along with latest edits
+    // This case is currently disabled, because once we have HDFS-1073 complete
+    // we can easily distinguish between the edits file in the old dir and the
+    // edits file in the new one based on their file names. This part of the
+    // test will be re-enabled to make sure the NN starts with valid edits
+    // in this case. TODO
+    /*    
     conf = new HdfsConfiguration();
     conf.set(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_KEY, nameAndEdits.getPath());
     conf.set(DFSConfigKeys.DFS_NAMENODE_EDITS_DIR_KEY, newEditsDir.getPath() +
@@ -419,5 +422,6 @@ public class TestNameEditsConfigs extends TestCase {
     } finally {
       cluster = null;
     }
+    */
   }
 }

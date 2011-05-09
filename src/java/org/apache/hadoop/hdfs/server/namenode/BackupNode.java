@@ -226,10 +226,6 @@ public class BackupNode extends NameNode {
       case (int)JA_JSPOOL_START:
         bnImage.startJournalSpool(nnReg);
         return;
-      case (int)JA_CHECKPOINT_TIME:
-        bnImage.setCheckpointTime(length, args);
-        setRegistration(); // keep registration up to date
-        return;
       default:
         throw new IOException("Unexpected journal action: " + jAction);
     }

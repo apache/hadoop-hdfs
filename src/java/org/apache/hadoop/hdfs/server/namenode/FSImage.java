@@ -25,7 +25,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -68,9 +67,6 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 @InterfaceStability.Evolving
 public class FSImage implements NNStorageListener, Closeable {
   protected static final Log LOG = LogFactory.getLog(FSImage.class.getName());
-
-  private static final SimpleDateFormat DATE_FORM =
-      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
   // checkpoint states
   enum CheckpointStates{START, ROLLED_EDITS, UPLOAD_START, UPLOAD_DONE; }
@@ -255,7 +251,6 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.verifyDistributedUpgradeProgress(startOpt);
 
     // 2. Format unformatted dirs.
-    storage.setCheckpointTime(0L);
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
       StorageState curState = dataDirStates.get(sd);
@@ -370,7 +365,6 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.cTime = now();  // generate new cTime for the state
     int oldLV = storage.getLayoutVersion();
     storage.layoutVersion = FSConstants.LAYOUT_VERSION;
-    storage.setCheckpointTime(now());
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
       LOG.info("Upgrading image directory " + sd.getRoot()
@@ -495,7 +489,8 @@ public class FSImage implements NNStorageListener, Closeable {
     }
     // return back the real image
     realImage.getStorage().setStorageInfo(ckptImage.getStorage());
-    storage.setCheckpointTime(ckptImage.getStorage().getCheckpointTime());
+    realImage.getEditLog().setNextTxId(ckptImage.getEditLog().getLastWrittenTxId()+1);
+
     fsNamesys.dir.fsImage = realImage;
     realImage.getStorage().setBlockPoolID(ckptImage.getBlockPoolID());
     // and save it but keep the same checkpointTime
@@ -746,8 +741,7 @@ public class FSImage implements NNStorageListener, Closeable {
     storage.attemptRestoreRemovedStorage();
 
     editLog.close();
-    if(renewCheckpointTime)
-      storage.setCheckpointTime(now());
+
     List<StorageDirectory> errorSDs =
       Collections.synchronizedList(new ArrayList<StorageDirectory>());
 
@@ -830,8 +824,9 @@ public class FSImage implements NNStorageListener, Closeable {
     if (dirType.isOfType(NameNodeDirType.EDITS))
       editLog.createEditLogFile(NNStorage.getStorageFile(sd,
                                                          NameNodeFile.EDITS));
-    // write version and time files
+    // write version and txid files
     sd.write();
+    storage.writeTransactionIdFile(sd, getEditLog().getLastWrittenTxId());
   }
 
 
@@ -871,7 +866,7 @@ public class FSImage implements NNStorageListener, Closeable {
     // Renames new image
     //
     renameCheckpoint();
-    resetVersion(renewCheckpointTime, newImageDigest);
+    resetVersion(newImageDigest);
   }
 
   /**
@@ -904,13 +899,11 @@ public class FSImage implements NNStorageListener, Closeable {
   }
 
   /**
-   * Updates version and fstime files in all directories (fsimage and edits).
+   * Updates version and txid files in all directories (fsimage and edits).
    */
-  void resetVersion(boolean renewCheckpointTime, MD5Hash newImageDigest) 
+  void resetVersion(MD5Hash newImageDigest) 
       throws IOException {
     storage.layoutVersion = FSConstants.LAYOUT_VERSION;
-    if(renewCheckpointTime)
-      storage.setCheckpointTime(now());
     storage.setImageDigest(newImageDigest);
     
     ArrayList<StorageDirectory> al = null;
@@ -947,8 +940,10 @@ public class FSImage implements NNStorageListener, Closeable {
     getEditLog().rollEditLog();
     ckptState = CheckpointStates.ROLLED_EDITS;
     // If checkpoint fails this should be the most recent image, therefore
-    storage.incrementCheckpointTime();
-    return new CheckpointSignature(this);
+    storage.writeTransactionIdFileToStorage(getEditLog().getLastRollTxId());
+    CheckpointSignature signature = new CheckpointSignature(this);
+    LOG.info("rollEditLog returned: " + signature);
+    return signature;
   }
 
   /**
@@ -961,14 +956,11 @@ public class FSImage implements NNStorageListener, Closeable {
                              ckptState);
     } 
     // verify token
-    long modtime = getEditLog().getFsEditTime();
-    if (sig.editsTime != modtime) {
-      throw new IOException("Namenode has an edit log with timestamp of " +
-                            DATE_FORM.format(new Date(modtime)) +
-                            " but new checkpoint was created using editlog " +
-                            " with timestamp " + 
-                            DATE_FORM.format(new Date(sig.editsTime)) + 
-                            ". Checkpoint Aborted.");
+    long expectedTxId = getEditLog().getLastWrittenTxId();
+    if (sig.lastLogRollTxId != expectedTxId) {
+      throw new IOException("Namenode has an edit log corresponding to txid " +
+          expectedTxId + " but new checkpoint was created using editlog " +
+          "ending at txid " + sig.lastLogRollTxId + ". Checkpoint Aborted.");
     }
     sig.validateStorageInfo(this);
     ckptState = FSImage.CheckpointStates.UPLOAD_START;
@@ -1007,15 +999,15 @@ public class FSImage implements NNStorageListener, Closeable {
             && bnReg.getCTime() > storage.getCTime())
         || (bnReg.getLayoutVersion() == storage.getLayoutVersion()
             && bnReg.getCTime() == storage.getCTime()
-            && bnReg.getCheckpointTime() > storage.getCheckpointTime()))
+            && bnReg.getCheckpointTxId() > storage.getCheckpointTxId()))
       // remote node has newer image age
       msg = "Name node " + bnReg.getAddress()
             + " has newer image layout version: LV = " +bnReg.getLayoutVersion()
             + " cTime = " + bnReg.getCTime()
-            + " checkpointTime = " + bnReg.getCheckpointTime()
+            + " checkpointTxId = " + bnReg.getCheckpointTxId()
             + ". Current version: LV = " + storage.getLayoutVersion()
             + " cTime = " + storage.getCTime()
-            + " checkpointTime = " + storage.getCheckpointTime();
+            + " checkpointTxId = " + storage.getCheckpointTxId();
     if(msg != null) {
       LOG.error(msg);
       return new NamenodeCommand(NamenodeProtocol.ACT_SHUTDOWN);
@@ -1023,7 +1015,7 @@ public class FSImage implements NNStorageListener, Closeable {
     boolean isImgObsolete = true;
     if(bnReg.getLayoutVersion() == storage.getLayoutVersion()
         && bnReg.getCTime() == storage.getCTime()
-        && bnReg.getCheckpointTime() == storage.getCheckpointTime())
+        && bnReg.getCheckpointTxId() == storage.getCheckpointTxId())
       isImgObsolete = false;
     boolean needToReturnImg = true;
     if(storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0)

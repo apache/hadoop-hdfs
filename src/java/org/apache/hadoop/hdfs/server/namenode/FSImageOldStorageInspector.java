@@ -18,7 +18,9 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -88,7 +90,7 @@ class FSImageOldStorageInspector extends FSImageStorageInspector {
       editsDirs.add(sd.getRoot().getCanonicalPath());
     }
     
-    long checkpointTime = NNStorage.readCheckpointTime(sd);
+    long checkpointTime = readCheckpointTime(sd);
 
     checkpointTimes.add(checkpointTime);
     
@@ -110,6 +112,27 @@ class FSImageOldStorageInspector extends FSImageStorageInspector {
     
     // set finalized flag
     isUpgradeFinalized = isUpgradeFinalized && !sd.getPreviousDir().exists();    
+  }
+
+  /**
+   * Determine the checkpoint time of the specified StorageDirectory
+   *
+   * @param sd StorageDirectory to check
+   * @return If file exists and can be read, last checkpoint time. If not, 0L.
+   * @throws IOException On errors processing file pointed to by sd
+   */
+  static long readCheckpointTime(StorageDirectory sd) throws IOException {
+    File timeFile = NNStorage.getStorageFile(sd, NameNodeFile.TIME);
+    long timeStamp = 0L;
+    if (timeFile.exists() && timeFile.canRead()) {
+      DataInputStream in = new DataInputStream(new FileInputStream(timeFile));
+      try {
+        timeStamp = in.readLong();
+      } finally {
+        in.close();
+      }
+    }
+    return timeStamp;
   }
 
   @Override

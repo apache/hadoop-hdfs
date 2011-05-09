@@ -83,7 +83,6 @@ public class TestOfflineEditsViewer {
     obsoleteOpCodes.put(FSEditLogOpCodes.OP_CLEAR_NS_QUOTA, true);
     // these are not written to files
     obsoleteOpCodes.put(FSEditLogOpCodes.OP_JSPOOL_START, true);
-    obsoleteOpCodes.put(FSEditLogOpCodes.OP_CHECKPOINT_TIME, true);
   }
 
   /**

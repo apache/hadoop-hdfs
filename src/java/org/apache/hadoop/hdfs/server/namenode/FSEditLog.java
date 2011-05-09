@@ -84,6 +84,9 @@ public class FSEditLog implements NNStorageListener {
 
   // stores the last synced transactionId.
   private long synctxid = 0;
+  
+  // store the last txid written to "edits" before rolling to edits_new
+  private long lastRollTxId = -1;
 
   // the time of printing the statistics to the log file.
   private long lastPrintTime;
@@ -345,6 +348,16 @@ public class FSEditLog implements NNStorageListener {
    */
   synchronized long getLastWrittenTxId() {
     return txid;
+  }
+  
+  /**
+   * @return the last transaction ID written to "edits" before rolling to
+   * edits_new
+   */
+  synchronized long getLastRollTxId() {
+    Preconditions.checkState(state == State.WRITING_EDITS_NEW,
+        "Bad state: %s", state);
+    return lastRollTxId;
   }
   
   /**
@@ -791,6 +804,8 @@ public class FSEditLog implements NNStorageListener {
     }
 
     waitForSyncToFinish();
+    
+    lastRollTxId = getLastWrittenTxId();
 
     // check if any of failed storage is now available and put it back
     storage.attemptRestoreRemovedStorage();
@@ -871,16 +886,6 @@ public class FSEditLog implements NNStorageListener {
   }
 
   /**
-   * Returns the timestamp of the edit log
-   */
-  synchronized long getFsEditTime() {
-    Iterator<StorageDirectory> it = storage.dirIterator(NameNodeDirType.EDITS);
-    if(it.hasNext())
-      return NNStorage.getEditFile(it.next()).lastModified();
-    return 0;
-  }
-
-  /**
    * Return the txid of the last synced transaction.
    * For test use only
    */
@@ -957,12 +962,6 @@ public class FSEditLog implements NNStorageListener {
     endTransaction(start);
   }
 
-
-  void incrementCheckpointTime() {
-    storage.incrementCheckpointTime();
-    Writable[] args = {new LongWritable(storage.getCheckpointTime())};
-    logEdit(OP_CHECKPOINT_TIME, args);
-  }
 
   synchronized void releaseBackupStream(NamenodeRegistration registration) {
     /*
