@@ -383,6 +383,9 @@ Trunk (unreleased changes)
     HDFS-1870. Move and rename DFSClient.LeaseChecker to a seperated class
     LeaseRenewer.  (szetszwo)
 
+    HDFS-1866. Document dfs.datanode.max.transfer.threads in hdfs-default.xml
+    (Harsh J Chouraria via todd)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
@@ -498,6 +501,12 @@ Trunk (unreleased changes)
 
     HDFS-1890. Improve the name, class and value type of the map
     LeaseRenewer.pendingCreates.  (szetszwo)
+
+    HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
+    (suresh)
+
+    HDFS-1898. Tests failing on trunk due to use of NameNode.format.
+    (todd via eli)
 
 Release 0.22.0 - Unreleased
 
@@ -887,6 +896,9 @@ Release 0.22.0 - Unreleased
 
     HDFS-1850. DN should transmit absolute failed volume count rather than 
     increments to the NN. (eli)
+
+    HDFS-671. Documentation change for updated configuration keys. 
+    (tomwhite via eli)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)

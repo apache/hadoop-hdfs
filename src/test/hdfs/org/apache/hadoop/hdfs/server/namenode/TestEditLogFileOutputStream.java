@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.DU;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
+import org.apache.hadoop.test.GenericTestUtils;
 import org.junit.Test;
 
 public class TestEditLogFileOutputStream {
@@ -37,7 +38,7 @@ public class TestEditLogFileOutputStream {
     Configuration conf = new Configuration();
     FileSystem.setDefaultUri(conf, "hdfs://localhost:0");
     conf.set("dfs.http.address", "127.0.0.1:0");
-    NameNode.format(conf);
+    GenericTestUtils.formatNamenode(conf);
     NameNode nn = new NameNode(conf);
 
     StorageDirectory sd = nn.getFSImage().getStorage().getStorageDir(0);
