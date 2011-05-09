@@ -309,6 +309,8 @@ Trunk (unreleased changes)
     HDFS-1860. when renewing/canceling DelegationToken over http we need to
      pass exception information back to the caller.(boryas)
 
+    HDFS-1889. incorrect path in start/stop dfs script. (John George via eli)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
