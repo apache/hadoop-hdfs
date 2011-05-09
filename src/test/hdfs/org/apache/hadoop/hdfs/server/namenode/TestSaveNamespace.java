@@ -319,7 +319,7 @@ public class TestSaveNamespace {
   public void testTxIdPersistence() throws Exception {
     Configuration conf = getConf();
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
-    NameNode.format(conf);
+    GenericTestUtils.formatNamenode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
     try {
