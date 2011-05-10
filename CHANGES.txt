@@ -491,6 +491,8 @@ Release 0.22.0 - Unreleased
     by throwing an error to indicate the editlog needs to be empty.
     (suresh)
 
+    HDFS-1909. TestHDFSCLI fails due to typo in expected output. (tomwhite)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
