@@ -446,4 +446,42 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     }
     return len1 - len2;
   }
+  
+  /**
+   * Create an INode; the inode's name is not set yet
+   * 
+   * @param permissions permissions
+   * @param blocks blocks if a file
+   * @param symlink symblic link if a symbolic link
+   * @param replication replication factor
+   * @param modificationTime modification time
+   * @param atime access time
+   * @param nsQuota namespace quota
+   * @param dsQuota disk quota
+   * @param preferredBlockSize block size
+   * @return an inode
+   */
+  static INode newINode(PermissionStatus permissions,
+                        BlockInfo[] blocks,
+                        String symlink,
+                        short replication,
+                        long modificationTime,
+                        long atime,
+                        long nsQuota,
+                        long dsQuota,
+                        long preferredBlockSize) {
+    if (symlink.length() != 0) { // check if symbolic link
+      return new INodeSymlink(symlink, modificationTime, atime, permissions);
+    }  else if (blocks == null) { //not sym link and blocks null? directory!
+      if (nsQuota >= 0 || dsQuota >= 0) {
+        return new INodeDirectoryWithQuota(
+            permissions, modificationTime, nsQuota, dsQuota);
+      } 
+      // regular directory
+      return new INodeDirectory(permissions, modificationTime);
+    }
+    // file
+    return new INodeFile(permissions, blocks, replication,
+        modificationTime, atime, preferredBlockSize);
+  }
 }
