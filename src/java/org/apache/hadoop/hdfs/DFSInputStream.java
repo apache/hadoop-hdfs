@@ -736,6 +736,9 @@ public class DFSInputStream extends FSInputStream {
     if (targetPos > getFileLength()) {
       throw new IOException("Cannot seek after EOF");
     }
+    if (closed) {
+      throw new IOException("Stream is closed!");
+    }
     boolean done = false;
     if (pos <= targetPos && targetPos <= blockEnd) {
       //
