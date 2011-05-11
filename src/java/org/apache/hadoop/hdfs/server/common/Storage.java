@@ -65,7 +65,7 @@ public abstract class Storage extends StorageInfo {
   // Constants
   
   // last layout version that did not suppot upgrades
-  protected static final int LAST_PRE_UPGRADE_LAYOUT_VERSION = -3;
+  public static final int LAST_PRE_UPGRADE_LAYOUT_VERSION = -3;
   
   // this corresponds to Hadoop-0.14.
   public static final int LAST_UPGRADABLE_LAYOUT_VERSION = -7;
@@ -81,6 +81,9 @@ public abstract class Storage extends StorageInfo {
   // last layout version that is before federation
   public static final int LAST_PRE_FEDERATION_LAYOUT_VERSION = -24;
   
+  /** Layout versions of 0.20.203 release */
+  public static final int[] LAYOUT_VERSIONS_203 = {-19, -31};
+
   private   static final String STORAGE_FILE_LOCK     = "in_use.lock";
   protected static final String STORAGE_FILE_VERSION  = "VERSION";
   public static final String STORAGE_DIR_CURRENT      = "current";
@@ -725,7 +728,7 @@ public abstract class Storage extends StorageInfo {
    * 
    * @param oldVersion
    */
-  protected static void checkVersionUpgradable(int oldVersion) 
+  public static void checkVersionUpgradable(int oldVersion) 
                                      throws IOException {
     if (oldVersion > LAST_UPGRADABLE_LAYOUT_VERSION) {
       String msg = "*********** Upgrade is not supported from this " +
@@ -936,5 +939,14 @@ public abstract class Storage extends StorageInfo {
           "namespaceID is incompatible with others.");
     }
     namespaceID = nsId;
+  }
+  
+  public static boolean is203LayoutVersion(int layoutVersion) {
+    for (int lv203 : LAYOUT_VERSIONS_203) {
+      if (lv203 == layoutVersion) {
+        return true;
+      }
+    }
+    return false;
   }
 }

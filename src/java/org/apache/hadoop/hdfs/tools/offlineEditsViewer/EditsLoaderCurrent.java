@@ -48,8 +48,8 @@ import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.EmptyTok
 @InterfaceStability.Unstable
 class EditsLoaderCurrent implements EditsLoader {
 
-  private static int [] supportedVersions = {
-    -18, -19, -20, -21, -22, -23, -24, -25, -26, -27 };
+  private static int[] supportedVersions = { -18, -19, -20, -21, -22, -23, -24,
+      -25, -26, -27, -28, -30, -31, -32, -33, -34 };
 
   private EditsVisitor v;
   private int editsVersion = 0;
