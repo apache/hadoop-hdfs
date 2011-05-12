@@ -270,6 +270,12 @@ Trunk (unreleased changes)
     
     HDFS-1751. Intrinsic limits for HDFS files, directories (daryn via boryas).
 
+    HDFS-1873. Federation: Add cluster management web console.
+    (Tanping Wang via suresh)
+
+    HDFS 1911 HDFS tests for the newly added viewfs
+
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
@@ -386,12 +392,27 @@ Trunk (unreleased changes)
     HDFS-1866. Document dfs.datanode.max.transfer.threads in hdfs-default.xml
     (Harsh J Chouraria via todd)
 
+    HDFS-1890. Improve the name, class and value type of the map
+    LeaseRenewer.pendingCreates.  (szetszwo)
+
+    HDFS-1865. Share LeaseRenewer among DFSClients so that there is only a
+    LeaseRenewer thread per namenode per user.  (szetszwo)
+
+    HDFS-1906. Remove logging exception stack trace in client logs when one of
+    the datanode targets to read from is not reachable. (suresh)
+
+    HDFS-1378. Edit log replay should track and report file offsets in case of
+    errors. (Aaron T. Myers and Todd Lipcon via todd)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
     downloads and loading. (hairong)
 
     HDFS-1601. Pipeline ACKs are sent as lots of tiny TCP packets (todd)
+
+    HDFS-1826. NameNode should save image to name directories in parallel
+    during upgrade. (Matt Foley via hairong)
 
   BUG FIXES
 
@@ -499,14 +520,28 @@ Trunk (unreleased changes)
 
     HDFS-1889. incorrect path in start/stop dfs script. (John George via eli)
 
-    HDFS-1890. Improve the name, class and value type of the map
-    LeaseRenewer.pendingCreates.  (szetszwo)
-
     HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
     (suresh)
 
     HDFS-1898. Tests failing on trunk due to use of NameNode.format.
     (todd via eli)
+
+    HDFS-1902. Fix setrep path display for TestHDFSCLI.  (Daryn Sharp
+    via szetszwo)
+
+    HDFS-1827. Fix timeout problem in TestBlockReplacement.  (Matt Foley
+    via szetszwo)
+
+    HDFS-1908. Fix a NullPointerException in fi.DataTransferTestUtil.
+    (szetszwo)
+
+    HDFS-1912. Update tests for FsShell standardized error messages.
+    (Daryn Sharp via szetszwo)
+
+    HDFS-1903. Fix path display for rm/rmr in TestHDFSCLI and TestDFSShell.
+    (Daryn Sharp via szetszwo)
+
+    HDFS-1627. Fix NullPointerException in Secondary NameNode. (hairong)
 
 Release 0.22.0 - Unreleased
 
@@ -899,6 +934,18 @@ Release 0.22.0 - Unreleased
 
     HDFS-671. Documentation change for updated configuration keys. 
     (tomwhite via eli)
+
+    HDFS-1544. Ivy resolve force mode should be turned off by default.
+    (Luke Lu via tomwhite)
+
+    HDFS-1615. seek() on closed DFS input stream throws NullPointerException
+    (Scott Carey via todd)
+
+    HDFS-1897. Documentation refers to removed option dfs.network.script
+    (Andrew Whang via todd)
+
+    HDFS-1621. Fix references to hadoop-common-${version} in build.xml
+    (Jolly Chen via todd)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)

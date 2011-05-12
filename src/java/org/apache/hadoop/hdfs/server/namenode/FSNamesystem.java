@@ -5509,6 +5509,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   @Override // NameNodeMXBean
+  public long getNumberOfMissingBlocks() {
+    return getMissingBlocksCount();
+  }
+  
+  @Override // NameNodeMXBean
   public int getThreads() {
     return ManagementFactory.getThreadMXBean().getThreadCount();
   }
@@ -5519,11 +5524,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   @Override // NameNodeMXBean
   public String getLiveNodes() {
-    final Map<String, Object> info = new HashMap<String, Object>();
-    final ArrayList<DatanodeDescriptor> aliveNodeList =
-      this.getDatanodeListForReport(DatanodeReportType.LIVE); 
-    removeDecomNodeFromList(aliveNodeList);
-    for (DatanodeDescriptor node : aliveNodeList) {
+    final Map<String, Map<String,Object>> info = 
+      new HashMap<String, Map<String,Object>>();
+    final ArrayList<DatanodeDescriptor> liveNodeList = 
+      new ArrayList<DatanodeDescriptor>();
+    final ArrayList<DatanodeDescriptor> deadNodeList =
+      new ArrayList<DatanodeDescriptor>();
+    DFSNodesStatus(liveNodeList, deadNodeList);
+    removeDecomNodeFromList(liveNodeList);
+    for (DatanodeDescriptor node : liveNodeList) {
       final Map<String, Object> innerinfo = new HashMap<String, Object>();
       innerinfo.put("lastContact", getLastContact(node));
       innerinfo.put("usedSpace", getDfsUsed(node));
@@ -5539,9 +5548,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   @Override // NameNodeMXBean
   public String getDeadNodes() {
-    final Map<String, Object> info = new HashMap<String, Object>();
+    final Map<String, Map<String, Object>> info = 
+      new HashMap<String, Map<String, Object>>();
+    final ArrayList<DatanodeDescriptor> liveNodeList =
+    new ArrayList<DatanodeDescriptor>();
     final ArrayList<DatanodeDescriptor> deadNodeList =
-      this.getDatanodeListForReport(DatanodeReportType.DEAD); 
+    new ArrayList<DatanodeDescriptor>();
+    // we need to call DFSNodeStatus to filter out the dead data nodes
+    DFSNodesStatus(liveNodeList, deadNodeList);
     removeDecomNodeFromList(deadNodeList);
     for (DatanodeDescriptor node : deadNodeList) {
       final Map<String, Object> innerinfo = new HashMap<String, Object>();
@@ -5558,7 +5572,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   @Override // NameNodeMXBean
   public String getDecomNodes() {
-    final Map<String, Object> info = new HashMap<String, Object>();
+    final Map<String, Map<String, Object>> info = 
+      new HashMap<String, Map<String, Object>>();
     final ArrayList<DatanodeDescriptor> decomNodeList = 
       this.getDecommissioningNodes();
     for (DatanodeDescriptor node : decomNodeList) {
