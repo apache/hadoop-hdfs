@@ -72,7 +72,7 @@ public class TestDFSUpgrade {
       assertTrue(new File(baseDirs[i],"current/VERSION").isFile());
       assertTrue(new File(baseDirs[i],"current/edits").isFile());
       assertTrue(new File(baseDirs[i],"current/fsimage").isFile());
-      assertTrue(new File(baseDirs[i],"current/fstime").isFile());
+      assertTrue(new File(baseDirs[i],"current/seen_txid").isFile());
       
       File previous = new File(baseDirs[i], "previous");
       assertTrue(previous.isDirectory());
