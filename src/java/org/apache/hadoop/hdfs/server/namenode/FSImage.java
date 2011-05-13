@@ -56,6 +56,7 @@ import org.apache.hadoop.hdfs.server.protocol.CheckpointCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
+import org.apache.hadoop.hdfs.util.MD5FileUtils;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 
@@ -629,8 +630,9 @@ public class FSImage implements NNStorageListener, Closeable {
     // TODO need to discuss what the correct logic is for determing which
     // storage directory to read properties from
     sdForProperties.read();
-
-    loadFSImage(loadPlan.getImageFile());
+    File imageFile = loadPlan.getImageFile();
+    MD5Hash expectedMD5 = MD5FileUtils.readStoredMd5ForFile(imageFile);
+    loadFSImage(imageFile, expectedMD5);
     needToSave |= loadEdits(loadPlan.getEditsFiles());
 
     /* TODO(todd) Need to discuss whether we should force a re-save
@@ -674,7 +676,7 @@ public class FSImage implements NNStorageListener, Closeable {
    * filenames and blocks.  Return whether we should
    * "re-save" and consolidate the edit-logs
    */
-  void loadFSImage(File curFile) throws IOException {
+  void loadFSImage(File curFile, MD5Hash expectedMd5) throws IOException {
     FSImageFormat.Loader loader = new FSImageFormat.Loader(
         conf, getFSNamesystem());
     loader.load(curFile);
@@ -683,13 +685,14 @@ public class FSImage implements NNStorageListener, Closeable {
     // Check that the image digest we loaded matches up with what
     // we expected
     MD5Hash readImageMd5 = loader.getLoadedImageMd5();
-    if (storage.getImageDigest() == null) {
-      storage.setImageDigest(readImageMd5); // set this fsimage's checksum
-    } else if (!storage.getImageDigest().equals(readImageMd5)) {
+    if (expectedMd5 != null &&
+        !expectedMd5.equals(readImageMd5)) {
       throw new IOException("Image file " + curFile +
           " is corrupt with MD5 checksum of " + readImageMd5 +
-          " but expecting " + storage.getImageDigest());
+          " but expecting " + expectedMd5);
     }
+    
+    storage.setImageDigest(readImageMd5); // set this fsimage's checksum
     storage.setCheckpointTxId(loader.getLoadedImageTxId());
   }
 
@@ -701,6 +704,7 @@ public class FSImage implements NNStorageListener, Closeable {
     FSImageFormat.Saver saver = new FSImageFormat.Saver();
     FSImageCompression compression = FSImageCompression.createCompression(conf);
     saver.save(newFile, getFSNamesystem(), compression);
+    MD5FileUtils.saveMD5File(newFile, saver.getSavedDigest());
     storage.setImageDigest(saver.getSavedDigest());
     storage.setCheckpointTxId(editLog.getLastWrittenTxId());
   }
@@ -950,12 +954,23 @@ public class FSImage implements NNStorageListener, Closeable {
                                 + editsFile.getCanonicalPath());
       }
       // delete old fsimage if sd is the edits only the directory
-      if (!sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {
-        File imageFile = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE);
+      File imageFile = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE);
+      if (!sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {        
         if(imageFile.exists() && !imageFile.delete())
           throw new IOException("Cannot delete image file " 
                                 + imageFile.getCanonicalPath());
+      } else {
+        try {
+          MD5FileUtils.saveMD5File(imageFile, newImageDigest);
+        } catch (IOException ioe) {
+          LOG.error("Cannot save image md5 in " + sd, ioe);
+          
+          if(al == null) al = new ArrayList<StorageDirectory> (1);
+          al.add(sd);
+          continue;
+        }
       }
+      
       try {
         sd.write();
       } catch (IOException e) {

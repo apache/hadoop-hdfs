@@ -174,7 +174,8 @@ public class BackupImage extends FSImage {
 
       getFSDirectoryRootLock().writeLock();
       try { // load image under rootDir lock
-        loadFSImage(NNStorage.getStorageFile(sdName, NameNodeFile.IMAGE));
+        loadFSImage(NNStorage.getStorageFile(sdName, NameNodeFile.IMAGE),
+            sig.getImageDigest());
       } finally {
         getFSDirectoryRootLock().writeUnlock();
       }

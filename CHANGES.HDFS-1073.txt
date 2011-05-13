@@ -23,3 +23,5 @@ HDFS-1799. Refactor log rolling and filename management out of FSEditLog
            (Ivan Kelly and Todd Lipcon via todd)
 HDFS-1801. Remove use of timestamps to identify checkpoints and logs (todd)
 HDFS-1930. TestDFSUpgrade failing in HDFS-1073 branch (todd)
+HDFS-1800. Extend image checksumming to function with multiple fsimage files
+           per directory. (todd)

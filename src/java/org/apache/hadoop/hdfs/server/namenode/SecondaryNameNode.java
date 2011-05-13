@@ -713,10 +713,9 @@ public class SecondaryNameNode implements Runnable {
         throw new IOException("Could not locate checkpoint edits");
       
       this.getStorage().setStorageInfo(sig);
-      this.getStorage().setImageDigest(sig.getImageDigest());
       if (loadImage) {
-        getStorage();
-        loadFSImage(NNStorage.getStorageFile(sdName, NameNodeFile.IMAGE));
+        loadFSImage(getStorage().getStorageFile(sdName, NameNodeFile.IMAGE),
+            sig.getImageDigest());
       }
       List<File> editsFiles =
         FSImageOldStorageInspector.getEditsInStorageDir(sdEdits);

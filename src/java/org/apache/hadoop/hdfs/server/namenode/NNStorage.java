@@ -687,20 +687,6 @@ public class NNStorage extends Storage implements Closeable {
         sDUS == null? false : Boolean.parseBoolean(sDUS),
         sDUV == null? getLayoutVersion() : Integer.parseInt(sDUV));
 
-    String sMd5 = props.getProperty(MESSAGE_DIGEST_PROPERTY);
-    if (layoutVersion <= -26) {
-      if (sMd5 == null) {
-        throw new InconsistentFSStateException(sd.getRoot(),
-            "file " + STORAGE_FILE_VERSION
-            + " does not have MD5 image digest.");
-      }
-      this.imageDigest = new MD5Hash(sMd5);
-    } else if (sMd5 != null) {
-      throw new InconsistentFSStateException(sd.getRoot(),
-          "file " + STORAGE_FILE_VERSION +
-          " has image MD5 digest when version is " + layoutVersion);
-    }
-
     String sCheckpointId = props.getProperty(CHECKPOINT_TXID_PROPERTY);
     if (layoutVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
       if (sCheckpointId == null) {
@@ -743,12 +729,7 @@ public class NNStorage extends Storage implements Closeable {
       props.setProperty("distributedUpgradeVersion",
                         Integer.toString(uVersion));
     }
-    if (imageDigest == null) {
-      imageDigest = MD5Hash.digest(
-          new FileInputStream(getStorageFile(sd, NameNodeFile.IMAGE)));
-    }
 
-    props.setProperty(MESSAGE_DIGEST_PROPERTY, imageDigest.toString());
     props.setProperty(CHECKPOINT_TXID_PROPERTY, String.valueOf(checkpointTxId));
   }
 
