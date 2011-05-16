@@ -509,6 +509,9 @@ Release 0.22.0 - Unreleased
     HDFS-1621. Fix references to hadoop-common-${version} in build.xml
     (Jolly Chen via todd)
 
+    HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
+    (suresh)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
