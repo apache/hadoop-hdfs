@@ -240,6 +240,8 @@ Release 0.22.0 - Unreleased
     HDFS-1866. Document dfs.datanode.max.transfer.threads in hdfs-default.xml
     (Harsh J Chouraria via todd)
 
+    HDFS-1946. HDFS part of HADOOP-7291. (eli)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
