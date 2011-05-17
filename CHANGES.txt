@@ -242,6 +242,8 @@ Release 0.22.0 - Unreleased
 
     HDFS-1946. HDFS part of HADOOP-7291. (eli)
 
+    HDFS-1947. DFSClient should use mapreduce.task.attempt.id. (eli)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)

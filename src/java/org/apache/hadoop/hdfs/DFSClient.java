@@ -252,7 +252,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
 
     this.ugi = UserGroupInformation.getCurrentUser();
     
-    String taskId = conf.get("mapred.task.id");
+    String taskId = conf.get("mapreduce.task.attempt.id");
     if (taskId != null) {
       this.clientName = "DFSClient_" + taskId; 
     } else {
