@@ -519,6 +519,9 @@ Release 0.22.0 - Unreleased
     HDFS-1505. saveNamespace appears to succeed even if all directories fail
     to save. (Aaron T. Myers via todd)
 
+    HDFS-1925. SafeModeInfo should use the correct constant instead of a
+    hard-coded value for its default. (Joey Echeverria via todd)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
