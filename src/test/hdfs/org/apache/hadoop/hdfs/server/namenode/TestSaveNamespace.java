@@ -21,6 +21,7 @@ import static org.apache.hadoop.hdfs.server.common.Util.fileAsURI;
 import static org.junit.Assert.*;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -37,14 +38,15 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.log4j.Level;
-import org.apache.hadoop.test.GenericTestUtils;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -106,7 +108,7 @@ public class TestSaveNamespace {
   private void saveNamespaceWithInjectedFault(Fault fault) throws IOException {
     Configuration conf = getConf();
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
-    GenericTestUtils.formatNamenode(conf);
+    DFSTestUtil.formatNameNode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
     // Replace the FSImage with a spy
@@ -183,7 +185,7 @@ public class TestSaveNamespace {
     conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY, true);
 
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
-    GenericTestUtils.formatNamenode(conf);
+    DFSTestUtil.formatNameNode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
     // Replace the FSImage with a spy
@@ -267,12 +269,101 @@ public class TestSaveNamespace {
   public void testCrashWhileMoveLastCheckpoint() throws Exception {
     saveNamespaceWithInjectedFault(Fault.MOVE_LAST_CHECKPOINT);
   }
+ 
+
+  /**
+   * Test case where savenamespace fails in all directories
+   * and then the NN shuts down. Here we should recover from the
+   * failed checkpoint by moving the directories back on next
+   * NN start. This is a regression test for HDFS-1921.
+   */
+  @Test
+  public void testFailedSaveNamespace() throws Exception {
+    doTestFailedSaveNamespace(false);
+  }
+
+  /**
+   * Test case where saveNamespace fails in all directories, but then
+   * the operator restores the directories and calls it again.
+   * This should leave the NN in a clean state for next start.
+   */
+  @Test
+  public void testFailedSaveNamespaceWithRecovery() throws Exception {
+    doTestFailedSaveNamespace(true);
+  }
+
+  /**
+   * Injects a failure on all storage directories while saving namespace.
+   *
+   * @param restoreStorageAfterFailure if true, will try to save again after
+   *   clearing the failure injection
+   */
+  public void doTestFailedSaveNamespace(boolean restoreStorageAfterFailure)
+  throws Exception {
+    Configuration conf = getConf();
+    NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
+    DFSTestUtil.formatNameNode(conf);
+    FSNamesystem fsn = new FSNamesystem(conf);
+
+    // Replace the FSImage with a spy
+    final FSImage originalImage = fsn.dir.fsImage;
+    NNStorage storage = originalImage.getStorage();
+    storage.close(); // unlock any directories that FSNamesystem's initialization may have locked
+
+    NNStorage spyStorage = spy(storage);
+    originalImage.storage = spyStorage;
+    FSImage spyImage = spy(originalImage);
+    fsn.dir.fsImage = spyImage;
+    spyImage.storage.setStorageDirectories(
+        FSNamesystem.getNamespaceDirs(conf), 
+        FSNamesystem.getNamespaceEditsDirs(conf));
+
+    doThrow(new IOException("Injected fault: saveFSImage")).
+      when(spyImage).saveFSImage((File)anyObject());
+
+    try {
+      doAnEdit(fsn, 1);
+
+      // Save namespace
+      fsn.setSafeMode(SafeModeAction.SAFEMODE_ENTER);
+      try {
+        fsn.saveNamespace();
+        fail("saveNamespace did not fail even when all directories failed!");
+      } catch (IOException ioe) {
+        LOG.info("Got expected exception", ioe);
+      }
+      
+      // Ensure that, if storage dirs come back online, things work again.
+      if (restoreStorageAfterFailure) {
+        Mockito.reset(spyImage);
+        spyStorage.setRestoreFailedStorage(true);
+        fsn.saveNamespace();
+        checkEditExists(fsn, 1);
+      }
+
+      // Now shut down and restart the NN
+      originalImage.close();
+      fsn.close();
+      fsn = null;
+
+      // Start a new namesystem, which should be able to recover
+      // the namespace from the previous incarnation.
+      fsn = new FSNamesystem(conf);
+
+      // Make sure the image loaded including our edits.
+      checkEditExists(fsn, 1);
+    } finally {
+      if (fsn != null) {
+        fsn.close();
+      }
+    }
+  }
 
   @Test
   public void testSaveWhileEditsRolled() throws Exception {
     Configuration conf = getConf();
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
-    GenericTestUtils.formatNamenode(conf);
+    DFSTestUtil.formatNameNode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
     try {
@@ -308,7 +399,7 @@ public class TestSaveNamespace {
   public void testTxIdPersistence() throws Exception {
     Configuration conf = getConf();
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
-    GenericTestUtils.formatNamenode(conf);
+    DFSTestUtil.formatNameNode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
     try {

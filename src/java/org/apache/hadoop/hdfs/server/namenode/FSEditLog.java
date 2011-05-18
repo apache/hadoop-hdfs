@@ -340,7 +340,7 @@ public class FSEditLog implements NNStorageListener {
     numTransactions++;
     totalTimeTransactions += (end-start);
     if (metrics != null) // Metrics is non-null only when used inside name node
-      metrics.transactions.inc((end-start));
+      metrics.addTransaction(end-start);
   }
 
   /**
@@ -444,7 +444,7 @@ public class FSEditLog implements NNStorageListener {
         if (mytxid <= synctxid) {
           numTransactionsBatchedInSync++;
           if (metrics != null) // Metrics is non-null only when used inside name node
-            metrics.transactionsBatchedInSync.inc();
+            metrics.incrTransactionsBatchedInSync();
           return;
         }
      
@@ -490,7 +490,7 @@ public class FSEditLog implements NNStorageListener {
       disableAndReportErrorOnJournals(badJournals);
   
       if (metrics != null) // Metrics non-null only when used inside name node
-        metrics.syncs.inc(elapsed);
+        metrics.addSync(elapsed);
     } finally {
       // Prevent RuntimeException from blocking other log edit sync 
       synchronized (this) {

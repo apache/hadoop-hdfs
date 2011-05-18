@@ -275,6 +275,12 @@ Trunk (unreleased changes)
 
     HDFS 1911 HDFS tests for the newly added viewfs
 
+    HDFS-1814. Add "hdfs groups" command to query the server-side groups
+    resolved for a user. (Aaron T. Myers via todd)
+
+    HDFS-1914. Federation: namenode storage directories must be configurable
+    specific to name service. (suresh)
+
 
   IMPROVEMENTS
 
@@ -283,7 +289,8 @@ Trunk (unreleased changes)
     HDFS-1628. Display full path in AccessControlException.  (John George
     via szetszwo)
 
-    HDFS-1707. Federation: Failure in browsing data on new namenodes. (jitendra)
+    HDFS-1707. Federation: Failure in browsing data on new namenodes. 
+    (jitendra)
 
     HDFS-1683. Test Balancer with multiple NameNodes.  (szetszwo)
 
@@ -403,6 +410,31 @@ Trunk (unreleased changes)
 
     HDFS-1378. Edit log replay should track and report file offsets in case of
     errors. (Aaron T. Myers and Todd Lipcon via todd)
+
+    HDFS-1917. Separate hdfs jars from common in ivy configuration.  (Eric Yang
+    via szetszwo)
+
+    HDFS-1899. GenericTestUtils.formatNamenode should be moved to DFSTestUtil
+    (Ted Yu via todd)
+
+    HDFS-1117. Metrics 2.0 HDFS instrumentation. (Luke Lu via suresh)
+
+    HDFS-1946. HDFS part of HADOOP-7291. (eli)
+
+    HDFS-1945. Removed the deprecated fields in DataTransferProtocol.
+    (szetszwo)
+
+    HDFS-1730. Use DaemonFactory from common and delete it from HDFS.
+    (Tanping via suresh)
+
+    HDFS-1573. Add useful tracing information to Lease Renewer thread names
+    (todd)
+
+    HDFS-1939.  In ivy.xml, test conf should not extend common conf.
+    (Eric Yang via szetszwo)
+
+    HDFS-1332.  Include more information in exceptions and debug messages
+    when BlockPlacementPolicy cannot be satisfied.  (Ted Yu via szetszwo)
 
   OPTIMIZATIONS
 
@@ -543,7 +575,32 @@ Trunk (unreleased changes)
 
     HDFS-1627. Fix NullPointerException in Secondary NameNode. (hairong)
 
+    HDFS-1928. Fix path display for touchz in TestHDFSCLI.
+    (Daryn Sharp via todd)
+
+    HDFS-1938. Fix ivy-retrieve-hdfs dependence in build.xml and aop.xml.
+    (Eric Yang via szetszwo)
+
+    HDFS-1929. TestEditLogFileOutputStream fails if running on same host as NN
+    (Aaron T. Myers via todd)
+
+    HDFS-1933. Update TestDFSShell for improved "test" shell command. (Daryn
+    Sharp via todd)
+    
+    HDFS-1931. Update TestDFSShell for improved "du" shell command. (Daryn
+    Sharp via todd)
+
+    HDFS-1881. Federation: after taking snapshot the current directory 
+    of datanode is empty. (Tanping Wang via suresh)
+
+    HDFS-1927. Fix a bug which causes ip=null in NameNode audit log.
+    (John George via szetszwo)
+
 Release 0.22.0 - Unreleased
+
+  INCOMPATIBLE CHANGES
+
+    HDFS-1825. Remove thriftfs contrib. (nigel via eli)
 
   NEW FEATURES
 
@@ -772,6 +829,11 @@ Release 0.22.0 - Unreleased
     HDFS-1052. HDFS Federation - Merge of umbrella jira changes from
     HDFS-1052 branch into trunk.
 
+    HDFS-1835. DataNode should not depend on SHA1PRNG secure random generator
+    to generate a storage ID. (John Carrino via todd)
+
+    HDFS-1947. DFSClient should use mapreduce.task.attempt.id. (eli)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
@@ -946,6 +1008,15 @@ Release 0.22.0 - Unreleased
 
     HDFS-1621. Fix references to hadoop-common-${version} in build.xml
     (Jolly Chen via todd)
+
+    HDFS-1505. saveNamespace appears to succeed even if all directories fail
+    to save. (Aaron T. Myers via todd)
+
+    HDFS-1921. saveNamespace can cause NN to be unable to come up on restart
+    (Matt Foley via todd)
+
+    HDFS-1925. SafeModeInfo should use the correct constant instead of a
+    hard-coded value for its default. (Joey Echeverria via todd)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)

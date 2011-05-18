@@ -92,7 +92,7 @@
   <property name="test.junit.fork.mode" value="perTest" />
   <property name="test.junit.printsummary" value="yes" />
   <property name="test.junit.haltonfailure" value="no" />
-  <property name="test.junit.maxmemory" value="512m" />
+  <property name="test.junit.maxmemory" value="1024m" />
   <property name="test.conf.dir" value="${build.dir}/test/conf" />
 
   <property name="test.hdfs.build.classes" value="${test.build.dir}/hdfs/classes"/>
@@ -165,6 +165,7 @@
   <property name="build.ivy.dir" location="${build.dir}/ivy" />
   <property name="build.ivy.lib.dir" location="${build.ivy.dir}/lib" />
   <property name="common.ivy.lib.dir" location="${build.ivy.lib.dir}/${ant.project.name}/common"/>
+  <property name="hdfs.ivy.lib.dir" location="${build.ivy.lib.dir}/${ant.project.name}/hdfs"/>
   <property name="test.ivy.lib.dir" location="${build.ivy.lib.dir}/${ant.project.name}/test"/>
   <property name="build.ivy.report.dir" location="${build.ivy.dir}/report" />
   <property name="build.ivy.maven.dir" location="${build.ivy.dir}/maven" />
@@ -216,6 +217,7 @@
     <pathelement location="${build.classes}"/>
     <pathelement location="${conf.dir}"/>
     <path refid="ivy-common.classpath"/>
+    <path refid="ivy-hdfs.classpath"/>
   </path>
 
   <path id="test.classpath">
@@ -233,6 +235,7 @@
     <pathelement location="${build.classes}"/>
     <pathelement location="${test.conf.dir}"/>
     <path refid="ivy-common.classpath"/>
+    <path refid="ivy-hdfs.classpath"/>
   </path>
 
   <!-- the cluster test classpath: uses conf.dir for configuration -->
@@ -261,7 +264,7 @@
   <!-- ====================================================== -->
   <!-- Stuff needed by all targets                            -->
   <!-- ====================================================== -->
-  <target name="init" depends="ivy-retrieve-common">
+  <target name="init" depends="ivy-retrieve-common,ivy-retrieve-hdfs,ivy-retrieve-test">
     <mkdir dir="${build.dir}"/>
     <mkdir dir="${build.classes}"/>
     <mkdir dir="${build.src}"/>
@@ -404,7 +407,7 @@
     </jar>
   </target>
 
-  <target name="compile-hdfs-test" depends="compile-hdfs-classes, ivy-retrieve-test">
+  <target name="compile-hdfs-test" depends="compile-hdfs-classes">
     <macro-compile-hdfs-test
       target.dir="${test.hdfs.build.classes}"
       source.dir="${test.src.dir}/hdfs;${test.src.dir}/unit"
@@ -986,7 +989,7 @@
     <mkdir dir="${dist.dir}/docs/jdiff"/>
 
     <copy todir="${dist.dir}/lib" includeEmptyDirs="false" flatten="true">
-      <fileset dir="${common.ivy.lib.dir}"/>
+      <fileset dir="${hdfs.ivy.lib.dir}"/>
     </copy>
 
     <copy todir="${dist.dir}/lib" includeEmptyDirs="false">
@@ -1084,7 +1087,7 @@
   	<mkdir dir="${dist.dir}/bin"/>
 
     <copy todir="${dist.dir}/lib" includeEmptyDirs="false" flatten="true">
-      <fileset dir="${common.ivy.lib.dir}"/>
+      <fileset dir="${hdfs.ivy.lib.dir}"/>
     </copy>
 
     <copy todir="${dist.dir}/lib" includeEmptyDirs="false">
@@ -1202,7 +1205,6 @@
         <exclude name="CHANGES.txt"/>
         <exclude name="docs/"/>
         <exclude name="lib/jdiff/"/>
-        <exclude name="src/contrib/thriftfs/gen-*/" />
         <exclude name="**/conf/*" />
         <exclude name="webapps/**/WEB-INF/web.xml"/>
         <exclude name="src/docs/releasenotes.html" />
@@ -1457,7 +1459,6 @@
     <arg value="${findbugs.home}"/>
     <arg value="${forrest.home}"/>
     <arg value="${eclipse.home}"/>
-    <arg value="${python.home}"/>
     <arg value="${basedir}"/>
     <arg value="${jira.passwd}"/>
     <arg value="${curl.cmd}"/>
@@ -1484,7 +1485,7 @@
   </target>
   
   <target name="eclipse" 
-          depends="init,ant-eclipse-download,ivy-retrieve-common,ivy-retrieve-test"
+          depends="init,ant-eclipse-download,ivy-retrieve-hdfs,ivy-retrieve-common,ivy-retrieve-test"
           description="Create eclipse project files">
        <pathconvert property="eclipse.project">
          <path path="${basedir}"/>
@@ -1506,6 +1507,7 @@
                 output="${build.dir.eclipse-test-classes}" />
         <output path="${build.dir.eclipse-main-classes}" />
         <library pathref="ivy-common.classpath" exported="true" />
+        <library pathref="ivy-hdfs.classpath" exported="true" />
         <library pathref="ivy-test.classpath" exported="false" />
         <library path="${conf.dir}" exported="false" />
       </classpath>
@@ -1776,6 +1778,11 @@
       log="${ivyresolvelog}"/>
   </target>
 
+  <target name="ivy-resolve-hdfs" depends="ivy-init">
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="hdfs"
+      log="${ivyresolvelog}"/>
+  </target>
+
   <target name="ivy-resolve-jdiff" depends="ivy-init">
     <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="jdiff"
       log="${ivyresolvelog}"/>
@@ -1836,6 +1843,14 @@
       pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
         log="${ivyretrievelog}"/>
     <ivy:cachepath pathid="ivy-common.classpath" conf="common"/>
+  </target>
+
+  <target name="ivy-retrieve-hdfs" depends="ivy-resolve-hdfs"
+    description="Retrieve Ivy-managed artifacts for the hdfs configurations">
+    <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+        log="${ivyretrievelog}"/>
+    <ivy:cachepath pathid="ivy-hdfs.classpath" conf="hdfs"/>
   </target>
 
   <target name="ivy-retrieve-releaseaudit" depends="ivy-resolve-releaseaudit"

@@ -792,10 +792,19 @@ public class FSImage implements NNStorageListener, Closeable {
     for (Iterator<StorageDirectory> it
            = storage.dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
       StorageDirectory sd = it.next();
-      FSImageSaver saver = new FSImageSaver(sd, errorSDs);
-      Thread saveThread = new Thread(saver, saver.toString());
-      saveThreads.add(saveThread);
-      saveThread.start();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
+      try {
+        FSImageSaver saver = new FSImageSaver(sd, errorSDs);
+        Thread saveThread = new Thread(saver, saver.toString());
+        saveThreads.add(saveThread);
+        saveThread.start();
+      } catch (Exception e) {
+        LOG.error("Failed save to image directory " + sd.getRoot(), e);
+        errorSDs.add(sd);
+        continue;
+      }
     }
     waitForThreads(saveThreads);
     saveThreads.clear();
@@ -813,32 +822,58 @@ public class FSImage implements NNStorageListener, Closeable {
     for (Iterator<StorageDirectory> it
            = storage.dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
       StorageDirectory sd = it.next();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
+
       // if this directory already stores the image and edits, then it was
       // already processed in the earlier loop.
       if (sd.getStorageDirType() == NameNodeDirType.IMAGE_AND_EDITS) {
         continue;
       }
 
-      FSImageSaver saver = new FSImageSaver(sd, errorSDs);
-      Thread saveThread = new Thread(saver, saver.toString());
-      saveThreads.add(saveThread);
-      saveThread.start();
+      try {
+        FSImageSaver saver = new FSImageSaver(sd, errorSDs);
+        Thread saveThread = new Thread(saver, saver.toString());
+        saveThreads.add(saveThread);
+        saveThread.start();
+      } catch (Exception e) {
+        LOG.error("Failed save to edits directory " + sd.getRoot(), e);
+        errorSDs.add(sd);
+        continue;
+      }
     }
     waitForThreads(saveThreads);
 
     // mv lastcheckpoint.tmp -> previous.checkpoint
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
       try {
         storage.moveLastCheckpoint(sd);
       } catch(IOException ie) {
         LOG.error("Unable to move last checkpoint for " + sd.getRoot(), ie);
         errorSDs.add(sd);
+        continue;
       }
     }
-    storage.reportErrorsOnDirectories(errorSDs);
-    if(!editLog.isOpen()) editLog.open();
-    ckptState = CheckpointStates.UPLOAD_DONE;
+    
+    try {
+      storage.reportErrorsOnDirectories(errorSDs);
+      
+      // If there was an error in every storage dir, each one will have been
+      // removed from the list of storage directories.
+      if (storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0 ||
+          storage.getNumStorageDirs(NameNodeDirType.EDITS) == 0) {
+        throw new IOException("Failed to save any storage directories while saving namespace");
+      }
+      
+      if(!editLog.isOpen()) editLog.open();
+    } finally {
+      ckptState = CheckpointStates.UPLOAD_DONE;
+    }
   }
 
   /**

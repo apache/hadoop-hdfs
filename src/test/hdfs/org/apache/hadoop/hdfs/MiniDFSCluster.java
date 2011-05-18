@@ -61,6 +61,7 @@ import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
 import org.apache.hadoop.hdfs.tools.DFSAdmin;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.StaticMapping;
@@ -69,6 +70,7 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.ProxyUsers;
 import org.apache.hadoop.security.authorize.RefreshAuthorizationPolicyProtocol;
 import org.apache.hadoop.test.GenericTestUtils;
+import org.apache.hadoop.tools.GetUserMappingsProtocol;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -81,6 +83,8 @@ public class MiniDFSCluster {
 
   private static final String NAMESERVICE_ID_PREFIX = "nameserviceId";
   private static final Log LOG = LogFactory.getLog(MiniDFSCluster.class);
+
+  static { DefaultMetricsSystem.setMiniClusterMode(true); }
 
   /**
    * Class to construct instances of MiniDFSClusters with specific options.
@@ -485,6 +489,7 @@ public class MiniDFSCluster {
         setRpcEngine(conf, DatanodeProtocol.class, rpcEngine);
         setRpcEngine(conf, RefreshAuthorizationPolicyProtocol.class, rpcEngine);
         setRpcEngine(conf, RefreshUserMappingsProtocol.class, rpcEngine);
+        setRpcEngine(conf, GetUserMappingsProtocol.class, rpcEngine);
       } catch (ClassNotFoundException e) {
         throw new RuntimeException(e);
       }
@@ -593,7 +598,7 @@ public class MiniDFSCluster {
     
     // Format and clean out DataNode directories
     if (format) {
-      GenericTestUtils.formatNamenode(conf);
+      DFSTestUtil.formatNameNode(conf);
     }
     if (operation == StartupOption.UPGRADE){
       operation.setClusterId(clusterId);

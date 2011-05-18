@@ -15,29 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.hdfs.tools;
 
-package org.apache.hadoop.hdfs.util;
+import java.io.IOException;
+import java.io.PrintStream;
 
-import java.util.concurrent.ThreadFactory;
-
-import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.util.Daemon;
+import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.tools.GetGroupsTestBase;
+import org.apache.hadoop.util.Tool;
+import org.junit.After;
+import org.junit.Before;
 
 /**
- * Provide a factory for named daemon threads,
- * for use in ExecutorServices constructors
- * 
- * TODO:FEDERATION This should become an inner class of the 
- * org.apache.hadoop.util.Daemon class
- * after Federation is united with trunk.
+ * Tests for the HDFS implementation of {@link GetGroups}
  */
-@InterfaceAudience.Private
-@InterfaceStability.Unstable
-public class DaemonFactory extends Daemon implements ThreadFactory {
+public class TestGetGroups extends GetGroupsTestBase {
+  
+  private MiniDFSCluster cluster;
 
-  public Thread newThread(Runnable runnable) {
-    return new Daemon(runnable);
+  @Before
+  public void setUpNameNode() throws IOException {
+    conf = new HdfsConfiguration();
+    cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).build();
+  }
+  
+  @After
+  public void tearDownNameNode() {
+    cluster.shutdown();
+  }
+
+  @Override
+  protected Tool getTool(PrintStream o) {
+    return new GetGroups(conf, o);
   }
 
 }

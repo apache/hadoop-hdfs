@@ -45,6 +45,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
@@ -374,7 +375,7 @@ public class TestStartup extends TestCase {
     conf.set("dfs.name.dir", new File(base_dir, "name").getPath());
     conf.setBoolean("dfs.permissions", false);
 
-    GenericTestUtils.formatNamenode(conf);
+    DFSTestUtil.formatNameNode(conf);
 
     // create an uncompressed image
     LOG.info("Create an uncompressed fsimage");

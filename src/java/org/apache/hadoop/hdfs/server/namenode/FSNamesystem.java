@@ -35,7 +35,6 @@ import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.common.Util;
 import static org.apache.hadoop.hdfs.server.common.Util.now;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
-import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMetrics;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
@@ -45,7 +44,6 @@ import org.apache.hadoop.security.token.delegation.DelegationKey;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenSecretManager;
 import org.apache.hadoop.util.*;
-import org.apache.hadoop.metrics.util.MBeanUtil;
 import org.apache.hadoop.net.CachedDNSToSwitchMapping;
 import org.apache.hadoop.net.DNSToSwitchMapping;
 import org.apache.hadoop.net.NetworkTopology;
@@ -86,6 +84,11 @@ import org.apache.hadoop.fs.permission.*;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.metrics2.annotation.Metric;
+import org.apache.hadoop.metrics2.annotation.Metrics;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MutableCounterInt;
+import org.apache.hadoop.metrics2.util.MBeans;
 import org.mortbay.util.ajax.JSON;
 
 import java.io.BufferedWriter;
@@ -104,11 +107,9 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
-import javax.management.MBeanServer;
 
 /***************************************************
  * FSNamesystem does the actual bookkeeping work for the
@@ -123,8 +124,9 @@ import javax.management.MBeanServer;
  * 5)  LRU cache of updated-heartbeat machines
  ***************************************************/
 @InterfaceAudience.Private
-public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterStats,
-    NameNodeMXBean {
+@Metrics(context="dfs")
+public class FSNamesystem implements FSConstants, FSNamesystemMBean,
+    FSClusterStats, NameNodeMXBean {
   public static final Log LOG = LogFactory.getLog(FSNamesystem.class);
 
   private static final ThreadLocal<StringBuilder> auditBuffer =
@@ -178,7 +180,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   private String supergroup;
   private PermissionStatus defaultPermission;
   // FSNamesystemMetrics counter variables
-  private FSNamesystemMetrics myFSMetrics;
+  @Metric private MutableCounterInt expiredHeartbeats;
   private long capacityTotal = 0L, capacityUsed = 0L, capacityRemaining = 0L;
   private long blockPoolUsed = 0L;
   private int totalLoad = 0;
@@ -326,14 +328,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     this.fsLock = new ReentrantReadWriteLock(true); // fair locking
     setConfigurationParameters(conf);
     dtSecretManager = createDelegationTokenSecretManager(conf);
-    this.registerMBean(conf); // register the MBean for the FSNamesystemStutus
+    this.registerMBean(); // register the MBean for the FSNamesystemState
     if(fsImage == null) {
       this.dir = new FSDirectory(this, conf);
       StartupOption startOpt = NameNode.getStartupOption(conf);
       this.dir.loadFSImage(startOpt);
       long timeTakenToLoadFSImage = now() - systemStart;
       LOG.info("Finished loading FSImage in " + timeTakenToLoadFSImage + " msecs");
-      NameNode.getNameNodeMetrics().fsImageLoadTime.set(
+      NameNode.getNameNodeMetrics().setFsImageLoadTime(
                                 (int) timeTakenToLoadFSImage);
     } else {
       this.dir = new FSDirectory(fsImage, this, conf);
@@ -391,6 +393,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       dnsToSwitchMapping.resolve(new ArrayList<String>(hostsReader.getHosts()));
     }
     registerMXBean();
+    DefaultMetricsSystem.instance().register(this);
   }
 
   public static Collection<URI> getNamespaceDirs(Configuration conf) {
@@ -1640,7 +1643,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (targets.length < blockManager.minReplication) {
       throw new IOException("File " + src + " could only be replicated to " +
                             targets.length + " nodes, instead of " +
-                            blockManager.minReplication);
+                            blockManager.minReplication + ". There are "
+                            +clusterMap.getNumOfLeaves()+" datanode(s) running"
+                            +" but "+excludedNodes.size() +
+                            " node(s) are excluded in this operation.");
     }
 
     // Allocate a new block and record it in the INode. 
@@ -3186,7 +3192,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
              it.hasNext();) {
           DatanodeDescriptor nodeInfo = it.next();
           if (isDatanodeDead(nodeInfo)) {
-            myFSMetrics.numExpiredHeartbeats.inc();
+            expiredHeartbeats.incr();
             foundDead = true;
             nodeID = nodeInfo;
             break;
@@ -3253,7 +3259,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     // Log the block report processing stats from Namenode perspective
-    NameNode.getNameNodeMetrics().blockReport.inc((int) (endTime - startTime));
+    NameNode.getNameNodeMetrics().addBlockReport((int) (endTime - startTime));
     NameNode.stateChangeLog.info("BLOCK* NameSystem.processReport: from "
         + nodeID.getName() + ", blocks: " + newReport.getNumberOfBlocks()
         + ", processing time: " + (endTime - startTime) + " msecs");
@@ -3397,6 +3403,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
+  @Metric({"MissingBlocks", "Number of missing blocks"})
   public long getMissingBlocksCount() {
     // not locking
     return blockManager.getMissingBlocksCount();
@@ -3423,6 +3430,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
+  @Metric
+  public float getCapacityTotalGB() {
+    return DFSUtil.roundBytesToGB(getCapacityTotal());
+  }
+
   /**
    * Total used space by data nodes
    */
@@ -3432,6 +3444,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return capacityUsed;
     }
   }
+
+  @Metric
+  public float getCapacityUsedGB() {
+    return DFSUtil.roundBytesToGB(getCapacityUsed());
+  }
+
   /**
    * Total used space by data nodes as percentage of total capacity
    */
@@ -3460,6 +3478,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
+  @Metric
+  public float getCapacityRemainingGB() {
+    return DFSUtil.roundBytesToGB(getCapacityRemaining());
+  }
+
   /**
    * Total remaining space by data nodes as percentage of total capacity
    */
@@ -3472,6 +3495,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Total number of connections.
    */
   @Override // FSNamesystemMBean
+  @Metric
   public int getTotalLoad() {
     synchronized (heartbeats) {
       return this.totalLoad;
@@ -3944,7 +3968,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
      * @param conf configuration
      */
     SafeModeInfo(Configuration conf) {
-      this.threshold = conf.getFloat(DFSConfigKeys.DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_KEY, 0.95f);
+      this.threshold = conf.getFloat(DFSConfigKeys.DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_KEY, DFSConfigKeys.DFS_NAMENODE_SAFEMODE_THRESHOLD_PCT_DEFAULT);
       this.datanodeThreshold = conf.getInt(
         DFSConfigKeys.DFS_NAMENODE_SAFEMODE_MIN_DATANODES_KEY,
         DFSConfigKeys.DFS_NAMENODE_SAFEMODE_MIN_DATANODES_DEFAULT);
@@ -4039,7 +4063,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       long timeInSafemode = now() - systemStart;
       NameNode.stateChangeLog.info("STATE* Leaving safe mode after " 
                                     + timeInSafemode/1000 + " secs.");
-      NameNode.getNameNodeMetrics().safeModeTime.set((int) timeInSafemode);
+      NameNode.getNameNodeMetrics().setSafeModeTime((int) timeInSafemode);
       
       if (reached >= 0) {
         NameNode.stateChangeLog.info("STATE* Safe mode is OFF."); 
@@ -4409,6 +4433,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Get the total number of blocks in the system. 
    */
   @Override // FSNamesystemMBean
+  @Metric
   public long getBlocksTotal() {
     return blockManager.getTotalBlocks();
   }
@@ -4687,16 +4712,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   @Override // FSNamesystemMBean
+  @Metric
   public long getFilesTotal() {
     return this.dir.totalInodes();
   }
 
   @Override // FSNamesystemMBean
+  @Metric
   public long getPendingReplicationBlocks() {
     return blockManager.pendingReplicationBlocksCount;
   }
 
   @Override // FSNamesystemMBean
+  @Metric
   public long getUnderReplicatedBlocks() {
     return blockManager.underReplicatedBlocksCount;
   }
@@ -4707,23 +4735,28 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   /** Returns number of blocks with corrupt replicas */
+  @Metric({"CorruptBlocks", "Number of blocks with corrupt replicas"})
   public long getCorruptReplicaBlocks() {
     return blockManager.corruptReplicaBlocksCount;
   }
 
   @Override // FSNamesystemMBean
+  @Metric
   public long getScheduledReplicationBlocks() {
     return blockManager.scheduledReplicationBlocksCount;
   }
 
+  @Metric
   public long getPendingDeletionBlocks() {
     return blockManager.pendingDeletionBlocksCount;
   }
 
+  @Metric
   public long getExcessBlocks() {
     return blockManager.excessBlocksCount;
   }
   
+  @Metric
   public int getBlockCapacity() {
     return blockManager.getCapacity();
   }
@@ -4738,28 +4771,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Register the FSNamesystem MBean using the name
    *        "hadoop:service=NameNode,name=FSNamesystemState"
    */
-  void registerMBean(Configuration conf) {
-    // We wrap to bypass standard mbean naming convention.
-    // This wraping can be removed in java 6 as it is more flexible in 
-    // package naming for mbeans and their impl.
-    StandardMBean bean;
+  void registerMBean() {
+    // We can only implement one MXBean interface, so we keep the old one.
     try {
-      myFSMetrics = new FSNamesystemMetrics(this, conf);
-      bean = new StandardMBean(this,FSNamesystemMBean.class);
-      mbeanName = MBeanUtil.registerMBean("NameNode", "FSNamesystemState", bean);
+      StandardMBean bean = new StandardMBean(this, FSNamesystemMBean.class);
+      mbeanName = MBeans.register("NameNode", "FSNamesystemState", bean);
     } catch (NotCompliantMBeanException e) {
-      LOG.warn("Exception in initializing StandardMBean as FSNamesystemMBean",
-	  e);
+      throw new RuntimeException("Bad MBean setup", e);
     }
 
-    LOG.info("Registered FSNamesystemStatusMBean");
-  }
-
-  /**
-   * get FSNamesystemMetrics
-   */
-  public FSNamesystemMetrics getFSNamesystemMetrics() {
-    return myFSMetrics;
+    LOG.info("Registered FSNamesystemState MBean");
   }
 
   /**
@@ -4767,7 +4788,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void shutdown() {
     if (mbeanName != null)
-      MBeanUtil.unregisterMBean(mbeanName);
+      MBeans.unregister(mbeanName);
   }
   
 
@@ -5399,12 +5420,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
   
   /**
-   * If the remote IP for namenode method invokation is null, then the
-   * invocation is internal to the namenode. Client invoked methods are invoked
-   * over RPC and always have address != null.
+   * Client invoked methods are invoked over RPC and will be in 
+   * RPC call context even if the client exits.
    */
   private boolean isExternalInvocation() {
-    return Server.getRemoteIp() != null;
+    return Server.isRpcInvocation();
   }
   
   /**
@@ -5421,17 +5441,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Register NameNodeMXBean
    */
   private void registerMXBean() {
-    // register MXBean
-    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-    try {
-      ObjectName mxbeanName = new ObjectName("HadoopInfo:type=NameNodeInfo");
-      mbs.registerMBean(this, mxbeanName);
-    } catch ( javax.management.InstanceAlreadyExistsException iaee ) {
-      // in unit tests, we may run and restart the NN within the same JVM
-      LOG.info("NameNode MXBean already registered");
-    } catch ( javax.management.JMException e ) {
-      LOG.warn("Failed to register NameNodeMXBean", e);
-    }
+    MBeans.register("NameNode", "NameNodeInfo", this);
   }
 
   /**
@@ -5504,6 +5514,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   @Override // NameNodeMXBean
+  @Metric
   public long getTotalFiles() {
     return getFilesTotal();
   }

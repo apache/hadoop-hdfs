@@ -259,7 +259,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         nameNodeAddr.getHostName() + ":" + nameNodeAddr.getPort();
     this.leaserenewer = LeaseRenewer.getInstance(authority, ugi, this);
     
-    String taskId = conf.get("mapred.task.id", "NONMAPREDUCE");
+    String taskId = conf.get("mapreduce.task.attempt.id", "NONMAPREDUCE");
     this.clientName = leaserenewer.getClientName(taskId);
 
     defaultBlockSize = conf.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY, DEFAULT_BLOCK_SIZE);
@@ -307,6 +307,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         (HdfsConstants.READ_TIMEOUT_EXTENSION * numNodes +
         socketTimeout) : 0;
   }
+  
+  int getHdfsTimeout() {
+    return hdfsTimeout;
+  }
+  
+  String getClientName() {
+    return clientName;
+  }
 
   void checkOpen() throws IOException {
     if (!clientRunning) {
@@ -334,6 +342,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     synchronized(filesBeingWritten) {
       return filesBeingWritten.isEmpty();
     }
+  }
+  
+  /** @return true if the client is running */
+  boolean isClientRunning() {
+    return clientRunning;
   }
 
   /** Renew leases */

@@ -87,6 +87,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.ProtocolSignature;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.Server;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
@@ -101,6 +102,7 @@ import org.apache.hadoop.security.authorize.ProxyUsers;
 import org.apache.hadoop.security.authorize.RefreshAuthorizationPolicyProtocol;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.tools.GetUserMappingsProtocol;
 import org.apache.hadoop.util.ServicePlugin;
 import org.apache.hadoop.util.StringUtils;
 
@@ -145,6 +147,34 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     Configuration.addDefaultResource("hdfs-site.xml");
   }
   
+  /**
+   * HDFS federation configuration can have two types of parameters:
+   * <ol>
+   * <li>Parameter that is common for all the name services in the cluster.</li>
+   * <li>Parameters that are specific to a name service. This keys are suffixed
+   * with nameserviceId in the configuration. For example,
+   * "dfs.namenode.rpc-address.nameservice1".</li>
+   * </ol>
+   * 
+   * Following are nameservice specific keys.
+   */
+  public static final String[] NAMESERVICE_SPECIFIC_KEYS = {
+    DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_NAME_DIR_KEY,
+    DFSConfigKeys.DFS_NAMENODE_EDITS_DIR_KEY,
+    DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_DIR_KEY,
+    DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_EDITS_DIR_KEY,
+    DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_HTTPS_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY,
+    DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY,
+    DFSConfigKeys.DFS_SECONDARY_NAMENODE_KEYTAB_FILE_KEY,
+    DFSConfigKeys.DFS_NAMENODE_BACKUP_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_BACKUP_HTTP_ADDRESS_KEY,
+    DFSConfigKeys.DFS_NAMENODE_BACKUP_SERVICE_RPC_ADDRESS_KEY
+  };
+  
   public long getProtocolVersion(String protocol, 
                                  long clientVersion) throws IOException {
     if (protocol.equals(ClientProtocol.class.getName())) {
@@ -157,6 +187,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
       return RefreshAuthorizationPolicyProtocol.versionID;
     } else if (protocol.equals(RefreshUserMappingsProtocol.class.getName())){
       return RefreshUserMappingsProtocol.versionID;
+    } else if (protocol.equals(GetUserMappingsProtocol.class.getName())){
+      return GetUserMappingsProtocol.versionID;
     } else {
       throw new IOException("Unknown protocol to name node: " + protocol);
     }
@@ -211,7 +243,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     format(conf, false);
   }
 
-  static NameNodeMetrics myMetrics;
+  static NameNodeMetrics metrics;
 
   /** Return the {@link FSNamesystem} object.
    * @return {@link FSNamesystem} object.
@@ -221,11 +253,11 @@ public class NameNode implements NamenodeProtocols, FSConstants {
   }
 
   static void initMetrics(Configuration conf, NamenodeRole role) {
-    myMetrics = new NameNodeMetrics(conf, role);
+    metrics = NameNodeMetrics.create(conf, role);
   }
 
   public static NameNodeMetrics getNameNodeMetrics() {
-    return myMetrics;
+    return metrics;
   }
   
   public static InetSocketAddress getAddress(String address) {
@@ -638,8 +670,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     if(emptier != null) emptier.interrupt();
     if(server != null) server.stop();
     if(serviceRpcServer != null) serviceRpcServer.stop();
-    if (myMetrics != null) {
-      myMetrics.shutdown();
+    if (metrics != null) {
+      metrics.shutdown();
     }
     if (namesystem != null) {
       namesystem.shutdown();
@@ -749,7 +781,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
                                           long offset, 
                                           long length) 
       throws IOException {
-    myMetrics.numGetBlockLocations.inc();
+    metrics.incrGetBlockLocations();
     return namesystem.getBlockLocations(getClientMachine(), 
                                         src, offset, length);
   }
@@ -788,8 +820,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         new PermissionStatus(UserGroupInformation.getCurrentUser().getShortUserName(),
             null, masked),
         clientName, clientMachine, flag.get(), createParent, replication, blockSize);
-    myMetrics.numFilesCreated.inc();
-    myMetrics.numCreateFileOps.inc();
+    metrics.incrFilesCreated();
+    metrics.incrCreateFileOps();
   }
 
   /** {@inheritDoc} */
@@ -801,7 +833,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
           +src+" for "+clientName+" at "+clientMachine);
     }
     LocatedBlock info = namesystem.appendFile(src, clientName, clientMachine);
-    myMetrics.numFilesAppended.inc();
+    metrics.incrFilesAppended();
     return info;
   }
 
@@ -843,7 +875,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     LocatedBlock locatedBlock = 
       namesystem.getAdditionalBlock(src, clientName, previous, excludedNodesSet);
     if (locatedBlock != null)
-      myMetrics.numAddBlockOps.inc();
+      metrics.incrAddBlockOps();
     return locatedBlock;
   }
 
@@ -861,7 +893,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
           + ", clientName=" + clientName);
     }
 
-    myMetrics.numGetAdditionalDatanodeOps.inc();
+    metrics.incrGetAdditionalDatanodeOps();
 
     HashMap<Node, Node> excludeSet = null;
     if (excludes != null) {
@@ -958,7 +990,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     }
     boolean ret = namesystem.renameTo(src, dst);
     if (ret) {
-      myMetrics.numFilesRenamed.inc();
+      metrics.incrFilesRenamed();
     }
     return ret;
   }
@@ -982,7 +1014,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
                             + MAX_PATH_LENGTH + " characters, " + MAX_PATH_DEPTH + " levels.");
     }
     namesystem.renameTo(src, dst, options);
-    myMetrics.numFilesRenamed.inc();
+    metrics.incrFilesRenamed();
   }
 
   /**
@@ -1000,7 +1032,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     }
     boolean ret = namesystem.delete(src, recursive);
     if (ret) 
-      myMetrics.numDeleteFileOps.inc();
+      metrics.incrDeleteFileOps();
     return ret;
   }
 
@@ -1046,8 +1078,8 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     DirectoryListing files = namesystem.getListing(
         src, startAfter, needLocation);
     if (files != null) {
-      myMetrics.numGetListingOps.inc();
-      myMetrics.numFilesInGetListingOps.inc(files.getPartialListing().length);
+      metrics.incrGetListingOps();
+      metrics.incrFilesInGetListingOps(files.getPartialListing().length);
     }
     return files;
   }
@@ -1059,7 +1091,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
    *         or null if file not found
    */
   public HdfsFileStatus getFileInfo(String src)  throws IOException {
-    myMetrics.numFileInfoOps.inc();
+    metrics.incrFileInfoOps();
     return namesystem.getFileInfo(src, true);
   }
 
@@ -1071,11 +1103,11 @@ public class NameNode implements NamenodeProtocols, FSConstants {
    *         or null if file not found
    */
   public HdfsFileStatus getFileLinkInfo(String src) throws IOException { 
-    myMetrics.numFileInfoOps.inc();
+    metrics.incrFileInfoOps();
     return namesystem.getFileInfo(src, false);
   }
   
-  /** @inheritDoc */
+  @Override
   public long[] getStats() {
     return namesystem.getStats();
   }
@@ -1091,9 +1123,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     return results;
   }
     
-  /**
-   * @inheritDoc
-   */
+  @Override
   public boolean setSafeMode(SafeModeAction action) throws IOException {
     return namesystem.setSafeMode(action);
   }
@@ -1105,18 +1135,13 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     return namesystem.isInSafeMode();
   }
 
-  /**
-   * @throws AccessControlException 
-   * @inheritDoc
-   */
+  @Override
   public boolean restoreFailedStorage(String arg) 
       throws AccessControlException {
     return namesystem.restoreFailedStorage(arg);
   }
 
-  /**
-   * @inheritDoc
-   */
+  @Override
   public void saveNamespace() throws IOException {
     namesystem.saveNamespace();
   }
@@ -1212,17 +1237,17 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     namesystem.fsync(src, clientName);
   }
 
-  /** @inheritDoc */
+  @Override
   public void setTimes(String src, long mtime, long atime) 
       throws IOException {
     namesystem.setTimes(src, mtime, atime);
   }
 
-  /** @inheritDoc */
+  @Override
   public void createSymlink(String target, String link, FsPermission dirPerms, 
                             boolean createParent) 
       throws IOException {
-    myMetrics.numcreateSymlinkOps.inc();
+    metrics.incrCreateSymlinkOps();
     /* We enforce the MAX_PATH_LENGTH limit even though a symlink target 
      * URI may refer to a non-HDFS file system. 
      */
@@ -1239,9 +1264,9 @@ public class NameNode implements NamenodeProtocols, FSConstants {
       new PermissionStatus(ugi.getShortUserName(), null, dirPerms), createParent);
   }
 
-  /** @inheritDoc */
+  @Override
   public String getLinkTarget(String path) throws IOException {
-    myMetrics.numgetLinkTargetOps.inc();
+    metrics.incrGetLinkTargetOps();
     /* Resolves the first symlink in the given path, returning a
      * new path consisting of the target of the symlink and any 
      * remaining path components from the original path.
@@ -1547,6 +1572,14 @@ public class NameNode implements NamenodeProtocols, FSConstants {
 
     ProxyUsers.refreshSuperUserGroupsConfiguration();
   }
+  
+  @Override
+  public String[] getGroupsForUser(String user) throws IOException {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Getting groups for user " + user);
+    }
+    return UserGroupInformation.createRemoteUser(user).getGroupNames();
+  }
 
   private static void printUsage() {
     System.err.println(
@@ -1638,8 +1671,11 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         return null; // avoid javac warning
       case BACKUP:
       case CHECKPOINT:
-        return new BackupNode(conf, startOpt.toNodeRole());
+        NamenodeRole role = startOpt.toNodeRole();
+        DefaultMetricsSystem.initialize(role.toString().replace(" ", ""));
+        return new BackupNode(conf, role);
       default:
+        DefaultMetricsSystem.initialize("NameNode");
         return new NameNode(conf);
     }
   }
@@ -1658,25 +1694,15 @@ public class NameNode implements NamenodeProtocols, FSConstants {
    * @param conf
    *          Configuration object to lookup specific key and to set the value
    *          to the key passed. Note the conf object is modified
-   * @see DFSUtil#setGenericConf()
+   * @see DFSUtil#setGenericConf(Configuration, String, String...)
    */
-  static void initializeGenericKeys(Configuration conf) {
+  public static void initializeGenericKeys(Configuration conf) {
     final String nameserviceId = DFSUtil.getNameServiceId(conf);
     if ((nameserviceId == null) || nameserviceId.isEmpty()) {
       return;
     }
     
-    DFSUtil.setGenericConf(conf, nameserviceId,
-        DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_HTTPS_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY,
-        DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY,
-        DFSConfigKeys.DFS_SECONDARY_NAMENODE_KEYTAB_FILE_KEY,
-        DFSConfigKeys.DFS_NAMENODE_BACKUP_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_BACKUP_HTTP_ADDRESS_KEY,
-        DFSConfigKeys.DFS_NAMENODE_BACKUP_SERVICE_RPC_ADDRESS_KEY);
+    DFSUtil.setGenericConf(conf, nameserviceId, NAMESERVICE_SPECIFIC_KEYS);
     
     if (conf.get(DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY) != null) {
       URI defaultUri = URI.create(FSConstants.HDFS_URI_SCHEME + "://"
