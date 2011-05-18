@@ -21,8 +21,6 @@ import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.zip.CheckedInputStream;
@@ -34,13 +32,12 @@ import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageState;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import static org.apache.hadoop.hdfs.server.common.Util.now;
-import org.apache.hadoop.hdfs.server.namenode.FSImage;
-import org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.conf.Configuration;
 
 /**
  * Extension of FSImage for the backup node.
@@ -68,9 +65,12 @@ public class BackupImage extends FSImage {
   }
 
   /**
+   * Construct a backup image.
+   * @param conf Configuration
+   * @throws IOException if storage cannot be initialised.
    */
-  BackupImage() {
-    super();
+  BackupImage(Configuration conf) throws IOException {
+    super(conf);
     storage.setDisablePreUpgradableLayoutCheck(true);
     jsState = JSpoolState.OFF;
   }
@@ -81,13 +81,9 @@ public class BackupImage extends FSImage {
    * Read VERSION and fstime files if exist.<br>
    * Do not load image or edits.
    *
-   * @param imageDirs list of image directories as URI.
-   * @param editsDirs list of edits directories URI.
    * @throws IOException if the node should shutdown.
    */
-  void recoverCreateRead(Collection<URI> imageDirs,
-                         Collection<URI> editsDirs) throws IOException {
-    storage.setStorageDirectories(imageDirs, editsDirs);
+  void recoverCreateRead() throws IOException {
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
       StorageState curState;
@@ -135,9 +131,9 @@ public class BackupImage extends FSImage {
 
     // unlock, close and rename storage directories
     storage.unlockAll();
+    
     // recover from unsuccessful checkpoint if necessary
-    recoverCreateRead(storage.getImageDirectories(),
-                      storage.getEditsDirectories());
+    recoverCreateRead();
     // rename and recreate
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();

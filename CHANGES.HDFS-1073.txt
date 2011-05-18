@@ -25,3 +25,5 @@ HDFS-1801. Remove use of timestamps to identify checkpoints and logs (todd)
 HDFS-1930. TestDFSUpgrade failing in HDFS-1073 branch (todd)
 HDFS-1800. Extend image checksumming to function with multiple fsimage files
            per directory. (todd)
+HDFS-1725. Set storage directories only at FSImage construction (Ivan Kelly
+           via todd)

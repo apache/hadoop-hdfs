@@ -62,6 +62,7 @@ import org.apache.hadoop.net.DNS;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * NNStorage is responsible for management of the StorageDirectories used by
@@ -174,12 +175,19 @@ public class NNStorage extends Storage implements Closeable {
   /**
    * Construct the NNStorage.
    * @param conf Namenode configuration.
+   * @param imageDirs Directories the image can be stored in.
+   * @param editsDirs Directories the editlog can be stored in.
+   * @throws IOException if any directories are inaccessible.
    */
-  public NNStorage(Configuration conf) {
+  public NNStorage(Configuration conf, 
+                   Collection<URI> imageDirs, Collection<URI> editsDirs) 
+      throws IOException {
     super(NodeType.NAME_NODE);
 
     storageDirs = new CopyOnWriteArrayList<StorageDirectory>();
     this.listeners = new CopyOnWriteArrayList<NNStorageListener>();
+    
+    setStorageDirectories(imageDirs, editsDirs);
   }
 
   /**
@@ -297,9 +305,11 @@ public class NNStorage extends Storage implements Closeable {
   }
 
   /**
-   * Set the storage directories which will be used. NNStorage.close() should
-   * be called before this to ensure any previous storage directories have been
-   * freed.
+   * Set the storage directories which will be used. This should only ever be
+   * called from inside NNStorage. However, it needs to remain package private
+   * for testing, as StorageDirectories need to be reinitialised after using
+   * Mockito.spy() on this class, as Mockito doesn't work well with inner
+   * classes, such as StorageDirectory in this case.
    *
    * Synchronized due to initialization of storageDirs and removedStorageDirs.
    *
@@ -307,6 +317,7 @@ public class NNStorage extends Storage implements Closeable {
    * @param fsEditsDirs Locations to store edit logs.
    * @throws IOException
    */
+  @VisibleForTesting
   synchronized void setStorageDirectories(Collection<URI> fsNameDirs,
                                           Collection<URI> fsEditsDirs)
       throws IOException {

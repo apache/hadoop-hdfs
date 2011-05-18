@@ -77,7 +77,7 @@ public class FSImage implements NNStorageListener, Closeable {
   private boolean isUpgradeFinalized = false;
   protected MD5Hash newImageDigest = null;
 
-  protected NNStorage storage = null;
+  protected NNStorage storage;
 
   /**
    * URIs for importing an image from a checkpoint. In the default case,
@@ -86,7 +86,7 @@ public class FSImage implements NNStorageListener, Closeable {
   private Collection<URI> checkpointDirs;
   private Collection<URI> checkpointEditsDirs;
 
-  private Configuration conf;
+  final private Configuration conf;
 
   /**
    * Can fs-image be rolled?
@@ -94,67 +94,63 @@ public class FSImage implements NNStorageListener, Closeable {
   volatile protected CheckpointStates ckptState = FSImage.CheckpointStates.START; 
 
   /**
+   * Construct an FSImage.
+   * @param conf Configuration
+   * @see #FSImage(Configuration conf, FSNamesystem ns, 
+   *               Collection imageDirs, Collection editsDirs) 
+   * @throws IOException if default directories are invalid.
    */
-  FSImage() {
-    this((FSNamesystem)null);
+  public FSImage(Configuration conf) throws IOException {
+    this(conf, (FSNamesystem)null);
   }
 
   /**
-   * Constructor
+   * Construct an FSImage
    * @param conf Configuration
+   * @param ns The FSNamesystem using this image.
+   * @see #FSImage(Configuration conf, FSNamesystem ns, 
+   *               Collection imageDirs, Collection editsDirs) 
+   * @throws IOException if default directories are invalid.
    */
-  FSImage(Configuration conf) throws IOException {
-    this();
-    this.conf = conf; // TODO we have too many constructors, this is a mess
-
-    if(conf.getBoolean(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY, 
-        DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_DEFAULT)) {
-      NameNode.LOG.info("set FSImage.restoreFailedStorage");
-      storage.setRestoreFailedStorage(true);
-    }
-    setCheckpointDirectories(FSImage.getCheckpointDirs(conf, null),
-        FSImage.getCheckpointEditsDirs(conf, null));
+  private FSImage(Configuration conf, FSNamesystem ns) throws IOException {
+    this(conf, ns,
+         FSNamesystem.getNamespaceDirs(conf),
+         FSNamesystem.getNamespaceEditsDirs(conf));
   }
 
-  private FSImage(FSNamesystem ns) {
-    this.conf = new Configuration();
-    
-    storage = new NNStorage(conf);
+  /**
+   * Construct the FSImage. Set the default checkpoint directories.
+   *
+   * Setup storage and initialize the edit log.
+   *
+   * @param conf Configuration
+   * @param ns The FSNamesystem using this image.
+   * @param imageDirs Directories the image can be stored in.
+   * @param editsDirs Directories the editlog can be stored in.
+   * @throws IOException if directories are invalid.
+   */
+  protected FSImage(Configuration conf, FSNamesystem ns,
+                    Collection<URI> imageDirs, Collection<URI> editsDirs)
+      throws IOException {
+    this.conf = conf;
+    setCheckpointDirectories(FSImage.getCheckpointDirs(conf, null),
+                             FSImage.getCheckpointEditsDirs(conf, null));
+
+    storage = new NNStorage(conf, imageDirs, editsDirs);
     if (ns != null) {
       storage.setUpgradeManager(ns.upgradeManager);
     }
     storage.registerListener(this);
 
+    if(conf.getBoolean(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY,
+                       DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_DEFAULT)) {
+      storage.setRestoreFailedStorage(true);
+    }
+
     this.editLog = new FSEditLog(storage);
     setFSNamesystem(ns);
   }
 
-  /**
-   * @throws IOException 
-   */
-  FSImage(Collection<URI> fsDirs, Collection<URI> fsEditsDirs) 
-      throws IOException {
-    this();
-    storage.setStorageDirectories(fsDirs, fsEditsDirs);
-  }
-
-  public FSImage(StorageInfo storageInfo, String bpid) {
-    storage = new NNStorage(storageInfo, bpid);
-  }
-
-  /**
-   * Represents an Image (image and edit file).
-   * @throws IOException 
-   */
-  FSImage(URI imageDir) throws IOException {
-    this();
-    ArrayList<URI> dirs = new ArrayList<URI>(1);
-    ArrayList<URI> editsDirs = new ArrayList<URI>(1);
-    dirs.add(imageDir);
-    editsDirs.add(imageDir);
-    storage.setStorageDirectories(dirs, editsDirs);
-  }
-  
   protected FSNamesystem getFSNamesystem() {
     return namesystem;
   }
@@ -178,20 +174,19 @@ public class FSImage implements NNStorageListener, Closeable {
    * Perform fs state transition if necessary depending on the namespace info.
    * Read storage info. 
    * 
-   * @param dataDirs
-   * @param startOpt startup option
    * @throws IOException
    * @return true if the image needs to be saved or false otherwise
    */
-  boolean recoverTransitionRead(Collection<URI> dataDirs,
-                                Collection<URI> editsDirs,
-                                StartupOption startOpt)
+  boolean recoverTransitionRead(StartupOption startOpt)
       throws IOException {
     assert startOpt != StartupOption.FORMAT : 
       "NameNode formatting should be performed before reading the image";
     
+    Collection<URI> imageDirs = storage.getImageDirectories();
+    Collection<URI> editsDirs = storage.getEditsDirectories();
+
     // none of the data dirs exist
-    if((dataDirs.size() == 0 || editsDirs.size() == 0) 
+    if((imageDirs.size() == 0 || editsDirs.size() == 0) 
                              && startOpt != StartupOption.IMPORT)  
       throw new IOException(
           "All specified directories are not accessible or do not exist.");
@@ -206,7 +201,6 @@ public class FSImage implements NNStorageListener, Closeable {
       throw new IOException("Cannot import image from a checkpoint. "
                             + "\"dfs.namenode.checkpoint.dir\" is not set." );
     
-    storage.setStorageDirectories(dataDirs, editsDirs);
     // 1. For each data directory calculate its state and 
     // check whether all is consistent before transitioning.
     Map<StorageDirectory, StorageState> dataDirStates = 
@@ -431,7 +425,7 @@ public class FSImage implements NNStorageListener, Closeable {
     // a previous fs states in at least one of the storage directories.
     // Directories that don't have previous state do not rollback
     boolean canRollback = false;
-    FSImage prevState = new FSImage(getFSNamesystem());
+    FSImage prevState = new FSImage(conf, getFSNamesystem());
     prevState.getStorage().layoutVersion = FSConstants.LAYOUT_VERSION;
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
@@ -509,15 +503,15 @@ public class FSImage implements NNStorageListener, Closeable {
    */
   void doImportCheckpoint() throws IOException {
     FSNamesystem fsNamesys = getFSNamesystem();
-    FSImage ckptImage = new FSImage(fsNamesys);
+    FSImage ckptImage = new FSImage(conf, fsNamesys,
+                                    checkpointDirs, checkpointEditsDirs);
     // replace real image with the checkpoint image
     FSImage realImage = fsNamesys.getFSImage();
     assert realImage == this;
     fsNamesys.dir.fsImage = ckptImage;
     // load from the checkpoint dirs
     try {
-      ckptImage.recoverTransitionRead(checkpointDirs, checkpointEditsDirs,
-                                              StartupOption.REGULAR);
+      ckptImage.recoverTransitionRead(StartupOption.REGULAR);
     } finally {
       ckptImage.close();
     }

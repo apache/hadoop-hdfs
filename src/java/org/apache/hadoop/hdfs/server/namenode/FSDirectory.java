@@ -20,9 +20,7 @@ package org.apache.hadoop.hdfs.server.namenode;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.Condition;
@@ -147,18 +145,22 @@ class FSDirectory implements Closeable {
     return getFSNamesystem().blockManager;
   }
 
-  void loadFSImage(Collection<URI> dataDirs,
-                   Collection<URI> editsDirs,
-                   StartupOption startOpt) 
+  /**
+   * Load the filesystem image into memory.
+   *
+   * @param startOpt Startup type as specified by the user.
+   * @throws IOException If image or editlog cannot be read.
+   */
+  void loadFSImage(StartupOption startOpt) 
       throws IOException {
     // format before starting up if requested
     if (startOpt == StartupOption.FORMAT) {
-      fsImage.getStorage().setStorageDirectories(dataDirs, editsDirs);
-      fsImage.getStorage().format(fsImage.getStorage().determineClusterId()); // reuse current id
+      fsImage.getStorage().format(fsImage.getStorage().determineClusterId());// reuse current id
+
       startOpt = StartupOption.REGULAR;
     }
     try {
-      if (fsImage.recoverTransitionRead(dataDirs, editsDirs, startOpt)) {
+      if (fsImage.recoverTransitionRead(startOpt)) {
         fsImage.saveNamespace(true);
       }
       FSEditLog editLog = fsImage.getEditLog();

@@ -275,16 +275,6 @@ public class TestSaveNamespace {
     GenericTestUtils.formatNamenode(conf);
     FSNamesystem fsn = new FSNamesystem(conf);
 
-    // Replace the FSImage with a spy
-    final FSImage originalImage = fsn.dir.fsImage;
-    originalImage.getStorage().close();
-
-    FSImage spyImage = spy(originalImage);
-    spyImage.getStorage().setStorageDirectories(
-        FSNamesystem.getNamespaceDirs(conf), 
-        FSNamesystem.getNamespaceEditsDirs(conf));
-    fsn.dir.fsImage = spyImage;
-
     try {
       doAnEdit(fsn, 1);
       CheckpointSignature sig = fsn.rollEditLog();
@@ -297,7 +287,6 @@ public class TestSaveNamespace {
       fsn.saveNamespace();
 
       // Now shut down and restart the NN
-      originalImage.close();
       fsn.close();
       fsn = null;
 

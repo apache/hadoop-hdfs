@@ -1479,7 +1479,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
       }
     }
 
-    FSImage fsImage = new FSImage(dirsToFormat, editDirsToFormat);
+    FSImage fsImage = new FSImage(conf, null, dirsToFormat, editDirsToFormat);
     FSNamesystem nsys = new FSNamesystem(fsImage, conf);
     
     // if clusterID is not provided - see if you can find the current one
@@ -1505,11 +1505,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
   private static boolean finalize(Configuration conf,
                                boolean isConfirmationNeeded
                                ) throws IOException {
-    Collection<URI> dirsToFormat = FSNamesystem.getNamespaceDirs(conf);
-    Collection<URI> editDirsToFormat = 
-                               FSNamesystem.getNamespaceEditsDirs(conf);
-    FSNamesystem nsys = new FSNamesystem(new FSImage(dirsToFormat,
-                                         editDirsToFormat), conf);
+    FSNamesystem nsys = new FSNamesystem(new FSImage(conf), conf);
     System.err.print(
         "\"finalize\" will remove the previous state of the files system.\n"
         + "Recent upgrade will become permanent.\n"

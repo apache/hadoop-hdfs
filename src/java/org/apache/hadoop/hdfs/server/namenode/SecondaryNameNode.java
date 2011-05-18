@@ -23,7 +23,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
@@ -172,8 +171,8 @@ public class SecondaryNameNode implements Runnable {
                                   "/tmp/hadoop/dfs/namesecondary");
     checkpointEditsDirs = FSImage.getCheckpointEditsDirs(conf, 
                                   "/tmp/hadoop/dfs/namesecondary");    
-    checkpointImage = new CheckpointStorage(conf);
-    checkpointImage.recoverCreate(checkpointDirs, checkpointEditsDirs);
+    checkpointImage = new CheckpointStorage(conf, checkpointDirs, checkpointEditsDirs);
+    checkpointImage.recoverCreate();
 
     // Initialize other scheduling parameters from the configuration
     checkpointPeriod = conf.getLong(DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_PERIOD_KEY, 
@@ -468,9 +467,8 @@ public class SecondaryNameNode implements Runnable {
   }
 
   private void startCheckpoint() throws IOException {
-    checkpointImage.getStorage().unlockAll();
     checkpointImage.getEditLog().close();
-    checkpointImage.recoverCreate(checkpointDirs, checkpointEditsDirs);
+    checkpointImage.recoverCreate();
     checkpointImage.startCheckpoint();
   }
 
@@ -609,26 +607,29 @@ public class SecondaryNameNode implements Runnable {
 
   static class CheckpointStorage extends FSImage {
     /**
+     * Construct a checkpoint image.
+     * @param conf Node configuration.
+     * @param imageDirs URIs of storage for image.
+     * @param editDirs URIs of storage for edit logs.
+     * @throws IOException If storage cannot be access.
      */
-    CheckpointStorage(Configuration conf) throws IOException {
-      super(conf);
+    CheckpointStorage(Configuration conf, 
+                      Collection<URI> imageDirs,
+                      Collection<URI> editsDirs) throws IOException {
+      super(conf, (FSNamesystem)null, imageDirs, editsDirs);
     }
 
     /**
      * Analyze checkpoint directories.
      * Create directories if they do not exist.
-     * Recover from an unsuccessful checkpoint is necessary. 
-     * 
-     * @param dataDirs
-     * @param editsDirs
+     * Recover from an unsuccessful checkpoint is necessary.
+     *
      * @throws IOException
      */
-    void recoverCreate(Collection<URI> dataDirs,
-                       Collection<URI> editsDirs) throws IOException {
-      Collection<URI> tempDataDirs = new ArrayList<URI>(dataDirs);
-      Collection<URI> tempEditsDirs = new ArrayList<URI>(editsDirs);
-      storage.close();
-      storage.setStorageDirectories(tempDataDirs, tempEditsDirs);
+    void recoverCreate() throws IOException {
+      storage.attemptRestoreRemovedStorage();
+      storage.unlockAll();
+
       for (Iterator<StorageDirectory> it = 
                    storage.dirIterator(); it.hasNext();) {
         StorageDirectory sd = it.next();

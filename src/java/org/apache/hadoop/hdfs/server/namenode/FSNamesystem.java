@@ -330,8 +330,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if(fsImage == null) {
       this.dir = new FSDirectory(this, conf);
       StartupOption startOpt = NameNode.getStartupOption(conf);
-      this.dir.loadFSImage(getNamespaceDirs(conf),
-                           getNamespaceEditsDirs(conf), startOpt);
+      this.dir.loadFSImage(startOpt);
       long timeTakenToLoadFSImage = now() - systemStart;
       LOG.info("Finished loading FSImage in " + timeTakenToLoadFSImage + " msecs");
       NameNode.getNameNodeMetrics().fsImageLoadTime.set(
@@ -422,8 +421,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           + propertyName + "\" in hdfs-site.xml;" +
           "\n\t\t- use Backup Node as a persistent and up-to-date storage " +
           "of the file system meta-data.");
-    } else if (dirNames.isEmpty())
-      dirNames.add("file:///tmp/hadoop/dfs/name");
+    } else if (dirNames.isEmpty()) {
+      dirNames = Collections.singletonList("file:///tmp/hadoop/dfs/name");
+    }
     return Util.stringCollectionAsURIs(dirNames);
   }
 
