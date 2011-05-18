@@ -1239,9 +1239,21 @@ public class FSImage extends Storage {
         errorSDs.add(sd);
       }
     }
-    processIOError(errorSDs, false);
-    if(!editLog.isOpen()) editLog.open();
-    ckptState = CheckpointStates.UPLOAD_DONE;
+    
+    try {
+      processIOError(errorSDs, false);
+
+      // If there was an error in every storage dir, each one will have been
+      // removed from the list of storage directories.
+      if (getNumStorageDirs(NameNodeDirType.IMAGE) == 0 ||
+          getNumStorageDirs(NameNodeDirType.EDITS) == 0) {
+        throw new IOException("Failed to save any storage directories while saving namespace");
+      }
+
+      if(!editLog.isOpen()) editLog.open();
+    } finally {
+      ckptState = CheckpointStates.UPLOAD_DONE;
+    }
   }
 
   /**

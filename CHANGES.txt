@@ -516,6 +516,9 @@ Release 0.22.0 - Unreleased
     HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
     (suresh)
 
+    HDFS-1505. saveNamespace appears to succeed even if all directories fail
+    to save. (Aaron T. Myers via todd)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
