@@ -87,7 +87,7 @@ public class FileJournalManager implements JournalManager {
     return createStream();
   }
 
-  @Override
+  @VisibleForTesting
   public StorageDirectory getStorageDirectory() {
     return sd;
   }

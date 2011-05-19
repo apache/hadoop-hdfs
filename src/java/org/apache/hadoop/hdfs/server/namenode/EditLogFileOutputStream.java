@@ -92,6 +92,9 @@ class EditLogFileOutputStream extends EditLogOutputStream {
   /** {@inheritDoc} */
   @Override
   public void write(int b) throws IOException {
+    if (fp == null) {
+      throw new IOException("Trying to use aborted output stream");
+    }
     bufCurrent.write(b);
   }
 
@@ -105,6 +108,9 @@ class EditLogFileOutputStream extends EditLogOutputStream {
    * */
   @Override
   void write(byte op, long txid, Writable... writables) throws IOException {
+    if (fp == null) {
+      throw new IOException("Trying to use aborted output stream");
+    }
     int start = bufCurrent.getLength();
     write(op);
     bufCurrent.writeLong(txid);
@@ -134,6 +140,10 @@ class EditLogFileOutputStream extends EditLogOutputStream {
 
   @Override
   public void close() throws IOException {
+    if (fp == null) {
+      throw new IOException("Trying to use aborted output stream");
+    }
+
     setReadyToFlush();
     flush();
     
@@ -157,6 +167,9 @@ class EditLogFileOutputStream extends EditLogOutputStream {
   
   @Override
   public void abort() throws IOException {
+    if (fp == null) {
+      return;
+    }
     IOUtils.cleanup(LOG, fp);
     fp = null;
   }
@@ -180,6 +193,10 @@ class EditLogFileOutputStream extends EditLogOutputStream {
    */
   @Override
   protected void flushAndSync() throws IOException {
+    if (fp == null) {
+      throw new IOException("Trying to use aborted output stream");
+    }
+    
     preallocate(); // preallocate file if necessary
     bufReady.writeTo(fp); // write data to file
     bufReady.reset(); // erase all data in the buffer

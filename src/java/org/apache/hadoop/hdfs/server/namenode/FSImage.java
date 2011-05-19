@@ -1196,6 +1196,10 @@ public class FSImage implements NNStorageListener, Closeable {
       }
       LOG.info("Storage directory " + sd.getRoot()
                + " has been successfully formatted.");
+    } else if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
+      // TODO this goes away with HDFS-1073
+      File eFile = NNStorage.getEditFile(sd);
+      editLog.createEditLogFile(eFile);
     }
   };
 

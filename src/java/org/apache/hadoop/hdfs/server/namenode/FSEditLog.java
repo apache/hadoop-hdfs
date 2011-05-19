@@ -61,7 +61,7 @@ import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.*;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class FSEditLog implements NNStorageListener {
+public class FSEditLog  {
 
   static final String NO_JOURNAL_STREAMS_WARNING = "!!! WARNING !!!" +
       " File system changes are not persistent. No journal streams.";
@@ -135,7 +135,6 @@ public class FSEditLog implements NNStorageListener {
   FSEditLog(NNStorage storage) {
     isSyncRunning = false;
     this.storage = storage;
-    this.storage.registerListener(this);
     metrics = NameNode.getNameNodeMetrics();
     lastPrintTime = now();
   }
@@ -1056,70 +1055,20 @@ public class FSEditLog implements NNStorageListener {
    * Called when some journals experience an error in some operation.
    * This propagates errors to the storage level.
    */
-  void disableAndReportErrorOnJournals(List<JournalAndStream> badJournals) {
+  private void disableAndReportErrorOnJournals(List<JournalAndStream> badJournals) {
     if (badJournals == null || badJournals.isEmpty()) {
       return; // nothing to do
     }
-
-    ArrayList<StorageDirectory> errorDirs = new ArrayList<StorageDirectory>();
+ 
     for (JournalAndStream j : badJournals) {
       LOG.error("Disabling journal " + j);
-      StorageDirectory sd = j.getStorageDirectory();
-      if (sd != null) {
-        errorDirs.add(sd);
-        // We will report this error to storage, which will propagate back
-        // to our listener interface, at which point we'll mark it faulty.
-      } else {
-        // Just mark it faulty ourselves, since it's not associated with a
-        // storage directory.
-        markJournalFaulty(j);
+      try {
+        j.abort();
+      } catch (IOException ioe) {
+        LOG.warn("Failed to abort faulty journal " + j
+                 + " before removing it (might be OK)", ioe);
       }
     }
-  }
-
-  private synchronized void markJournalFaulty(JournalAndStream jas) {
-    try {
-      jas.abort();
-    } catch (IOException e) {
-      LOG.warn("Failed to abort faulty journal " + jas
-          + " before removing it (might be OK)", e);
-    }
-  }
-
-  /**
-   * Error Handling on a storageDirectory
-   *
-   */
-  // NNStorageListener Interface
-  @Override // NNStorageListener
-  public synchronized void errorOccurred(StorageDirectory sd)
-      throws IOException {
-    
-    LOG.debug("Error occurred on " + sd);
-    
-    for (JournalAndStream jas : journals) {
-      if (jas.getStorageDirectory() == sd) {
-        LOG.warn("Marking corresponding journal " + jas + " faulty");
-        markJournalFaulty(jas);
-        return;
-      }
-    }
-    
-    LOG.debug("Faulty " + sd + " did not correspond to any live journal manager.");
-  }
-
-  @Override // NNStorageListener
-  public synchronized void formatOccurred(StorageDirectory sd)
-      throws IOException {
-    if (sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
-      createEditLogFile(NNStorage.getStorageFile(sd, NameNodeFile.EDITS));
-    }
-  };
-
-  @Override // NNStorageListener
-  public synchronized void directoryAvailable(StorageDirectory sd)
-      throws IOException {
-    // We'll always just check all of the journals every time we roll.
   }
 
   /**
@@ -1156,10 +1105,6 @@ public class FSEditLog implements NNStorageListener {
       stream = manager.createRevertedStream(source);
     }
 
-    public StorageDirectory getStorageDirectory() {
-      return manager.getStorageDirectory();
-    }
-
     public void close() throws IOException {
       if (stream == null) return;
       stream.close();
@@ -1191,8 +1136,13 @@ public class FSEditLog implements NNStorageListener {
     }
 
     @VisibleForTesting
-    void setCurrentStreamForTests(EditLogFileOutputStream stream) {
+    void setCurrentStreamForTests(EditLogOutputStream stream) {
       this.stream = stream;
+    }
+    
+    @VisibleForTesting
+    JournalManager getManager() {
+      return manager;
     }
   }
 }

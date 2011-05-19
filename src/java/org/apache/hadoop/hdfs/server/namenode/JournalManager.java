@@ -19,8 +19,6 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
 
-import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
-
 /**
  * A JournalManager is responsible for managing a single place of storing
  * edit logs. It may correspond to multiple files, a backup node, etc.
@@ -29,13 +27,6 @@ import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
  * this class, which is created when the EditLog is first opened.
  */
 public interface JournalManager {
-
-  /**
-   * @return the StorageDirectory associated with this journal,
-   * or null if this is not a disk-based journal 
-   */
-  StorageDirectory getStorageDirectory();
-
   /**
    * Prepare the stream to write edits
    */

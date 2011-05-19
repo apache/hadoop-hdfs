@@ -29,6 +29,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Random;
 
+import static org.mockito.Matchers.anyByte;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+
 import junit.framework.TestCase;
 
 import org.apache.commons.logging.Log;
@@ -127,6 +131,19 @@ public class TestStorageRestore extends TestCase {
     }
     // simulate an error
     fi.getStorage().reportErrorsOnDirectories(al);
+    
+    for (FSEditLog.JournalAndStream j : fi.getEditLog().getJournals()) {
+      if (j.getManager() instanceof FileJournalManager) {
+        FileJournalManager fm = (FileJournalManager)j.getManager();
+        if (fm.getStorageDirectory().getRoot().equals(path2)
+            || fm.getStorageDirectory().getRoot().equals(path3)) {
+          EditLogOutputStream mockStream = spy(j.getCurrentStream());
+          j.setCurrentStreamForTests(mockStream);
+          doThrow(new IOException("Injected fault: write")).
+            when(mockStream).write(anyByte());
+        }
+      }
+    }
   }
   
   /**
