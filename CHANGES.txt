@@ -324,6 +324,9 @@ Trunk (unreleased changes)
     by throwing an error to indicate the editlog needs to be empty.
     (suresh)
 
+    HDFS-1881. Federation: after taking snapshot the current directory 
+    of datanode is empty. (Tanping Wang via suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES

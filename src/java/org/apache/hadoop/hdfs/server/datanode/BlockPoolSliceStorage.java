@@ -465,8 +465,12 @@ public class BlockPoolSliceStorage extends Storage {
     // do the link
     int diskLayoutVersion = this.getLayoutVersion();
     // hardlink finalized blocks in tmpDir
-    DataStorage.linkBlocks(fromDir, new File(toDir,
-        DataStorage.STORAGE_DIR_FINALIZED), diskLayoutVersion, new HardLink());
+    HardLink hardLink = new HardLink();
+    DataStorage.linkBlocks(new File(fromDir, DataStorage.STORAGE_DIR_FINALIZED), 
+      new File(toDir,DataStorage.STORAGE_DIR_FINALIZED), diskLayoutVersion, hardLink);
+    DataStorage.linkBlocks(new File(fromDir, DataStorage.STORAGE_DIR_RBW), 
+        new File(toDir, DataStorage.STORAGE_DIR_RBW), diskLayoutVersion, hardLink);
+    LOG.info( hardLink.linkStats.report() );
   }
 
   protected void corruptPreUpgradeStorage(File rootDir) throws IOException {
