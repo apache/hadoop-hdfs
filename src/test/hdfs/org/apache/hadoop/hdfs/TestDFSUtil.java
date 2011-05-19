@@ -18,22 +18,25 @@
 
 package org.apache.hadoop.hdfs;
 
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.URI;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import junit.framework.Assert;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
+import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.net.NetUtils;
-
-import static org.junit.Assert.*;
-import org.junit.Test;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 
 
 public class TestDFSUtil {
@@ -105,7 +108,7 @@ public class TestDFSUtil {
   
   /** 
    * Test for
-   * {@link DFSUtil#isDefaultNamenodeAddress()}
+   * {@link DFSUtil#isDefaultNamenodeAddress(Configuration, InetSocketAddress, String...)}
    */
   @Test
   public void testSingleNamenode() {
@@ -150,19 +153,20 @@ public class TestDFSUtil {
     conf.set(DFSConfigKeys.DFS_FEDERATION_NAMESERVICE_ID, "nn1");
     final String nameserviceId = DFSUtil.getNameServiceId(conf);
     
-    // Set the nameservice specific keys with nameserviceId
-    conf.set(DFSUtil.getNameServiceIdKey(
-            DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY, nameserviceId),
-            "localhost:9090");
+    // Set the nameservice specific keys with nameserviceId in the config key
+    for (String key : NameNode.NAMESERVICE_SPECIFIC_KEYS) {
+      // Note: value is same as the key
+      conf.set(DFSUtil.getNameServiceIdKey(key, nameserviceId), key);
+    }
     
-    MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
-        .nameNodePort(9090).build();
+    // Initialize generic keys from specific keys
+    NameNode.initializeGenericKeys(conf);
     
-    // Make sure the specific keys are copied to generic keys post startup
-    final Configuration nnConf = cluster.getConfiguration(0);
-    assertEquals("hdfs://localhost:9090", nnConf
-        .get(DFSConfigKeys.FS_DEFAULT_NAME_KEY));
-    cluster.shutdown();
+    // Retrieve the keys without nameserviceId and Ensure generic keys are set
+    // to the correct value
+    for (String key : NameNode.NAMESERVICE_SPECIFIC_KEYS) {
+      assertEquals(key, conf.get(key));
+    }
   }
   
   /**
@@ -176,21 +180,20 @@ public class TestDFSUtil {
     HdfsConfiguration conf = new HdfsConfiguration(false);
     try {
       DFSUtil.getNNServiceRpcAddresses(conf);
-      Assert.fail("Expected IOException is not thrown");
+      fail("Expected IOException is not thrown");
     } catch (IOException expected) {
     }
 
     try {
       DFSUtil.getBackupNodeAddresses(conf);
-      Assert.fail("Expected IOException is not thrown");
+      fail("Expected IOException is not thrown");
     } catch (IOException expected) {
     }
 
     try {
       DFSUtil.getSecondaryNameNodeAddresses(conf);
-      Assert.fail("Expected IOException is not thrown");
+      fail("Expected IOException is not thrown");
     } catch (IOException expected) {
     }
   }
-
 }

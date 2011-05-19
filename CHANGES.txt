@@ -234,13 +234,15 @@ Trunk (unreleased changes)
     from a datanode. (jitendra)
 
     HDFS-1813. Federation: Authentication using BlockToken in RPC to datanode 
-               fails. (jitendra)
+    fails. (jitendra)
 
     HDFS-1873. Federation: Add cluster management web console.
     (Tanping Wang via suresh)
 
-    HDFS 1911 HDFS tests for the newly added viewfs
+    HDFS 1911 HDFS tests for the newly added viewfs. (sanjay)
 
+    HDFS-1914. Federation: namenode storage directories must be configurable
+    specific to name service. (suresh)
 
   IMPROVEMENTS
 
