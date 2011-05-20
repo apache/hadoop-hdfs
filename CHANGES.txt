@@ -269,6 +269,9 @@ Trunk (unreleased changes)
 
     HDFS-1543. Remove system test artifacts from default build. (Luke Lu)
 
+    HDFS-1629. Add a method to BlockPlacementPolicy for keeping the chosen
+    nodes in the output array.  (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
