@@ -281,6 +281,9 @@ Trunk (unreleased changes)
     multiple times for determining whether the source is a client or a
     datanode.  (szetszwo)
 
+    HDFS-1789. Refactor frequently used codes from DFSOutputStream and
+    DataXceiver.  (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
