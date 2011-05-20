@@ -713,6 +713,10 @@ Release 0.21.1 - Unreleased
     HDFS-1665. Balancer misuses dfs.heartbeat.interval as milliseconds.
     (szetszwo)
 
+    HDFS-1612. Update HDFS design documentation for append, quota, symlink,
+    block placement and checkpoint/backup node features.  (Joe Crobak
+    via szetszwo)
+
 Release 0.21.0 - 2010-08-13
 
   INCOMPATIBLE CHANGES
