@@ -1402,7 +1402,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
                 ". Lease recovery is in progress. Try again later.");
 
         } else {
-          if(pendingFile.getLastBlock().getBlockUCState() ==
+          BlockInfoUnderConstruction lastBlock=pendingFile.getLastBlock();
+          if(lastBlock != null && lastBlock.getBlockUCState() ==
             BlockUCState.UNDER_RECOVERY) {
             throw new RecoveryInProgressException(
               "Recovery in progress, file [" + src + "], " +
