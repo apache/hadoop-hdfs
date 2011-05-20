@@ -431,7 +431,7 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
 
   @Override // FSDatasetInterface
   public synchronized void unfinalizeBlock(ExtendedBlock b) throws IOException {
-    if (isBeingWritten(b)) {
+    if (isValidRbw(b)) {
       blockMap.remove(b.getLocalBlock());
     }
   }
@@ -549,8 +549,8 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
     return binfo.isFinalized();
   }
 
-  /* check if a block is created but not finalized */
-  private synchronized boolean isBeingWritten(ExtendedBlock b) {
+  @Override
+  public synchronized boolean isValidRbw(Block b) {
     final Map<Block, BInfo> map = blockMap.get(b.getBlockPoolId());
     if (map == null) {
       return false;
@@ -561,7 +561,8 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
     }
     return !binfo.isFinalized();  
   }
-  
+
+  @Override
   public String toString() {
     return getStorageInfo();
   }
@@ -646,7 +647,7 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
           throw new ReplicaAlreadyExistsException("Block " + b + 
               " is valid, and cannot be written to.");
       }
-    if (isBeingWritten(b)) {
+    if (isValidRbw(b)) {
         throw new ReplicaAlreadyExistsException("Block " + b + 
             " is being written, and cannot be written to.");
     }
@@ -956,5 +957,18 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
   @Override // FSDatasetInterface
   public void deleteBlockPool(String bpid, boolean force) {
      return;
+  }
+
+  @Override
+  public ReplicaInPipelineInterface convertTemporaryToRbw(Block temporary)
+      throws IOException {
+    final BInfo r = blockMap.get(temporary);
+    if (r == null) {
+      throw new IOException("Block not found, temporary=" + temporary);
+    } else if (r.isFinalized()) {
+      throw new IOException("Replica already finalized, temporary="
+          + temporary + ", r=" + r);
+    }
+    return r;
   }
 }
