@@ -1971,6 +1971,10 @@ public class DataNode extends Configured
     return this.getConf().get("dfs.datanode.info.port");
   }
 
+  public int getInfoPort() {
+    return this.infoServer.getPort();
+  }
+
   @Override // DataNodeMXBean
   public String getNamenodeAddress(){
     return nameNodeAddr.getHostName();

@@ -30,6 +30,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.jsp.JspWriter;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FsShell;
@@ -46,6 +47,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.StringUtils;
+import org.mortbay.util.URIUtil;
 
 @InterfaceAudience.Private
 public class DatanodeJspHelper {
@@ -79,7 +81,8 @@ public class DatanodeJspHelper {
                                          Configuration conf
                                          ) throws IOException,
                                                   InterruptedException {
-    final String dir = JspHelper.validatePath(req.getParameter("dir"));
+    final String dir = StringEscapeUtils.unescapeHtml(
+        JspHelper.validatePath(req.getParameter("dir")));
     if (dir == null) {
       out.print("Invalid input");
       return;
@@ -238,9 +241,11 @@ public class DatanodeJspHelper {
     else
       startOffset = Long.parseLong(startOffsetStr);
 
-    final String filename=JspHelper.validatePath(
-                          req.getPathInfo() == null ? 
-                          "/" : req.getPathInfo());
+    String path = StringEscapeUtils.unescapeHtml(req.getParameter("filename"));
+    if (path == null) {
+      path = req.getPathInfo() == null ? "/" : req.getPathInfo();
+    }
+    final String filename = JspHelper.validatePath(path);
     if (filename == null) {
       out.print("Invalid input");
       return;
@@ -260,8 +265,7 @@ public class DatanodeJspHelper {
     // Add the various links for looking at the file contents
     // URL for downloading the full file
     String downloadUrl = "http://" + req.getServerName() + ":"
-        + req.getServerPort() + "/streamFile?" + "filename="
-        + URLEncoder.encode(filename, "UTF-8")
+        + req.getServerPort() + "/streamFile" + URIUtil.encodePath(filename)
         + JspHelper.getDelegationTokenUrlParam(tokenString);
     out.print("<a name=\"viewOptions\"></a>");
     out.print("<a href=\"" + downloadUrl + "\">Download this file</a><br>");
@@ -367,7 +371,7 @@ public class DatanodeJspHelper {
       namenodeInfoPort = Integer.parseInt(namenodeInfoPortStr);
 
     final String filename = JspHelper
-        .validatePath(req.getParameter("filename"));
+        .validatePath(StringEscapeUtils.unescapeHtml(req.getParameter("filename")));
     if (filename == null) {
       out.print("Invalid input (filename absent)");
       return;
@@ -382,16 +386,19 @@ public class DatanodeJspHelper {
     final DFSClient dfs = getDFSClient(ugi, datanode.getNameNodeAddrForClient(), conf);
 
     Token<BlockTokenIdentifier> blockToken = BlockTokenSecretManager.DUMMY_TOKEN;
-    if (conf.getBoolean(
-        DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, 
-        DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_DEFAULT)) {
-      List<LocatedBlock> blks = dfs.getNamenode().getBlockLocations(filename, 0,
+    List<LocatedBlock> blks = dfs.getNamenode().getBlockLocations(filename, 0,
           Long.MAX_VALUE).getLocatedBlocks();
-      if (blks == null || blks.size() == 0) {
-        out.print("Can't locate file blocks");
-        dfs.close();
-        return;
-      }
+    if (blks == null || blks.size() == 0) {
+      out.print("Can't locate file blocks");
+      dfs.close();
+      return;
+    }
+
+    boolean needBlockToken = conf.getBoolean(
+            DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY,
+            DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_DEFAULT);
+
+    if (needBlockToken) {
       for (int i = 0; i < blks.size(); i++) {
         if (blks.get(i).getBlock().getBlockId() == blockId) {
           blockToken = blks.get(i).getBlockToken();
@@ -579,7 +586,7 @@ public class DatanodeJspHelper {
     }
 
     final String filename = JspHelper
-        .validatePath(req.getParameter("filename"));
+        .validatePath(req.getParameter(StringEscapeUtils.unescapeHtml("filename")));
     if (filename == null) {
       out.print("Invalid input (file name absent)");
       return;
