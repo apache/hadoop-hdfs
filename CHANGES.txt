@@ -277,6 +277,10 @@ Trunk (unreleased changes)
     HDFS-1736. Remove the dependency from DatanodeJspHelper to FsShell.
     (Daryn Sharp via szetszwo)
 
+    HDFS-1785. In BlockReceiver and DataXceiver, clientName.length() is used
+    multiple times for determining whether the source is a client or a
+    datanode.  (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
