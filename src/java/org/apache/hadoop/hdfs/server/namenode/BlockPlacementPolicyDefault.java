@@ -17,17 +17,9 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-
+import org.apache.commons.logging.*;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
@@ -35,6 +27,8 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.net.NodeBase;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
+import java.util.*;
 
 /** The class is responsible for choosing the desired number of targets
  * for placing block replicas.
@@ -72,22 +66,19 @@ public class BlockPlacementPolicyDefault extends BlockPlacementPolicy {
                                     DatanodeDescriptor writer,
                                     List<DatanodeDescriptor> chosenNodes,
                                     long blocksize) {
-    return chooseTarget(numOfReplicas, writer, chosenNodes, false,
-        null, blocksize);
+    return chooseTarget(numOfReplicas, writer, chosenNodes, null, blocksize);
   }
 
   /** {@inheritDoc} */
-  @Override
-  DatanodeDescriptor[] chooseTarget(String srcPath,
+  public DatanodeDescriptor[] chooseTarget(String srcPath,
                                     int numOfReplicas,
                                     DatanodeDescriptor writer,
                                     List<DatanodeDescriptor> chosenNodes,
-                                    boolean returnChosenNodes,
                                     HashMap<Node, Node> excludedNodes,
                                     long blocksize) {
-    return chooseTarget(numOfReplicas, writer, chosenNodes, returnChosenNodes,
-        excludedNodes, blocksize);
+    return chooseTarget(numOfReplicas, writer, chosenNodes, excludedNodes, blocksize);
   }
+
 
   /** {@inheritDoc} */
   @Override
@@ -96,15 +87,15 @@ public class BlockPlacementPolicyDefault extends BlockPlacementPolicy {
                                     DatanodeDescriptor writer,
                                     List<DatanodeDescriptor> chosenNodes,
                                     long blocksize) {
-    return chooseTarget(numOfReplicas, writer, chosenNodes, false,
-        null, blocksize);
+    return chooseTarget(numOfReplicas, writer, chosenNodes, null, blocksize);
   }
-
-  /** This is the implementation. */
+    
+  /**
+   * This is not part of the public API but is used by the unit tests.
+   */
   DatanodeDescriptor[] chooseTarget(int numOfReplicas,
                                     DatanodeDescriptor writer,
                                     List<DatanodeDescriptor> chosenNodes,
-                                    boolean returnChosenNodes,
                                     HashMap<Node, Node> excludedNodes,
                                     long blocksize) {
     if (numOfReplicas == 0 || clusterMap.getNumOfLeaves()==0) {
@@ -137,9 +128,8 @@ public class BlockPlacementPolicyDefault extends BlockPlacementPolicy {
       
     DatanodeDescriptor localNode = chooseTarget(numOfReplicas, writer, 
                                                 excludedNodes, blocksize, maxNodesPerRack, results);
-    if (!returnChosenNodes) {  
-      results.removeAll(chosenNodes);
-    }
+      
+    results.removeAll(chosenNodes);
       
     // sorting nodes to form a pipeline
     return getPipeline((writer==null)?localNode:writer,
