@@ -141,8 +141,7 @@ import org.apache.hadoop.util.StringUtils;
 @InterfaceAudience.Private
 public class NameNode implements NamenodeProtocols, FSConstants {
   static{
-    Configuration.addDefaultResource("hdfs-default.xml");
-    Configuration.addDefaultResource("hdfs-site.xml");
+    HdfsConfiguration.init();
   }
   
   public long getProtocolVersion(String protocol, 
