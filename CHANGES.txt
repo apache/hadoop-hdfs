@@ -235,6 +235,10 @@ Trunk (unreleased changes)
     HDFS-1791. Federation: Add command to delete block pool directories 
     from a datanode. (jitendra)
 
+    HDFS-1761. Add a new DataTransferProtocol operation, Op.TRANSFER_BLOCK,
+    for transferring RBW/Finalized with acknowledgement and without using RPC.
+    (szetszwo)
+
     HDFS-1813. Federation: Authentication using BlockToken in RPC to datanode 
     fails. (jitendra)
 
