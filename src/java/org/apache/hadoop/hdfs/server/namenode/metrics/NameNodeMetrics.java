@@ -52,6 +52,7 @@ public class NameNodeMetrics {
   MutableCounterLong filesDeleted;
   @Metric MutableCounterLong fileInfoOps;
   @Metric MutableCounterLong addBlockOps;
+  @Metric MutableCounterLong getAdditionalDatanodeOps;
   @Metric MutableCounterLong createSymlinkOps;
   @Metric MutableCounterLong getLinkTargetOps;
   @Metric MutableCounterLong filesInGetListingOps;
@@ -99,6 +100,10 @@ public class NameNodeMetrics {
 
   public void incrAddBlockOps() {
     addBlockOps.incr();
+  }
+
+  public void incrGetAdditionalDatanodeOps() {
+    getAdditionalDatanodeOps.incr();
   }
 
   public void incrFilesRenamed() {

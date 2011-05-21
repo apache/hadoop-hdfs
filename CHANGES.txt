@@ -242,6 +242,9 @@ Trunk (unreleased changes)
     HDFS-1813. Federation: Authentication using BlockToken in RPC to datanode 
     fails. (jitendra)
 
+    HDFS-1606. Provide a stronger data guarantee in the write pipeline by
+    adding a new datanode when an existing datanode failed.  (szetszwo)
+
     HDFS-1873. Federation: Add cluster management web console.
     (Tanping Wang via suresh)
 
