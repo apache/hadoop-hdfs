@@ -288,6 +288,9 @@ Trunk (unreleased changes)
     HDFS-1789. Refactor frequently used codes from DFSOutputStream and
     DataXceiver.  (szetszwo)
 
+    HDFS-1817. Move pipeline_Fi_[39-51] from TestFiDataTransferProtocol
+    to TestFiPipelineClose.  (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
