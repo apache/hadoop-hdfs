@@ -400,6 +400,9 @@ Release 0.22.0 - Unreleased
 
     HDFS-1164. TestHdfsProxy is failing. (Todd Lipcon via cos)
 
+    HDFS-895. Allow hflush/sync to occur in parallel with new writes
+    to the file. (Todd Lipcon via hairong)
+
   IMPROVEMENTS
 
     HDFS-1304. Add a new unit test for HftpFileSystem.open(..).  (szetszwo)

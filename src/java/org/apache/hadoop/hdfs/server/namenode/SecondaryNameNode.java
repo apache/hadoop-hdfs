@@ -340,6 +340,7 @@ public class SecondaryNameNode implements Runnable {
           public Void run() throws Exception {
             checkpointImage.cTime = sig.cTime;
             checkpointImage.checkpointTime = sig.checkpointTime;
+            checkpointImage.imageDigest = sig.imageDigest;
         
             // get fsimage
             String fileid = "getimage=1";
