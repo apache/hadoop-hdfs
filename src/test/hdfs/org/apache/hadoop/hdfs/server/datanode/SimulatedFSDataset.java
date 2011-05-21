@@ -550,7 +550,7 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
   }
 
   @Override
-  public synchronized boolean isValidRbw(Block b) {
+  public synchronized boolean isValidRbw(ExtendedBlock b) {
     final Map<Block, BInfo> map = blockMap.get(b.getBlockPoolId());
     if (map == null) {
       return false;
@@ -960,9 +960,13 @@ public class SimulatedFSDataset  implements FSConstants, FSDatasetInterface, Con
   }
 
   @Override
-  public ReplicaInPipelineInterface convertTemporaryToRbw(Block temporary)
+  public ReplicaInPipelineInterface convertTemporaryToRbw(ExtendedBlock temporary)
       throws IOException {
-    final BInfo r = blockMap.get(temporary);
+    final Map<Block, BInfo> map = blockMap.get(temporary.getBlockPoolId());
+    if (map == null) {
+      throw new IOException("Block pool not found, temporary=" + temporary);
+    }
+    final BInfo r = map.get(temporary.getLocalBlock());
     if (r == null) {
       throw new IOException("Block not found, temporary=" + temporary);
     } else if (r.isFinalized()) {
