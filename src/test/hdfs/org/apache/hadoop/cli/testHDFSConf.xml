@@ -5007,8 +5007,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>get: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>get: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5023,8 +5023,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>get: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>get: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5039,8 +5039,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>get: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>get: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5055,8 +5055,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>get: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>get: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5442,8 +5442,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>copyToLocal: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>copyToLocal: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5458,8 +5458,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>copyToLocal: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>copyToLocal: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5474,8 +5474,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>copyToLocal: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>copyToLocal: .*: No such file or directory</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5490,8 +5490,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>copyToLocal: null</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>copyToLocal: .*: No such file or directory</expected-output>
         </comparator>
      </comparators>
     </test>
@@ -16179,7 +16179,7 @@
         <command>-fs NAMENODE -mkdir /test </command>
         <command>-fs NAMENODE -touchz /test/file1 </command>
         <dfs-admin-command>-fs NAMENODE -safemode enter </dfs-admin-command>
-        <command>-fs NAMENODE -chown root /test/file1 </command>
+        <command>-fs NAMENODE -chown newgroup /test/file1 </command>
       </test-commands>
       <cleanup-commands>
         <dfs-admin-command>-fs NAMENODE -safemode leave </dfs-admin-command>
