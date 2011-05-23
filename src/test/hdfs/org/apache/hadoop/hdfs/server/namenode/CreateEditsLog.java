@@ -193,17 +193,14 @@ public class CreateEditsLog {
       }
     }
     
-    List<URI> imagedirs = Collections.singletonList(
-        editsLogDir.getAbsoluteFile().toURI());
-    List<URI> editsdirs = Collections.singletonList(
-        editsLogDir.getAbsoluteFile().toURI());
-    FSImage fsImage = new FSImage(new Configuration(), 
-                                  (FSNamesystem)null, imagedirs, editsdirs);
+
+    FSImage fsImage = null;
+    /* TODO new FSImage(editsLogDir.getAbsoluteFile().toURI());*/
     FileNameGenerator nameGenerator = new FileNameGenerator(BASE_PATH, 100);
 
     FSEditLog editLog = fsImage.getEditLog();
-    editLog.createEditLogFile(fsImage.getStorage().getFsEditName());
-    editLog.open();
+    // TODO editLog.reset();
+    // TODOeditLog.open();
     addFiles(editLog, numFiles, replication, numBlocksPerFile, startingBlockId,
              nameGenerator);
     editLog.logSync();

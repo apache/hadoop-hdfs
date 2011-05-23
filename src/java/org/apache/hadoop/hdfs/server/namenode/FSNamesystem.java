@@ -3597,7 +3597,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       throw new IOException("Safe mode should be turned ON " +
                             "in order to create namespace image.");
     }
-    getFSImage().saveNamespace(true);
+    getFSImage().saveNamespace();
     LOG.info("New namespace image has been created.");
     } finally {
       writeUnlock();
@@ -4540,26 +4540,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     }
     LOG.info("Roll Edit Log from " + Server.getRemoteAddress());
     return getFSImage().rollEditLog();
-    } finally {
-      writeUnlock();
-    }
-  }
-
-  /**
-   * Moves fsimage.ckpt to fsImage and edits.new to edits
-   * Reopens the new edits file.
-   *
-   * @param sig the signature of this checkpoint (old image)
-   */
-  void rollFSImage(CheckpointSignature sig) throws IOException {
-    writeLock();
-    try {
-    if (isInSafeMode()) {
-      throw new SafeModeException("Checkpoint not created",
-                                  safeMode);
-    }
-    LOG.info("Roll FSImage from " + Server.getRemoteAddress());
-    getFSImage().rollFSImage(sig, true);
     } finally {
       writeUnlock();
     }

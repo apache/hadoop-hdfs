@@ -68,20 +68,7 @@ public class TestStorageRestore extends TestCase {
   static final int blockSize = 4096;
   static final int fileSize = 8192;
   private File path1, path2, path3;
-  private MiniDFSCluster cluster;
-
-  private void writeFile(FileSystem fileSys, Path name, int repl)
-  throws IOException {
-    FSDataOutputStream stm = fileSys.create(name, true,
-        fileSys.getConf().getInt("io.file.buffer.size", 4096),
-        (short)repl, (long)blockSize);
-    byte[] buffer = new byte[fileSize];
-    Random rand = new Random(seed);
-    rand.nextBytes(buffer);
-    stm.write(buffer);
-    stm.close();
-  }
-  
+  private MiniDFSCluster cluster;  
  
   protected void setUp() throws Exception {
     config = new HdfsConfiguration();
@@ -118,7 +105,7 @@ public class TestStorageRestore extends TestCase {
   }
   
   /**
-   * invalidate storage by removing storage directories
+   * invalidate storage by removing the second and third storage directories
    */
   public void invalidateStorage(FSImage fi) throws IOException {
     ArrayList<StorageDirectory> al = new ArrayList<StorageDirectory>(2);
@@ -153,119 +140,14 @@ public class TestStorageRestore extends TestCase {
     LOG.info("current storages and corresoponding sizes:");
     for(Iterator<StorageDirectory> it = fs.getStorage().dirIterator(); it.hasNext(); ) {
       StorageDirectory sd = it.next();
-      
-      if(sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {
-        File imf = fs.getStorage().getStorageFile(sd, NameNodeFile.IMAGE);
-        LOG.info("  image file " + imf.getAbsolutePath() + "; len = " + imf.length());  
-      }
-      if(sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
-        File edf = fs.getStorage().getStorageFile(sd, NameNodeFile.EDITS);
-        LOG.info("  edits file " + edf.getAbsolutePath() + "; len = " + edf.length()); 
+
+      File curDir = sd.getCurrentDir();
+      for (File f : curDir.listFiles()) {
+        LOG.info("  file " + f.getAbsolutePath() + "; len = " + f.length());  
       }
     }
   }
-  
-  
-  /**
-   * This function returns a md5 hash of a file.
-   * 
-   * @param file input file
-   * @return The md5 string
-   */
-  public String getFileMD5(File file) throws Exception {
-    String res = new String();
-    MessageDigest mD = MessageDigest.getInstance("MD5");
-    DataInputStream dis = new DataInputStream(new FileInputStream(file));
 
-    try {
-      while(true) {
-        mD.update(dis.readByte());
-      }
-    } catch (EOFException eof) {}
-
-    BigInteger bigInt = new BigInteger(1, mD.digest());
-    res = bigInt.toString(16);
-    dis.close();
-
-    return res;
-  }
-
-  
-  /**
-   * read currentCheckpointTime directly from the file  TODO this is dup code
-   * @param currDir
-   * @return the checkpoint time
-   * @throws IOException
-   */
-  long readCheckpointTime(File currDir) throws IOException {
-    File timeFile = new File(currDir, NameNodeFile.TIME.getName()); 
-    long timeStamp = 0L;
-    if (timeFile.exists() && timeFile.canRead()) {
-      DataInputStream in = new DataInputStream(new FileInputStream(timeFile));
-      try {
-        timeStamp = in.readLong();
-      } finally {
-        in.close();
-      }
-    }
-    return timeStamp;
-  }
-  
-  /**
-   *  check if files exist/not exist
-   * @throws IOException 
-   */
-  public void checkFiles(boolean valid) throws IOException {
-    //look at the valid storage
-    File fsImg1 = new File(path1, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.IMAGE.getName());
-    File fsImg2 = new File(path2, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.IMAGE.getName());
-    File fsImg3 = new File(path3, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.IMAGE.getName());
-
-    File fsEdits1 = new File(path1, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS.getName());
-    File fsEdits2 = new File(path2, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS.getName());
-    File fsEdits3 = new File(path3, Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS.getName());
-
-    String md5_1 = null,md5_2 = null,md5_3 = null;
-    try {
-      md5_1 = getFileMD5(fsEdits1);
-      md5_2 = getFileMD5(fsEdits2);
-      md5_3 = getFileMD5(fsEdits3);
-    } catch (Exception e) {
-      System.err.println("md 5 calculation failed:" + e.getLocalizedMessage());
-    }
-    this.printStorages(cluster.getNameNode().getFSImage());
-    
-    LOG.info("++++ image files = "+fsImg1.getAbsolutePath() + "," + fsImg2.getAbsolutePath() + ","+ fsImg3.getAbsolutePath());
-    LOG.info("++++ edits files = "+fsEdits1.getAbsolutePath() + "," + fsEdits2.getAbsolutePath() + ","+ fsEdits3.getAbsolutePath());
-    LOG.info("checkFiles compares lengths: img1=" + fsImg1.length()  + ",img2=" + fsImg2.length()  + ",img3=" + fsImg3.length());
-    LOG.info("checkFiles compares lengths: edits1=" + fsEdits1.length()  + ",edits2=" + fsEdits2.length()  + ",edits3=" + fsEdits3.length());
-    LOG.info("checkFiles compares md5s: " + fsEdits1.getAbsolutePath() + 
-        "="+ md5_1  + "," + fsEdits2.getAbsolutePath() + "=" + md5_2  + "," +
-        fsEdits3.getAbsolutePath() + "=" + md5_3);  
-    
-    if(valid) {
-      // should be the same
-      assertTrue(fsImg1.length() == fsImg2.length());
-      assertTrue(0 == fsImg3.length()); //shouldn't be created
-      assertTrue(fsEdits1.length() == fsEdits2.length());
-      assertTrue(fsEdits1.length() == fsEdits3.length());
-      assertTrue(md5_1.equals(md5_2));
-      assertTrue(md5_1.equals(md5_3));
-    } else {
-      // should be different
-      //assertTrue(fsImg1.length() != fsImg2.length());
-      //assertTrue(fsImg1.length() != fsImg3.length());
-      long len1 = EditLogFileInputStream.getValidLength(fsEdits1);
-      long len2 = EditLogFileInputStream.getValidLength(fsEdits2);
-      long len3 = EditLogFileInputStream.getValidLength(fsEdits3);
-      assertTrue("edits1 = edits2", len1 != len2);
-      assertTrue("edits1 = edits3", len1 != len3);
-      
-      assertTrue(!md5_1.equals(md5_2));
-      assertTrue(!md5_1.equals(md5_3));
-    }
-  }
-  
   /**
    * test 
    * 1. create DFS cluster with 3 storage directories - 2 EDITS_IMAGE, 1 EDITS
@@ -280,7 +162,7 @@ public class TestStorageRestore extends TestCase {
    */
   @SuppressWarnings("deprecation")
   public void testStorageRestore() throws Exception {
-    int numDatanodes = 2;
+    int numDatanodes = 0;
     cluster = new MiniDFSCluster.Builder(config).numDataNodes(numDatanodes)
                                                 .manageNameDfsDirs(false)
                                                 .build();
@@ -292,36 +174,81 @@ public class TestStorageRestore extends TestCase {
     
     FileSystem fs = cluster.getFileSystem();
     Path path = new Path("/", "test");
-    writeFile(fs, path, 2);
+    assertTrue(fs.mkdirs(path));
     
-    System.out.println("****testStorageRestore: file test written, invalidating storage...");
+    System.out.println("****testStorageRestore: dir 'test' created, invalidating storage...");
   
     invalidateStorage(cluster.getNameNode().getFSImage());
-    //secondary.doCheckpoint(); // this will cause storages to be removed.
     printStorages(cluster.getNameNode().getFSImage());
-    System.out.println("****testStorageRestore: storage invalidated + doCheckpoint");
+    System.out.println("****testStorageRestore: storage invalidated");
 
     path = new Path("/", "test1");
-    writeFile(fs, path, 2);
-    System.out.println("****testStorageRestore: file test1 written");
-    
-    checkFiles(false); // SHOULD BE FALSE
-    
+    assertTrue(fs.mkdirs(path));
+
+    System.out.println("****testStorageRestore: dir 'test1' created");
+
+    // We did another edit, so the still-active directory at 'path1'
+    // should now differ from the others
+    FSImageTestUtil.assertFileContentsDifferent(2,
+        new File(path1, "current/edits_inprogress_1"),
+        new File(path2, "current/edits_inprogress_1"),
+        new File(path3, "current/edits_inprogress_1"));
+    FSImageTestUtil.assertFileContentsSame(
+        new File(path2, "current/edits_inprogress_1"),
+        new File(path3, "current/edits_inprogress_1"));
+        
     System.out.println("****testStorageRestore: checkfiles(false) run");
     
     secondary.doCheckpoint();  ///should enable storage..
     
-    checkFiles(true);
-    System.out.println("****testStorageRestore: second Checkpoint done and checkFiles(true) run");
+    // We should have a checkpoint through txid 4 in the two image dirs
+    // (txid=4 for BEGIN, mkdir, mkdir, END)
+    FSImageTestUtil.assertFileContentsSame(
+        new File(path1, "current/fsimage_4"),
+        new File(path2, "current/fsimage_4"));
+    assertFalse("Should not have any image in an edits-only directory",
+        new File(path3, "current/fsimage_4").exists());
+
+    // Should have finalized logs in the directory that didn't fail
+    assertTrue("Should have finalized logs in the directory that didn't fail",
+        new File(path1, "current/edits_1-4").exists());
+    // Should not have finalized logs in the failed directories
+    assertFalse("Should not have finalized logs in the failed directories",
+        new File(path2, "current/edits_1-4").exists());
+    assertFalse("Should not have finalized logs in the failed directories",
+        new File(path3, "current/edits_1-4").exists());
     
-    // verify that all the logs are active
+    // The new log segment should be in all of the directories.
+    FSImageTestUtil.assertFileContentsSame(
+        new File(path1, "current/edits_inprogress_5"),
+        new File(path2, "current/edits_inprogress_5"),
+        new File(path3, "current/edits_inprogress_5"));
+    String md5BeforeEdit = FSImageTestUtil.getFileMD5(
+        new File(path1, "current/edits_inprogress_5"));
+    
+    // Do another edit to verify that all the logs are active.
     path = new Path("/", "test2");
-    writeFile(fs, path, 2);
-    System.out.println("****testStorageRestore: wrote a file and checkFiles(true) run");
-    checkFiles(true);
-    
+    assertTrue(fs.mkdirs(path));
+
+    // Logs should be changed by the edit.
+    String md5AfterEdit =  FSImageTestUtil.getFileMD5(
+        new File(path1, "current/edits_inprogress_5"));
+    assertFalse(md5BeforeEdit.equals(md5AfterEdit));
+
+    // And all logs should be changed.
+    FSImageTestUtil.assertFileContentsSame(
+        new File(path1, "current/edits_inprogress_5"),
+        new File(path2, "current/edits_inprogress_5"),
+        new File(path3, "current/edits_inprogress_5"));
+
     secondary.shutdown();
     cluster.shutdown();
+    
+    // All logs should be finalized by clean shutdown
+    FSImageTestUtil.assertFileContentsSame(
+        new File(path1, "current/edits_5-7"),
+        new File(path2, "current/edits_5-7"),        
+        new File(path3, "current/edits_5-7"));
   }
   
   /**

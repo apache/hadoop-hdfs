@@ -234,13 +234,11 @@ public class TestStartup extends TestCase {
       sd = it.next();
 
       if(sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {
-        img.getStorage();
-        File imf = NNStorage.getStorageFile(sd, NameNodeFile.IMAGE);
+        File imf = img.getStorage().getStorageFile(sd, NameNodeFile.IMAGE, 0);
         LOG.info("--image file " + imf.getAbsolutePath() + "; len = " + imf.length() + "; expected = " + expectedImgSize);
         assertEquals(expectedImgSize, imf.length());	
       } else if(sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
-        img.getStorage();
-        File edf = NNStorage.getStorageFile(sd, NameNodeFile.EDITS);
+        File edf = img.getStorage().getStorageFile(sd, NameNodeFile.EDITS, 0);
         LOG.info("-- edits file " + edf.getAbsolutePath() + "; len = " + edf.length()  + "; expected = " + expectedEditsSize);
         assertEquals(expectedEditsSize, edf.length());	
       } else {
@@ -345,8 +343,8 @@ public class TestStartup extends TestCase {
       FSImage image = nn.getFSImage();
       StorageDirectory sd = image.getStorage().getStorageDir(0); //only one
       assertEquals(sd.getStorageDirType(), NameNodeDirType.IMAGE_AND_EDITS);
-      File imf = image.getStorage().getStorageFile(sd, NameNodeFile.IMAGE);
-      File edf = image.getStorage().getStorageFile(sd, NameNodeFile.EDITS);
+      File imf = image.getStorage().getStorageFile(sd, NameNodeFile.IMAGE, 0);
+      File edf = image.getStorage().getStorageFile(sd, NameNodeFile.EDITS, 0);
       LOG.info("--image file " + imf.getAbsolutePath() + "; len = " + imf.length());
       LOG.info("--edits file " + edf.getAbsolutePath() + "; len = " + edf.length());
 
@@ -456,7 +454,7 @@ public class TestStartup extends TestCase {
         cluster = null;
 
         // Corrupt the md5 file to all 0s
-        File imageFile = new File(nameDir, "current/fsimage");
+        File imageFile = new File(nameDir, "current/fsimage_0");
         MD5FileUtils.saveMD5File(imageFile, new MD5Hash(new byte[16]));
         
         // Try to start a new cluster
@@ -469,7 +467,7 @@ public class TestStartup extends TestCase {
             .build();
           fail("Should not have successfully started with corrupt image");
         } catch (IOException ioe) {
-          if (!ioe.getMessage().contains("is corrupt with MD5")) {
+          if (!ioe.getCause().getMessage().contains("is corrupt with MD5")) {
             throw ioe;
           }
         }

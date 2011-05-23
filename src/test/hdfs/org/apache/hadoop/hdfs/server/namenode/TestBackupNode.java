@@ -90,12 +90,12 @@ public class TestBackupNode extends TestCase {
   }
 
   void waitCheckpointDone(BackupNode backup) {
-    do {
+/*    do {
       try {
         LOG.info("Waiting checkpoint to complete...");
         Thread.sleep(1000);
       } catch (Exception e) {}
-    } while(backup.getCheckpointState() != CheckpointStates.START);
+    } while(backup.getCheckpointState() != CheckpointStates.START); */
   }
 
   public void testCheckpoint() throws IOException {

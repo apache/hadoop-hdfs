@@ -107,8 +107,6 @@ public class TestSecurityTokenEditLog extends TestCase {
   
       // set small size of flush buffer
       editLog.setOutputBufferCapacity(2048);
-      editLog.close();
-      editLog.open();
       namesystem.getDelegationTokenSecretManager().startThreads();
     
       // Create threads and make them run transactions concurrently.
@@ -129,25 +127,24 @@ public class TestSecurityTokenEditLog extends TestCase {
       } 
       
       editLog.close();
-  
+        
       // Verify that we can read in all the transactions that we have written.
       // If there were any corruptions, it is likely that the reading in
       // of these transactions will throw an exception.
       //
       namesystem.getDelegationTokenSecretManager().stopThreads();
       int numKeys = namesystem.getDelegationTokenSecretManager().getNumberOfKeys();
-      for (Iterator<StorageDirectory> it = 
-             fsimage.getStorage().dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
-        FSEditLogLoader loader = new FSEditLogLoader(namesystem);
-        File editFile = fsimage.getStorage().getStorageFile(it.next(), NameNodeFile.EDITS);
+      int expectedTransactions = NUM_THREADS * opsPerTrans * NUM_TRANSACTIONS + numKeys
+          + 2; // + 2 for BEGIN and END txns
+
+      for (StorageDirectory sd : fsimage.getStorage().dirIterable(NameNodeDirType.EDITS)) {
+        File editFile = NNStorage.getFinalizedEditsFile(sd, 1, 1 + expectedTransactions - 1);
         System.out.println("Verifying file: " + editFile);
+        
+        FSEditLogLoader loader = new FSEditLogLoader(namesystem);        
         int numEdits = loader.loadFSEdits(
             new EditLogFileInputStream(editFile), 1);
-        assertTrue("Verification for " + editFile + " failed. " +
-                   "Expected " + (NUM_THREADS * opsPerTrans * NUM_TRANSACTIONS + numKeys) + " transactions. "+
-                   "Found " + numEdits + " transactions.",
-                   numEdits == NUM_THREADS * opsPerTrans * NUM_TRANSACTIONS +numKeys);
-  
+        assertEquals("Verification for " + editFile, expectedTransactions, numEdits);
       }
     } finally {
       if(fileSys != null) fileSys.close();

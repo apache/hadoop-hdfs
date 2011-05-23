@@ -72,8 +72,8 @@ public class OfflineEditsViewerHelper {
    * @param editsFilename where to copy the edits
    */
   public String generateEdits() throws IOException {
-    runOperations();
-    return getEditsFilename();
+    CheckpointSignature signature = runOperations();
+    return getEditsFilename(signature);
   }
 
   /**
@@ -81,13 +81,16 @@ public class OfflineEditsViewerHelper {
    *
    * @return edits file name for cluster
    */
-  private String getEditsFilename() throws IOException {
+  private String getEditsFilename(CheckpointSignature sig) throws IOException {
     FSImage image = cluster.getNameNode().getFSImage();
     // it was set up to only have ONE StorageDirectory
     Iterator<StorageDirectory> it
       = image.getStorage().dirIterator(NameNodeDirType.EDITS);
     StorageDirectory sd = it.next();
-    return image.getStorage().getEditFile(sd).getAbsolutePath();
+    File ret = NNStorage.getFinalizedEditsFile(
+        sd, 1, sig.curSegmentTxId - 1);
+    assert ret.exists() : "expected " + ret + " exists";
+    return ret.getAbsolutePath();
   }
 
   /**
@@ -134,7 +137,7 @@ public class OfflineEditsViewerHelper {
    * OP_SET_NS_QUOTA    (11)
    * OP_CLEAR_NS_QUOTA  (12)
    */
-  private void runOperations() throws IOException {
+  private CheckpointSignature runOperations() throws IOException {
 
     LOG.info("Creating edits by performing fs operations");
     // no check, if it's not it throws an exception which is what we want
@@ -222,5 +225,7 @@ public class OfflineEditsViewerHelper {
 
     // sync to disk, otherwise we parse partial edits
     cluster.getNameNode().getFSImage().getEditLog().logSync();
+    // Force a roll so we get an OP_END_LOG_SEGMENT txn
+    return cluster.getNameNode().rollEditLog();
   }
 }

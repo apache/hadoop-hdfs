@@ -34,6 +34,9 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.Test;
 
 public class TestEditLogFileOutputStream {
+  
+  private final static int HEADER_LEN = 17;
+  private final static int MKDIR_LEN = 59;
 
   @Test
   public void testPreallocation() throws IOException {
@@ -43,22 +46,26 @@ public class TestEditLogFileOutputStream {
 
     StorageDirectory sd = cluster.getNameNode().getFSImage()
       .getStorage().getStorageDir(0);
-    File editLog = NNStorage.getEditFile(sd);
+    File editLog = NNStorage.getInProgressEditsFile(sd, 1);
 
-    assertEquals("Edit log should only be 4 bytes long",
-        4, editLog.length());
-    assertEquals("Edit log disk space used should be one block",
-        4096, new DU(editLog, conf).getUsed());
+    assertEquals("Edit log should contain a header as valid length",
+        HEADER_LEN, EditLogFileInputStream.getValidLength(editLog));
+    assertEquals("Edit log should have 1MB of bytes allocated",
+        1024*1024, editLog.length());
+    
 
     cluster.getFileSystem().mkdirs(new Path("/tmp"),
         new FsPermission((short)777));
 
-    assertEquals("Edit log should be 1MB + 4 bytes long",
-        (1024 * 1024) + 4, editLog.length());
-    // 256 blocks for the 1MB of preallocation space, 1 block for the original
-    // 4 bytes
+    assertEquals("Edit log should have more valid data after writing a txn",
+        MKDIR_LEN + HEADER_LEN,
+        EditLogFileInputStream.getValidLength(editLog));
+
+    assertEquals("Edit log should be 1MB long",
+        1024 * 1024, editLog.length());
+    // 256 blocks for the 1MB of preallocation space
     assertTrue("Edit log disk space used should be at least 257 blocks",
-        257 * 4096 <= new DU(editLog, conf).getUsed());
+        256 * 4096 <= new DU(editLog, conf).getUsed());
   }
 
 }

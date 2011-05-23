@@ -32,12 +32,11 @@ import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
-import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import static org.apache.hadoop.hdfs.server.common.Util.now;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
-import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NNStorageListener;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
@@ -66,27 +65,36 @@ public class FSEditLog  {
   static final String NO_JOURNAL_STREAMS_WARNING = "!!! WARNING !!!" +
       " File system changes are not persistent. No journal streams.";
 
-  private static final Log LOG = LogFactory.getLog(FSEditLog.class);
+  static final Log LOG = LogFactory.getLog(FSEditLog.class);
 
+  /**
+   * State machine for edit log.
+   * The log starts in UNITIALIZED state upon construction. Once it's
+   * initialized, it is usually in IN_SEGMENT state, indicating that edits
+   * may be written. In the middle of a roll, or while saving the namespace,
+   * it briefly enters the BETWEEN_LOG_SEGMENTS state, indicating that the
+   * previous segment has been closed, but the new one has not yet been opened.
+   */
   private enum State {
     UNINITIALIZED,
-    WRITING_EDITS,
-    WRITING_EDITS_NEW,
+    BETWEEN_LOG_SEGMENTS,
+    IN_SEGMENT,
     CLOSED;
   }  
   private State state = State.UNINITIALIZED;
 
 
   private List<JournalAndStream> journals = Lists.newArrayList();
-
+    
   // a monotonically increasing counter that represents transactionIds.
   private long txid = 0;
 
   // stores the last synced transactionId.
   private long synctxid = 0;
-  
-  // store the last txid written to "edits" before rolling to edits_new
-  private long lastRollTxId = -1;
+
+  // the first txid of the log that's currently open for writing.
+  // If this value is N, we are currently writing to edits_inprogress_N
+  private long curSegmentTxId = FSConstants.INVALID_TXID;
 
   // the time of printing the statistics to the log file.
   private long lastPrintTime;
@@ -155,54 +163,27 @@ public class FSEditLog  {
       LOG.error("No edits directories configured!");
     }
     
-    state = State.CLOSED;
+    state = State.BETWEEN_LOG_SEGMENTS;
   }
   
   private int getNumEditsDirs() {
    return storage.getNumStorageDirs(NameNodeDirType.EDITS);
   }
 
-  synchronized boolean isOpen() {
-    return state == State.WRITING_EDITS ||
-           state == State.WRITING_EDITS_NEW;
-  }
-
   /**
-   * Create empty edit log files.
-   * Initialize the output stream for logging.
-   * 
-   * @throws IOException
+   * Initialize the output stream for logging, opening the first
+   * log segment.
    */
   synchronized void open() throws IOException {
-    if (state == State.UNINITIALIZED) {
-      initJournals();
-    }
-    
-    Preconditions.checkState(state == State.CLOSED,
-        "Bad state: %s", state);
+    Preconditions.checkState(state == State.UNINITIALIZED);
+    initJournals();
 
-    numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
-    
-    mapJournalsAndReportErrors(new JournalClosure() {
-      @Override
-      public void apply(JournalAndStream jas) throws IOException {
-        jas.open();
-      }
-    
-    }, "Opening logs");
-    
-    state = State.WRITING_EDITS;
+    startLogSegment(getLastWrittenTxId() + 1);
+    assert state == State.IN_SEGMENT : "Bad state: " + state;
   }
   
-  // TODO remove me!
-  @Deprecated
-  synchronized void createEditLogFile(File name) throws IOException {
-    waitForSyncToFinish();
-
-    EditLogOutputStream eStream = new EditLogFileOutputStream(name,
-        1024);
-    eStream.create();
-    eStream.close();
+  synchronized boolean isOpen() {
+    return state == State.IN_SEGMENT;
   }
 
   /**
@@ -214,20 +195,11 @@ public class FSEditLog  {
       return;
     }
     
-    waitForSyncToFinish();
-    if (journals.isEmpty()) {
-      return;
+    if (state == State.IN_SEGMENT) {
+      assert !journals.isEmpty();
+      waitForSyncToFinish();
+      endCurrentLogSegment();
     }
-
-    printStatistics(true);
-    numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
-
-    mapJournalsAndReportErrors(new JournalClosure() {
-      @Override
-      public void apply(JournalAndStream jas) throws IOException {
-        jas.close();
-      }
-    }, "closing journal");
 
     state = State.CLOSED;
   }
@@ -350,23 +322,26 @@ public class FSEditLog  {
   }
   
   /**
-   * @return the last transaction ID written to "edits" before rolling to
-   * edits_new
+   * @return the first transaction ID in the current log segment
    */
-  synchronized long getLastRollTxId() {
-    Preconditions.checkState(state == State.WRITING_EDITS_NEW,
+  synchronized long getCurSegmentTxId() {
+    Preconditions.checkState(state == State.IN_SEGMENT,
         "Bad state: %s", state);
-    return lastRollTxId;
+    return curSegmentTxId;
   }
   
   /**
    * Set the transaction ID to use for the next transaction written.
    */
-  synchronized void setNextTxId(long nextTxid) {
-    assert synctxid <= txid;
-    txid = nextTxid - 1;
+  synchronized void setNextTxId(long nextTxId) {
+    assert synctxid <= txid &&
+       nextTxId >= txid : "May not decrease txid." +
+      " synctxid=" + synctxid +
+      " txid=" + txid +
+      " nextTxid=" + nextTxId;
+    txid = nextTxId - 1;
   }
-  
+    
   /**
    * Blocks until all ongoing edits have been synced to disk.
    * This differs from logSync in that it waits for edits that have been
@@ -739,6 +714,7 @@ public class FSEditLog  {
   /**
    * Return the size of the current EditLog
    */
+  // TODO who uses this, does it make sense with transactions?
   synchronized long getEditLogSize() throws IOException {
     assert getNumEditsDirs() <= journals.size() :
         "Number of edits directories should not exceed the number of streams.";
@@ -789,66 +765,77 @@ public class FSEditLog  {
   }
   
   /**
-   * Closes the current edit log and opens edits.new. 
-   * @return the transaction id that will be used as the first transaction
-   *         in the new log
+   * Finalizes the current edit log and opens a new log segment.
+   * @return the transaction id of the BEGIN_LOG_SEGMENT transaction
+   * in the new log.
    */
-  synchronized void rollEditLog() throws IOException {
-    Preconditions.checkState(state == State.WRITING_EDITS ||
-                             state == State.WRITING_EDITS_NEW,
-                             "Bad state: %s", state);
-    if (state == State.WRITING_EDITS_NEW){
-      LOG.debug("Tried to roll edit logs when already rolled");
-      return;
-    }
-
-    waitForSyncToFinish();
+  synchronized long rollEditLog() throws IOException {
+    LOG.info("Rolling edit logs.");
+    endCurrentLogSegment();
     
-    lastRollTxId = getLastWrittenTxId();
-
-    // check if any of failed storage is now available and put it back
-    storage.attemptRestoreRemovedStorage();
-
-    divertFileStreams(
-        Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS_NEW.getName());
-    state = State.WRITING_EDITS_NEW;
+    long nextTxId = getLastWrittenTxId() + 1;
+    startLogSegment(nextTxId);
+    
+    assert curSegmentTxId == nextTxId;
+    return nextTxId;
   }
-
+  
   /**
-   * Divert file streams from file edits to file edits.new.<p>
-   * Close file streams, which are currently writing into edits files.
-   * Create new streams based on file getRoot()/dest.
-   * @param dest new stream path relative to the storage directory root.
-   * @throws IOException
+   * Start writing to the log segment with the given txid.
+   * Transitions from BETWEEN_LOG_SEGMENTS state to IN_LOG_SEGMENT state. 
    */
-  synchronized void divertFileStreams(final String dest) throws IOException {
-    Preconditions.checkState(state == State.WRITING_EDITS,
-        "Bad state: " + state);
+  synchronized void startLogSegment(final long txId) {
+    LOG.info("Starting log segment at " + txId);
+    Preconditions.checkState(state == State.BETWEEN_LOG_SEGMENTS,
+        "Bad state: %s", state);
+    Preconditions.checkState(txId > curSegmentTxId,
+        "Cannot start writing to log segment " + txId +
+        " when previous log segment started at " + curSegmentTxId);
+    curSegmentTxId = txId;
+    
+    numTransactions = totalTimeTransactions = numTransactionsBatchedInSync = 0;
 
-    waitForSyncToFinish();
-
+    // TODO no need to link this back to storage anymore!
+    storage.attemptRestoreRemovedStorage();
+    
     mapJournalsAndReportErrors(new JournalClosure() {
-      
       @Override
       public void apply(JournalAndStream jas) throws IOException {
-        jas.divertFileStreams(dest);
+        jas.startLogSegment(txId);
       }
-    }, "Diverting file streams to " + dest);
+    }, "starting log segment " + txId);
+
+    state = State.IN_SEGMENT;
+
+    logEdit(FSEditLogOpCodes.OP_START_LOG_SEGMENT);
+    logSync();    
   }
 
   /**
-   * Removes the old edit log and renames edits.new to edits.
-   * Reopens the edits file.
+   * Finalize the current log segment.
+   * Transitions from IN_SEGMENT state to BETWEEN_LOG_SEGMENTS state.
    */
-  synchronized void purgeEditLog() throws IOException {
-    Preconditions.checkState(state == State.WRITING_EDITS_NEW,
-        "Bad state: " + state);
-
-    revertFileStreams(
-        Storage.STORAGE_DIR_CURRENT + "/" + NameNodeFile.EDITS_NEW.getName());
-    state = State.WRITING_EDITS;
+  synchronized void endCurrentLogSegment() {
+    LOG.info("Ending log segment " + curSegmentTxId);
+    Preconditions.checkState(state == State.IN_SEGMENT,
+        "Bad state: %s", state);
+    logEdit(FSEditLogOpCodes.OP_END_LOG_SEGMENT);
+    waitForSyncToFinish();
+    printStatistics(true);
+    
+    final long lastTxId = getLastWrittenTxId();
+    
+    mapJournalsAndReportErrors(new JournalClosure() {
+      @Override
+      public void apply(JournalAndStream jas) throws IOException {
+        if (jas.isActive()) {
+          jas.close(lastTxId);
+        }
+      }
+    }, "ending log segment");
+    
+    state = State.BETWEEN_LOG_SEGMENTS;
   }
-
 
   /**
    * The actual sync activity happens while not synchronized on this object.
@@ -861,27 +848,6 @@ public class FSEditLog  {
         wait(1000);
       } catch (InterruptedException ie) {}
     }
-  }
-
-  /**
-   * Revert file streams from file edits.new back to file edits.<p>
-   * Close file streams, which are currently writing into getRoot()/source.
-   * Rename getRoot()/source to edits.
-   * Reopen streams so that they start writing into edits files.
-   * @param dest new stream path relative to the storage directory root.
-   * @throws IOException
-   */
-  synchronized void revertFileStreams(final String source) throws IOException {
-    waitForSyncToFinish();
-
-    mapJournalsAndReportErrors(new JournalClosure() {
-
-      @Override
-      public void apply(JournalAndStream jas) throws IOException {
-        jas.revertFileStreams(source);
-      }
-      
-    }, "Reverting file streams to " + source);
   }
 
   /**
@@ -898,11 +864,6 @@ public class FSEditLog  {
     for (JournalAndStream jas : journals) {
       jas.manager.setOutputBufferCapacity(size);
     }
-  }
-
-
-  boolean isEmpty() throws IOException {
-    return getEditLogSize() <= 0;
   }
 
   /**
@@ -943,10 +904,8 @@ public class FSEditLog  {
   /**
    * Write an operation to the edit log. Do not sync to persistent
    * store yet.
-   */
+   */   
   synchronized void logEdit(final int length, final byte[] data) {
-    if (journals.isEmpty())
-      throw new java.lang.IllegalStateException(NO_JOURNAL_STREAMS_WARNING);
     long start = beginTransaction();
     
     mapJournalsAndReportErrors(new JournalClosure() {
@@ -960,7 +919,6 @@ public class FSEditLog  {
 
     endTransaction(start);
   }
-
 
   synchronized void releaseBackupStream(NamenodeRegistration registration) {
     /*
@@ -1081,33 +1039,22 @@ public class FSEditLog  {
   static class JournalAndStream {
     private final JournalManager manager;
     private EditLogOutputStream stream;
+    private long segmentStartsAtTxId = FSConstants.INVALID_TXID;
     
     public JournalAndStream(JournalManager manager) {
       this.manager = manager;
     }
 
-    public void open() throws IOException {
+    public void startLogSegment(long txId) throws IOException {
       Preconditions.checkState(stream == null);
-      stream = manager.createStream();
-    }
-    
-    public void divertFileStreams(String dest) throws IOException {
-      if (stream != null) {
-        close();
-      }
-      stream = manager.createDivertedStream(dest);
+      stream = manager.startLogSegment(txId);
+      segmentStartsAtTxId = txId;
     }
 
-    public void revertFileStreams(String source) throws IOException {
-      if (stream != null) {
-        close();
-      }
-      stream = manager.createRevertedStream(source);
-    }
-
-    public void close() throws IOException {
+    public void close(long lastTxId) throws IOException {
       if (stream == null) return;
       stream.close();
+      manager.finalizeLogSegment(segmentStartsAtTxId, lastTxId);
       stream = null;
     }
     
@@ -1119,6 +1066,7 @@ public class FSEditLog  {
         LOG.error("Unable to abort stream " + stream, ioe);
       }
       stream = null;
+      segmentStartsAtTxId = FSConstants.INVALID_TXID;
     }
 
     boolean isActive() {

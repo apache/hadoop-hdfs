@@ -53,6 +53,9 @@ public enum FSEditLogOpCodes {
   OP_RENEW_DELEGATION_TOKEN     ((byte) 19),
   OP_CANCEL_DELEGATION_TOKEN    ((byte) 20),
   OP_UPDATE_MASTER_KEY          ((byte) 21),
+  OP_END_LOG_SEGMENT            ((byte) 22),
+  OP_START_LOG_SEGMENT          ((byte) 23),
+  
   // must be same as NamenodeProtocol.JA_JSPOOL_START
   OP_JSPOOL_START               ((byte)102);
 

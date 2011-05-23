@@ -28,6 +28,7 @@ import org.apache.hadoop.io.WritableFactories;
 import org.apache.hadoop.io.WritableFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
@@ -43,7 +44,10 @@ implements NodeRegistration {
   String rpcAddress;          // RPC address of the node
   String httpAddress;         // HTTP address of the node
   NamenodeRole role;          // node role
-  long checkpointTxId = -1L;  // the age of the image
+  
+  // TODO: is the below used by anything?
+  long checkpointTxId = FSConstants.INVALID_TXID;
+                              // the age of the image
 
   public NamenodeRegistration() {
     super();

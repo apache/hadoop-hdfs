@@ -58,7 +58,7 @@ public class TestOfflineEditsViewer {
     System.getProperty("test.build.data", "build/test/data");
 
   private static String cacheDir =
-    System.getProperty("test.cache.data", "build/test/data/cache");
+    System.getProperty("test.cache.data", "build/test/cache");
 
   // to create edits and get edits filename
   private static final OfflineEditsViewerHelper nnHelper 
@@ -85,6 +85,11 @@ public class TestOfflineEditsViewer {
     obsoleteOpCodes.put(FSEditLogOpCodes.OP_JSPOOL_START, true);
   }
 
+  @Before
+  public void setup() {
+    new File(cacheDir).mkdirs();
+  }
+  
   /**
    * Test the OfflineEditsViewer
    */

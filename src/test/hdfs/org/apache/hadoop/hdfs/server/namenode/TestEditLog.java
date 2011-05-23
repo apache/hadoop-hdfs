@@ -25,6 +25,10 @@ import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.fs.FileSystem;
@@ -40,7 +44,9 @@ import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
 import org.apache.hadoop.util.StringUtils;
- 
+import org.apache.log4j.Level;
+import org.aspectj.util.FileUtil;
+
 import org.mockito.Mockito;
 import static org.apache.hadoop.test.MetricsAsserts.*;
 
@@ -48,6 +54,13 @@ import static org.apache.hadoop.test.MetricsAsserts.*;
  * This class tests the creation and validation of a checkpoint.
  */
 public class TestEditLog extends TestCase {
+  
+  static {
+    ((Log4JLogger)FSEditLog.LOG).getLogger().setLevel(Level.ALL);
+  }
+  
+  static final Log LOG = LogFactory.getLog(TestEditLog.class);
+  
   static final int NUM_DATA_NODES = 0;
 
   // This test creates NUM_THREADS threads and each thread does
@@ -141,7 +154,7 @@ public class TestEditLog extends TestCase {
       assertEquals("supergroup", fileInfo.getGroup());
       assertEquals(3, fileInfo.getReplication());
     } finally {
-      cluster.shutdown();
+      if (cluster != null) { cluster.shutdown(); }
     }
   }
   
@@ -151,12 +164,68 @@ public class TestEditLog extends TestCase {
   }
 
   /**
+   * Simple test for writing to and rolling the edit log.
+   */
+  public void testSimpleEditLog() throws IOException {
+    // start a cluster 
+    Configuration conf = new HdfsConfiguration();
+    MiniDFSCluster cluster = null;
+    FileSystem fileSys = null;
+    try {
+      cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES).build();
+      cluster.waitActive();
+      fileSys = cluster.getFileSystem();
+      final FSNamesystem namesystem = cluster.getNamesystem();
+      FSImage fsimage = namesystem.getFSImage();
+      final FSEditLog editLog = fsimage.getEditLog();
+      
+      assertExistsInStorageDirs(
+          cluster, NameNodeDirType.EDITS, "edits_inprogress_1");
+      
+
+      editLog.logSetReplication("fakefile", (short) 1);
+      editLog.logSync();
+      
+      editLog.rollEditLog();
+
+      assertExistsInStorageDirs(
+          cluster, NameNodeDirType.EDITS, "edits_1-3");
+      assertExistsInStorageDirs(
+          cluster, NameNodeDirType.EDITS, "edits_inprogress_4");
+
+      
+      editLog.logSetReplication("fakefile", (short) 2);
+      editLog.logSync();
+      
+      editLog.close();
+    } finally {
+      try {
+        if(fileSys != null) fileSys.close();
+        if(cluster != null) cluster.shutdown();
+      } catch (Throwable t) {
+        LOG.error("Couldn't shut down", t);
+      }
+    }
+  }
+
+  /**
    * Tests transaction logging in dfs.
    */
-  public void testEditLog() throws IOException {
+  public void testMultiThreadedEditLog() throws IOException {
     testEditLog(2048);
     // force edit buffer to automatically sync on each log of edit log entry
     testEditLog(1);
+  }
+  
+  
+  private void assertExistsInStorageDirs(MiniDFSCluster cluster,
+      NameNodeDirType dirType,
+      String filename) {
+    NNStorage storage = cluster.getNamesystem().getFSImage().getStorage();
+    for (StorageDirectory sd : storage.dirIterable(dirType)) {
+      File f = new File(sd.getCurrentDir(), filename);
+      assertTrue("Expect that " + f + " exists", f.exists());
+    }
   }
   
   /**
@@ -188,8 +257,10 @@ public class TestEditLog extends TestCase {
   
       // set small size of flush buffer
       editLog.setOutputBufferCapacity(initialSize);
-      editLog.close();
-      editLog.open();
+      
+      // Roll log so new output buffer size takes effect
+      // we should now be writing to edits_inprogress_3
+      fsimage.rollEditLog();
     
       // Create threads and make them run transactions concurrently.
       Thread threadId[] = new Thread[NUM_THREADS];
@@ -208,9 +279,11 @@ public class TestEditLog extends TestCase {
         }
       } 
       
-      editLog.close();
-      editLog.open();
-  
+      // Roll another time to finalize edits_inprogress_3
+      fsimage.rollEditLog();
+      
+      long expectedTxns = (NUM_THREADS * 2 * NUM_TRANSACTIONS) + 2; // +2 for start/end txns
+   
       // Verify that we can read in all the transactions that we have written.
       // If there were any corruptions, it is likely that the reading in
       // of these transactions will throw an exception.
@@ -218,22 +291,30 @@ public class TestEditLog extends TestCase {
       for (Iterator<StorageDirectory> it = 
               fsimage.getStorage().dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
         FSEditLogLoader loader = new FSEditLogLoader(namesystem);
-        File editFile = NNStorage.getStorageFile(it.next(), NameNodeFile.EDITS);
+        
+        File editFile = NNStorage.getFinalizedEditsFile(it.next(), 3,
+            3 + expectedTxns - 1);
+        assertTrue("Expect " + editFile + " exists", editFile.exists());
+        
         System.out.println("Verifying file: " + editFile);
         int numEdits = loader.loadFSEdits(
-            new EditLogFileInputStream(editFile), 1);
+            new EditLogFileInputStream(editFile), 3);
         int numLeases = namesystem.leaseManager.countLease();
         System.out.println("Number of outstanding leases " + numLeases);
         assertEquals(0, numLeases);
         assertTrue("Verification for " + editFile + " failed. " +
-                   "Expected " + (NUM_THREADS * 2 * NUM_TRANSACTIONS) + " transactions. "+
+                   "Expected " + expectedTxns + " transactions. "+
                    "Found " + numEdits + " transactions.",
-                   numEdits == NUM_THREADS * 2 * NUM_TRANSACTIONS);
+                   numEdits == expectedTxns);
   
       }
     } finally {
-      if(fileSys != null) fileSys.close();
-      if(cluster != null) cluster.shutdown();
+      try {
+        if(fileSys != null) fileSys.close();
+        if(cluster != null) cluster.shutdown();
+      } catch (Throwable t) {
+        LOG.error("Couldn't shut down cleanly", t);
+      }
     }
   }
 
@@ -286,29 +367,29 @@ public class TestEditLog extends TestCase {
       FSImage fsimage = namesystem.getFSImage();
       final FSEditLog editLog = fsimage.getEditLog();
 
-      assertEquals("should start with no txids synced",
-        0, editLog.getSyncTxId());
+      assertEquals("should start with only the BEGIN_LOG_SEGMENT txn synced",
+        1, editLog.getSyncTxId());
       
       // Log an edit from thread A
       doLogEdit(threadA, editLog, "thread-a 1");
       assertEquals("logging edit without syncing should do not affect txid",
-        0, editLog.getSyncTxId());
+        1, editLog.getSyncTxId());
 
       // Log an edit from thread B
       doLogEdit(threadB, editLog, "thread-b 1");
       assertEquals("logging edit without syncing should do not affect txid",
-        0, editLog.getSyncTxId());
+        1, editLog.getSyncTxId());
 
       // Now ask to sync edit from B, which should sync both edits.
       doCallLogSync(threadB, editLog);
       assertEquals("logSync from second thread should bump txid up to 2",
-        2, editLog.getSyncTxId());
+        3, editLog.getSyncTxId());
 
       // Now ask to sync edit from A, which was already batched in - thus
       // it should increment the batch count metric
       doCallLogSync(threadA, editLog);
       assertEquals("logSync from first thread shouldn't change txid",
-        2, editLog.getSyncTxId());
+        3, editLog.getSyncTxId());
 
       //Should have incremented the batch count exactly once
       assertCounter("TransactionsBatchedInSync", 1L, 
@@ -351,12 +432,12 @@ public class TestEditLog extends TestCase {
       // Log an edit from thread A
       doLogEdit(threadA, editLog, "thread-a 1");
       assertEquals("logging edit without syncing should do not affect txid",
-        0, editLog.getSyncTxId());
+        1, editLog.getSyncTxId());
 
       // logSyncAll in Thread B
       doCallLogSyncAll(threadB, editLog);
       assertEquals("logSyncAll should sync thread A's transaction",
-        1, editLog.getSyncTxId());
+        2, editLog.getSyncTxId());
 
       // Close edit log
       editLog.close();
@@ -385,10 +466,13 @@ public class TestEditLog extends TestCase {
     final FSEditLog editLog = fsimage.getEditLog();
     fileSys.mkdirs(new Path("/tmp"));
     StorageDirectory sd = fsimage.getStorage().dirIterator(NameNodeDirType.EDITS).next();
-    File editFile = NNStorage.getStorageFile(sd, NameNodeFile.EDITS);
     editLog.close();
     cluster.shutdown();
-      long fileLen = editFile.length();
+
+    File editFile = NNStorage.getFinalizedEditsFile(sd, 1, 3);
+    assertTrue(editFile.exists());
+
+    long fileLen = editFile.length();
     System.out.println("File name: " + editFile + " len: " + fileLen);
     RandomAccessFile rwf = new RandomAccessFile(editFile, "rw");
     rwf.seek(fileLen-4); // seek to checksum bytes
@@ -406,6 +490,95 @@ public class TestEditLog extends TestCase {
           e.getCause().getClass(), ChecksumException.class);
     }
   }
+
+  /**
+   * Test what happens if the NN crashes when it has has started but
+   * had no transactions written.
+   */
+  public void testCrashRecoveryNoTransactions() throws Exception {
+    testCrashRecovery(0);
+  }
+  
+  /**
+   * Test what happens if the NN crashes when it has has started and
+   * had a few transactions written
+   */
+  public void testCrashRecoveryWithTransactions() throws Exception {
+    testCrashRecovery(3);
+  }
+  
+  /**
+   * Do a test to make sure the edit log can recover edits even after
+   * a non-clean shutdown. This does a simulated crash by copying over
+   * the edits directory while the NN is still running, then shutting it
+   * down, and restoring that edits directory.
+   */
+  private void testCrashRecovery(int numTransactions) throws Exception {
+    MiniDFSCluster cluster = null;
+    Configuration conf = new HdfsConfiguration();
+    
+    try {
+        LOG.info("\n===========================================\n" +
+                 "Starting empty cluster");
+        
+        cluster = new MiniDFSCluster.Builder(conf)
+          .numDataNodes(NUM_DATA_NODES)
+          .format(true)
+          .build();
+        cluster.waitActive();
+        
+        FileSystem fs = cluster.getFileSystem();
+        for (int i = 0; i < numTransactions; i++) {
+          fs.mkdirs(new Path("/test" + i));
+        }        
+        
+        // Directory layout looks like:
+        // test/data/dfs/nameN/current/{fsimage_N,edits_...}
+        File nameDir = new File(cluster.getNameDirs(0).iterator().next().getPath());
+        File dfsDir = nameDir.getParentFile();
+        assertEquals(dfsDir.getName(), "dfs"); // make sure we got right dir
+        
+        LOG.info("Copying data directory aside to a hot backup");
+        File backupDir = new File(dfsDir.getParentFile(), "dfs.backup-while-running");
+        FileUtil.copyDir(dfsDir, backupDir);;
+
+        LOG.info("Shutting down cluster #1");
+        cluster.shutdown();
+        cluster = null;
+        
+        // Now restore the backup
+        FileUtil.deleteContents(dfsDir);
+        backupDir.renameTo(dfsDir);
+
+        // We should see the file as in-progress
+        File editsFile = new File(nameDir, "current/edits_inprogress_1");
+        assertTrue("Edits file " + editsFile + " should exist", editsFile.exists());        
+        
+        // Try to start a new cluster
+        LOG.info("\n===========================================\n" +
+        "Starting same cluster after simulated crash");
+        cluster = new MiniDFSCluster.Builder(conf)
+          .numDataNodes(NUM_DATA_NODES)
+          .format(false)
+          .build();
+        cluster.waitActive();
+        
+        // We should still have the files we wrote prior to the simulated crash
+        fs = cluster.getFileSystem();
+        for (int i = 0; i < numTransactions; i++) {
+          assertTrue(fs.exists(new Path("/test" + i)));
+        }
+        
+        // Started successfully
+        cluster.shutdown();    
+        cluster = null;
+    } finally {
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
+  }
+  
 
   public void testGetValidLength() throws Exception {
     assertTrue(TEST_DIR.mkdirs() || TEST_DIR.exists());

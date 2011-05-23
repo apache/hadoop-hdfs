@@ -21,11 +21,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.io.Writable;
 
 public class RemoteEditLog implements Writable {
-  private long startTxId = -1;
-  private long endTxId = -1;
+  private long startTxId = FSConstants.INVALID_TXID;
+  private long endTxId = FSConstants.INVALID_TXID;
   
   public RemoteEditLog() {
   }

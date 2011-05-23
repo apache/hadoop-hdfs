@@ -18,38 +18,53 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import junit.framework.TestCase;
-import java.io.*;
 import java.net.InetSocketAddress;
+import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 
+import junit.framework.TestCase;
+
+import org.apache.commons.logging.impl.Log4JLogger;
+import org.apache.commons.logging.LogFactory;
+import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSUtil.ErrorSimulator;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
-import org.apache.hadoop.hdfs.server.common.Storage;
-import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
-import org.apache.hadoop.hdfs.DFSUtil.ErrorSimulator;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
+import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
+import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.tools.DFSAdmin;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FileUtil;
-import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.log4j.Level;
+
+import com.google.common.base.Joiner;
 
 /**
  * This class tests the creation and validation of a checkpoint.
  */
 public class TestCheckpoint extends TestCase {
+  static {
+    ((Log4JLogger)FSImage.LOG).getLogger().setLevel(Level.ALL);
+  }
+
+  static final Log LOG = LogFactory.getLog(TestCheckpoint.class); 
+  
   static final long seed = 0xDEADBEEFL;
   static final int blockSize = 4096;
   static final int fileSize = 8192;
@@ -188,20 +203,6 @@ public class TestCheckpoint extends TestCase {
     // Also check that the edits file is empty here
     // and that temporary checkpoint files are gone.
     FSImage image = cluster.getNameNode().getFSImage();
-    for (Iterator<StorageDirectory> it = 
-           image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
-      StorageDirectory sd = it.next();
-      assertFalse(image.getStorage().getStorageFile(sd, NameNodeFile.IMAGE_NEW).exists());
-    }
-    for (Iterator<StorageDirectory> it = 
-           image.getStorage().dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
-      StorageDirectory sd = it.next();
-      assertFalse(image.getStorage().getEditNewFile(sd).exists());
-      File edits = image.getStorage().getEditFile(sd);
-      assertTrue(edits.exists()); // edits should exist and be empty
-      long editsLen = edits.length();
-      assertTrue(editsLen == Integer.SIZE/Byte.SIZE);
-    }
     
     fileSys = cluster.getFileSystem();
     try {
@@ -363,12 +364,10 @@ public class TestCheckpoint extends TestCase {
     FSImage image = cluster.getNameNode().getFSImage();
     try {
       assertTrue(!fileSys.exists(file1));
-      StorageDirectory sd = null;
-      for (Iterator<StorageDirectory> it = 
-                image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();)
-         sd = it.next();
-      assertTrue(sd != null);
-      long fsimageLength = image.getStorage().getStorageFile(sd, NameNodeFile.IMAGE).length();
+      StorageDirectory sd = image.getStorage().getStorageDir(0);
+      
+      File latestImageBeforeCheckpoint = FSImageTestUtil.findLatestImageFile(sd);
+      long fsimageLength = latestImageBeforeCheckpoint.length();
       //
       // Make the checkpoint
       //
@@ -377,7 +376,7 @@ public class TestCheckpoint extends TestCase {
 
       try {
         secondary.doCheckpoint();  // this should fail
-        assertTrue(false);
+        fail("Checkpoint succeeded even though we injected an error!");
       } catch (IOException e) {
         System.out.println("testSecondaryFailsToReturnImage: doCheckpoint() " +
             "failed predictably - " + e);
@@ -385,10 +384,12 @@ public class TestCheckpoint extends TestCase {
       ErrorSimulator.clearErrorSimulation(2);
 
       // Verify that image file sizes did not change.
-      for (Iterator<StorageDirectory> it = 
-              image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
-        assertTrue(image.getStorage().getStorageFile(it.next(), 
-                                NameNodeFile.IMAGE).length() == fsimageLength);
+      for (StorageDirectory sd2 :
+        image.getStorage().dirIterable(NameNodeDirType.IMAGE)) {
+        
+        File thisNewestImage = FSImageTestUtil.findLatestImageFile(sd2);
+        long len = thisNewestImage.length();
+        assertEquals(fsimageLength, len);
       }
 
       secondary.shutdown();
@@ -532,9 +533,9 @@ public class TestCheckpoint extends TestCase {
     try {
       nn = startNameNode(conf, primaryDirs, primaryEditsDirs,
                           StartupOption.IMPORT);
-      assertTrue(false);
+      fail("Importing a checkpoint with existing primary image did not fail");
     } catch (IOException e) { // expected to fail
-      assertTrue(nn == null);
+      assertNull(nn);
     }
     
     // Remove current image and import a checkpoint.
@@ -542,8 +543,11 @@ public class TestCheckpoint extends TestCase {
     List<URI> nameDirs = (List<URI>)FSNamesystem.getNamespaceDirs(conf);
     List<URI> nameEditsDirs = (List<URI>)FSNamesystem.
                                   getNamespaceEditsDirs(conf);
-    long fsimageLength = new File(new File(nameDirs.get(0).getPath(), "current"), 
-                                        NameNodeFile.IMAGE.getName()).length();
+    File newestImageFile = FSImageTestUtil.findNewestImageFile(
+        nameDirs.get(0).getPath() + "/current");
+    long fsimageLength = newestImageFile.length();
+    assertTrue(fsimageLength > 0);
+    
     for(URI uri : nameDirs) {
       File dir = new File(uri.getPath());
       if(dir.exists())
@@ -566,10 +570,12 @@ public class TestCheckpoint extends TestCase {
                         StartupOption.IMPORT);
     // Verify that image file sizes did not change.
     FSImage image = nn.getFSImage();
-    for (Iterator<StorageDirectory> it = 
-            image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
-      assertTrue(image.getStorage().getStorageFile(it.next(), 
-                          NameNodeFile.IMAGE).length() == fsimageLength);
+    for (StorageDirectory sd : image.getStorage().dirIterable(NameNodeDirType.IMAGE)) {
+      // TODO it would make more sense if the newest had the same txid, but
+      // on import, it actually re-saves with a 1-higher txid
+      File recreatedImageFile = FSImageTestUtil.findNewestImageFile(
+          sd.getCurrentDir().toString());
+      assertEquals(fsimageLength, recreatedImageFile.length());
     }
     nn.stop();
 
@@ -749,7 +755,7 @@ public class TestCheckpoint extends TestCase {
     FileContext fc;
     try {
       Configuration conf = new HdfsConfiguration();
-      cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes).format(false).build();
+      cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes).format(true).build();
       cluster.waitActive();
       fs = (DistributedFileSystem)(cluster.getFileSystem());
       fc = FileContext.getFileContext(cluster.getURI(0));
@@ -778,7 +784,7 @@ public class TestCheckpoint extends TestCase {
       Collection<URI> editsDirs = cluster.getNameEditsDirs(0);
       for(URI uri : editsDirs) {
         File ed = new File(uri.getPath());
-        assertTrue(new File(ed, "current/edits").length() > Integer.SIZE/Byte.SIZE);
+        assertTrue(new File(ed, "current/edits_inprogress_1").length() > Integer.SIZE/Byte.SIZE);
       }
 
       // Saving image in safe mode should succeed
@@ -788,10 +794,33 @@ public class TestCheckpoint extends TestCase {
       } catch(Exception e) {
         throw new IOException(e);
       }
-      // verify that the edits file is empty
+      
+      // the following steps should have happened:
+      //   edits_inprogress_1 -> edits_1-8  (finalized)
+      //   fsimage_8 created
+      //   edits_inprogress_9 created
+      //
       for(URI uri : editsDirs) {
         File ed = new File(uri.getPath());
-        assertTrue(new File(ed, "current/edits").length() == Integer.SIZE/Byte.SIZE);
+        File curDir = new File(ed, "current");
+        System.err.println("Files in " + curDir + ":\n  " +
+            Joiner.on("\n  ").join(curDir.list()));
+        // Verify that the first edits file got finalized
+        File originalEdits = new File(curDir, "edits_inprogress_1");
+        assertFalse(originalEdits.exists());
+        File finalizedEdits = new File(curDir, "edits_1-8");
+        assertTrue(finalizedEdits.exists());
+        assertTrue(finalizedEdits.length() > Integer.SIZE/Byte.SIZE);
+
+        assertTrue(new File(ed, "current/edits_inprogress_9").exists());
+      }
+      
+      Collection<URI> imageDirs = cluster.getNameDirs(0);
+      for (URI uri : imageDirs) {
+        File imageDir = new File(uri.getPath());
+        File savedImage = new File(imageDir, "current/fsimage_8");
+        assertTrue("Should have saved image at " + savedImage,
+            savedImage.exists());        
       }
 
       // restart cluster and verify file exists
@@ -805,8 +834,12 @@ public class TestCheckpoint extends TestCase {
       fc = FileContext.getFileContext(cluster.getURI(0));
       assertTrue(fc.getFileLinkStatus(symlink).isSymlink());
     } finally {
-      if(fs != null) fs.close();
-      if(cluster!= null) cluster.shutdown();
+      try {
+        if(fs != null) fs.close();
+        if(cluster!= null) cluster.shutdown();
+      } catch (Throwable t) {
+        LOG.error("Failed to shutdown", t);
+      }
     }
   }
   
@@ -914,14 +947,14 @@ public class TestCheckpoint extends TestCase {
       SecondaryNameNode secondary = startSecondaryNameNode(conf);
       long fsimageLength = image.getStorage()
         .getStorageFile(image.getStorage().dirIterator(NameNodeDirType.IMAGE).next(),
-                        NameNodeFile.IMAGE).length();
+                        NameNodeFile.IMAGE, 0xDEADBEEF).length();
       assertFalse("Image is downloaded", secondary.doCheckpoint());
 
       // Verify that image file sizes did not change.
       for (Iterator<StorageDirectory> it = 
              image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
         assertTrue("Image size does not change", image.getStorage().getStorageFile(it.next(), 
-                                NameNodeFile.IMAGE).length() == fsimageLength);
+                                NameNodeFile.IMAGE, 0xDEADBEEF).length() == fsimageLength);
       }
 
       // change namespace
@@ -932,7 +965,7 @@ public class TestCheckpoint extends TestCase {
              image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
         assertTrue("Image size increased", 
                    image.getStorage().getStorageFile(it.next(), 
-                                                     NameNodeFile.IMAGE).length() > fsimageLength);
+                                                     NameNodeFile.IMAGE, 0xDEADBEEF).length() > fsimageLength);
      }
 
       secondary.shutdown();

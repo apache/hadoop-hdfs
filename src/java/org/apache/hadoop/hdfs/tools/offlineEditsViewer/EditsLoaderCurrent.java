@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.tools.offlineEditsViewer;
 
+import java.io.EOFException;
 import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -40,7 +41,7 @@ class EditsLoaderCurrent implements EditsLoader {
 
   private static int[] supportedVersions = {
       -18, -19, -20, -21, -22, -23, -24,
-      -25, -26, -27, -28, -30, -31, -32, -33, -34, -35, -36 };
+      -25, -26, -27, -28, -30, -31, -32, -33, -34, -35, -36, -37 };
 
   private EditsVisitor v;
   private int editsVersion = 0;
@@ -72,7 +73,7 @@ class EditsLoaderCurrent implements EditsLoader {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
   }
-
+  
   /**
    * Visit OP_INVALID
    */
@@ -395,6 +396,22 @@ class EditsLoaderCurrent implements EditsLoader {
     VIntToken blobLengthToken = v.visitVInt(EditsElement.KEY_LENGTH);
     v.visitBlob(EditsElement.KEY_BLOB, blobLengthToken.value);
   }
+  
+  /**
+   * Visit OP_BEGIN_LOG_SEGMENT
+   */
+  private void visit_OP_BEGIN_LOG_SEGMENT()
+    throws IOException {
+    visitTxId();
+  }
+
+  /**
+   * Visit OP_END_LOG_SEGMENT
+   */
+  private void visit_OP_END_LOG_SEGMENT()
+    throws IOException {
+    visitTxId();
+  }
 
   private void visitOpCode(FSEditLogOpCodes editsOpCode)
     throws IOException {
@@ -457,6 +474,12 @@ class EditsLoaderCurrent implements EditsLoader {
       case OP_UPDATE_MASTER_KEY: // 21
         visit_OP_UPDATE_MASTER_KEY();
         break;
+      case OP_END_LOG_SEGMENT: // 22
+        visit_OP_END_LOG_SEGMENT();
+        break;        
+      case OP_START_LOG_SEGMENT: // 23
+        visit_OP_BEGIN_LOG_SEGMENT();
+        break;
       default:
       {
         throw new IOException("Unknown op code " + editsOpCode);
@@ -485,7 +508,17 @@ class EditsLoaderCurrent implements EditsLoader {
       do {
         v.visitEnclosingElement(EditsElement.RECORD);
 
-        ByteToken opCodeToken = v.visitByte(EditsElement.OPCODE);
+        ByteToken opCodeToken;
+        try {
+          opCodeToken = v.visitByte(EditsElement.OPCODE);
+        } catch (EOFException eof) {
+          // Getting EOF when reading the opcode is fine --
+          // it's just a finalized edits file
+          // Just fake the OP_INVALID here.
+          opCodeToken = new ByteToken(EditsElement.OPCODE);
+          opCodeToken.fromByte(FSEditLogOpCodes.OP_INVALID.getOpCode());
+          v.visit(opCodeToken);
+        }
         editsOpCode = FSEditLogOpCodes.fromByte(opCodeToken.value);
 
         v.visitEnclosingElement(EditsElement.DATA);

@@ -125,6 +125,7 @@ public class TestFSImageStorageInspector {
         "/foo/current/edits_952-1000");
 
     inspector.inspectDirectory(mockDir);
+
     LoadPlan plan = inspector.createLoadPlan();
     LOG.info("Plan: " + plan);
     
@@ -134,7 +135,6 @@ public class TestFSImageStorageInspector {
         new File("/foo/current/edits_inprogress_901"),
         new File("/foo/current/edits_952-1000") },
         plan.getEditsFiles().toArray(new File[0]));
-
 
   }
 
@@ -367,14 +367,11 @@ public class TestFSImageStorageInspector {
     doReturn(type).when(sd).getStorageDirType();
 
     // Version file should always exist
-    File mockVersionFile = mock(File.class);
-    doReturn(true).when(mockVersionFile).exists();
-    doReturn(mockVersionFile).when(sd).getVersionFile();
+    doReturn(FSImageTestUtil.mockFile(true)).when(sd).getVersionFile();
     
     // Previous dir optionally exists
-    File mockPreviousDir = mock(File.class);
-    doReturn(previousExists).when(mockPreviousDir).exists();
-    doReturn(mockPreviousDir).when(sd).getPreviousDir();   
+    doReturn(FSImageTestUtil.mockFile(previousExists))
+      .when(sd).getPreviousDir();   
 
     // Return a mock 'current' directory which has the given paths
     File[] files = new File[fileNames.length];
@@ -382,7 +379,7 @@ public class TestFSImageStorageInspector {
       files[i] = new File(fileNames[i]);
     }
     
-    File mockDir = mock(File.class);
+    File mockDir = Mockito.spy(new File("/dir/current"));
     doReturn(files).when(mockDir).listFiles();
     doReturn(mockDir).when(sd).getCurrentDir();
     

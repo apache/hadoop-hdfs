@@ -65,6 +65,9 @@ public interface FSConstants {
 
   // type of the datanode report
   public static enum DatanodeReportType {ALL, LIVE, DEAD }
+  
+  // An invalid transaction ID that will never be seen in a real namesystem.
+  public static final long INVALID_TXID = -12345;
 
   /**
    * Distributed upgrade actions:
@@ -88,10 +91,11 @@ public interface FSConstants {
   // Version is reflected in the data storage file.
   // Versions are negative.
   // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -36;
+  public static final int LAYOUT_VERSION = -37;
   // Current version: 
   // -35: Adding support for block pools and multiple namenodes
   // -36: persistent transaction IDs
+  // -37: file names based on txids
 
   // Record of version numbers for specific changes:
   // Version where the edits log and image stored txn ID information

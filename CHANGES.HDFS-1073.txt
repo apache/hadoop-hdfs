@@ -29,3 +29,4 @@ HDFS-1725. Set storage directories only at FSImage construction (Ivan Kelly
            via todd)
 HDFS-1926. Remove references to StorageDirectory from JournalManager interface
            (Ivan Kelly via todd)
+HDFS-1893. Change edit logs and images to be named based on txid (todd)

@@ -17,6 +17,9 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -28,63 +31,44 @@ import com.google.common.base.Preconditions;
 /**
  * Journal manager for the common case of edits files being written
  * to a storage directory.
+ * 
+ * Note: this class is not thread-safe and should be externally
+ * synchronized.
  */
 public class FileJournalManager implements JournalManager {
+  private static final Log LOG = LogFactory.getLog(FileJournalManager.class);
 
   private final StorageDirectory sd;
-  private EditLogFileOutputStream currentStream;
   private int outputBufferCapacity = 512*1024;
 
   public FileJournalManager(StorageDirectory sd) {
     this.sd = sd;
   }
-  
-  private boolean isCurrentStreamClosed() {
-    return currentStream == null || !currentStream.isOpen();
-  }
-  
-  @Override
-  public EditLogOutputStream createStream() throws IOException {
-    Preconditions.checkState(isCurrentStreamClosed());
-    File eFile = NNStorage.getEditFile(sd);
-    
-    currentStream = new EditLogFileOutputStream(
-        eFile, outputBufferCapacity);
-    return currentStream;
-  }
 
   @Override
-  public EditLogOutputStream createDivertedStream(String dest)
-    throws IOException {
-
-    // create new stream
-    currentStream = new EditLogFileOutputStream(new File(sd.getRoot(), dest),
+  public EditLogOutputStream startLogSegment(long txid) throws IOException {    
+    File newInProgress = NNStorage.getInProgressEditsFile(sd, txid);
+    EditLogOutputStream stm = new EditLogFileOutputStream(newInProgress,
         outputBufferCapacity);
-    currentStream.create();
-    return currentStream;    
+    stm.create();
+    return stm;
   }
 
   @Override
-  public EditLogOutputStream createRevertedStream(String source)
+  public void finalizeLogSegment(long firstTxId, long lastTxId)
       throws IOException {
-    Preconditions.checkState(isCurrentStreamClosed());
+    File inprogressFile = NNStorage.getInProgressEditsFile(
+        sd, firstTxId);
+    File dstFile = NNStorage.getFinalizedEditsFile(
+        sd, firstTxId, lastTxId);
+    LOG.debug("Finalizing edits file " + inprogressFile + " -> " + dstFile);
     
-    // rename edits.new to edits
-    File editFile = NNStorage.getEditFile(sd);
-    File prevEditFile = new File(sd.getRoot(), source);
-    if(prevEditFile.exists()) {
-      if(!prevEditFile.renameTo(editFile)) {
-        //
-        // renameTo() fails on Windows if the destination
-        // file exists.
-        //
-        if(!editFile.delete() || !prevEditFile.renameTo(editFile)) {
-          throw new IOException("Rename failed for " + sd.getRoot());
-        }
-      }
+    Preconditions.checkState(!dstFile.exists(),
+        "Can't finalize edits file " + inprogressFile + " since finalized file " +
+        "already exists");
+    if (!inprogressFile.renameTo(dstFile)) {
+      throw new IOException("Unable to finalize edits file " + inprogressFile);
     }
-    
-    return createStream();
   }
 
   @VisibleForTesting
@@ -93,8 +77,12 @@ public class FileJournalManager implements JournalManager {
   }
 
   @Override
+  public String toString() {
+    return "FileJournalManager for storage directory " + sd;
+  }
+
+  @Override
   public void setOutputBufferCapacity(int size) {
     this.outputBufferCapacity = size;
   }
-
 }

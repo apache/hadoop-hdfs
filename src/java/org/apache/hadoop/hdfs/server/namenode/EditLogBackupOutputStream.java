@@ -107,6 +107,11 @@ class EditLogBackupOutputStream extends EditLogOutputStream {
     throw new IOException("Not implemented");
   }
 
+  @Override
+  void write(byte[] data, int i, int length) throws IOException {
+    throw new IOException("Not implemented");
+  }
+
   @Override // EditLogOutputStream
   void write(byte op, long txid, Writable ... writables) throws IOException {
     bufCurrent.add(new JournalRecord(op, txid, writables));

@@ -43,7 +43,7 @@ public class CheckpointSignature extends StorageInfo
   String blockpoolID = "";
   
   long lastCheckpointTxId;
-  long lastLogRollTxId;
+  long curSegmentTxId;
 
   public CheckpointSignature() {}
 
@@ -52,7 +52,7 @@ public class CheckpointSignature extends StorageInfo
     blockpoolID = fsImage.getBlockPoolID();
     
     lastCheckpointTxId = fsImage.getStorage().getCheckpointTxId();
-    lastLogRollTxId = fsImage.getEditLog().getLastRollTxId();
+    curSegmentTxId = fsImage.getEditLog().getCurSegmentTxId();
     imageDigest = fsImage.getStorage().getImageDigest();
   }
 
@@ -63,7 +63,7 @@ public class CheckpointSignature extends StorageInfo
     namespaceID = Integer.valueOf(fields[1]);
     cTime = Long.valueOf(fields[2]);
     lastCheckpointTxId  = Long.valueOf(fields[3]);
-    lastLogRollTxId  = Long.valueOf(fields[4]);
+    curSegmentTxId  = Long.valueOf(fields[4]);
     imageDigest = new MD5Hash(fields[5]);
     clusterID = fields[6];
     blockpoolID = fields[7];
@@ -107,7 +107,7 @@ public class CheckpointSignature extends StorageInfo
          + String.valueOf(namespaceID) + FIELD_SEPARATOR
          + String.valueOf(cTime) + FIELD_SEPARATOR
          + String.valueOf(lastCheckpointTxId) + FIELD_SEPARATOR
-         + String.valueOf(lastLogRollTxId) + FIELD_SEPARATOR
+         + String.valueOf(curSegmentTxId) + FIELD_SEPARATOR
          + imageDigest.toString() + FIELD_SEPARATOR
          + clusterID + FIELD_SEPARATOR
          + blockpoolID ;
@@ -145,7 +145,7 @@ public class CheckpointSignature extends StorageInfo
       .compare(namespaceID, o.namespaceID)
       .compare(cTime, o.cTime)
       .compare(lastCheckpointTxId, o.lastCheckpointTxId)
-      .compare(lastLogRollTxId, o.lastLogRollTxId)
+      .compare(curSegmentTxId, o.curSegmentTxId)
       .compare(imageDigest, o.imageDigest)
       .compare(clusterID, o.clusterID)
       .compare(blockpoolID, o.blockpoolID)
@@ -161,7 +161,7 @@ public class CheckpointSignature extends StorageInfo
 
   public int hashCode() {
     return layoutVersion ^ namespaceID ^
-            (int)(cTime ^ lastCheckpointTxId ^ lastLogRollTxId)
+            (int)(cTime ^ lastCheckpointTxId ^ curSegmentTxId)
             ^ clusterID.hashCode() ^ blockpoolID.hashCode()
             ^ imageDigest.hashCode();
   }
@@ -173,7 +173,7 @@ public class CheckpointSignature extends StorageInfo
     super.write(out);
     WritableUtils.writeString(out, blockpoolID);
     out.writeLong(lastCheckpointTxId);
-    out.writeLong(lastLogRollTxId);
+    out.writeLong(curSegmentTxId);
     imageDigest.write(out);
   }
 
@@ -181,7 +181,7 @@ public class CheckpointSignature extends StorageInfo
     super.readFields(in);
     blockpoolID = WritableUtils.readString(in);
     lastCheckpointTxId = in.readLong();
-    lastLogRollTxId = in.readLong();
+    curSegmentTxId = in.readLong();
     imageDigest = new MD5Hash();
     imageDigest.readFields(in);
   }

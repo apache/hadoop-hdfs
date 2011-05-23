@@ -27,7 +27,7 @@ import org.apache.hadoop.io.Writable;
  * A generic abstract class to support journaling of edits logs into 
  * a persistent storage.
  */
-abstract class EditLogOutputStream extends OutputStream 
+abstract class EditLogOutputStream 
 implements JournalStream {
   // these are statistics counters
   private long numSync;        // number of sync(s) to disk
@@ -52,7 +52,8 @@ implements JournalStream {
    */
   abstract void write(byte op, long txid, Writable ... writables)
   throws IOException;
-
+  abstract void write(byte[] data, int i, int length) throws IOException;
+  
   /**
    * Create and initialize underlying persistent edits log storage.
    * 
@@ -133,4 +134,6 @@ implements JournalStream {
   public String toString() {
     return getName();
   }
+
+
 }

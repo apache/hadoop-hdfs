@@ -22,20 +22,19 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
+import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
-import org.apache.hadoop.hdfs.server.common.Storage;
-import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
-import org.apache.hadoop.hdfs.server.namenode.FSImage.CheckpointStates;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.ipc.RPC;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.net.NetUtils;
 
 /**
@@ -279,14 +278,6 @@ public class BackupNode extends NameNode {
    */
   void doCheckpoint() throws IOException {
     checkpointManager.doCheckpoint();
-  }
-
-  CheckpointStates getCheckpointState() {
-    return getFSImage().getCheckpointState();
-  }
-
-  void setCheckpointState(CheckpointStates cs) {
-    getFSImage().setCheckpointState(cs);
   }
 
   /**
