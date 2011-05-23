@@ -1201,10 +1201,19 @@ public class FSImage extends Storage {
     for (Iterator<StorageDirectory> it = dirIterator(NameNodeDirType.IMAGE);
                                                               it.hasNext();) {
       StorageDirectory sd = it.next();
-      FSImageSaver saver = new FSImageSaver(sd, errorSDs);
-      Thread saveThread = new Thread(saver, saver.toString());
-      saveThreads.add(saveThread);
-      saveThread.start();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
+      try {
+        FSImageSaver saver = new FSImageSaver(sd, errorSDs);
+        Thread saveThread = new Thread(saver, saver.toString());
+        saveThreads.add(saveThread);
+        saveThread.start();
+      } catch (Exception e) {
+        LOG.error("Failed save to image directory " + sd.getRoot(), e);
+        errorSDs.add(sd);
+        continue;
+      }
     }
     waitForThreads(saveThreads);
     saveThreads.clear();
@@ -1222,21 +1231,34 @@ public class FSImage extends Storage {
     for (Iterator<StorageDirectory> it = dirIterator(NameNodeDirType.EDITS);
                                                               it.hasNext();) {
       final StorageDirectory sd = it.next();
-      FSImageSaver saver = new FSImageSaver(sd, errorSDs);
-      Thread saveThread = new Thread(saver, saver.toString());
-      saveThreads.add(saveThread);
-      saveThread.start();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
+      try {
+        FSImageSaver saver = new FSImageSaver(sd, errorSDs);
+        Thread saveThread = new Thread(saver, saver.toString());
+        saveThreads.add(saveThread);
+        saveThread.start();
+      } catch (Exception e) {
+        LOG.error("Failed save to edits directory " + sd.getRoot(), e);
+        errorSDs.add(sd);
+        continue;
+      }
     }
     waitForThreads(saveThreads);
 
     // mv lastcheckpoint.tmp -> previous.checkpoint
     for (Iterator<StorageDirectory> it = dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
+      if (errorSDs.contains(sd)) {
+        continue;
+      }
       try {
         moveLastCheckpoint(sd);
       } catch(IOException ie) {
         LOG.error("Unable to move last checkpoint for " + sd.getRoot(), ie);
         errorSDs.add(sd);
+        continue;
       }
     }
     

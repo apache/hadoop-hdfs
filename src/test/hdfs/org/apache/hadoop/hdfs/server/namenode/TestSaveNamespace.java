@@ -158,8 +158,35 @@ public class TestSaveNamespace {
     saveNamespaceWithInjectedFault(Fault.MOVE_LAST_CHECKPOINT);
   }
 
+  /**
+   * Test case where savenamespace fails in all directories
+   * and then the NN shuts down. Here we should recover from the
+   * failed checkpoint by moving the directories back on next
+   * NN start. This is a regression test for HDFS-1921.
+   */
   @Test
   public void testFailedSaveNamespace() throws Exception {
+    doTestFailedSaveNamespace(false);
+  }
+
+  /**
+   * Test case where saveNamespace fails in all directories, but then
+   * the operator restores the directories and calls it again.
+   * This should leave the NN in a clean state for next start.
+   */
+  @Test
+  public void testFailedSaveNamespaceWithRecovery() throws Exception {
+    doTestFailedSaveNamespace(true);
+  }
+
+  /**
+   * Injects a failure on all storage directories while saving namespace.
+   *
+   * @param restoreStorageAfterFailure if true, will try to save again after
+   *   clearing the failure injection
+   */
+  public void doTestFailedSaveNamespace(boolean restoreStorageAfterFailure)
+  throws Exception {
     Configuration conf = getConf();
     NameNode.initMetrics(conf, NamenodeRole.ACTIVE);
     NameNode.format(conf);
@@ -190,11 +217,13 @@ public class TestSaveNamespace {
       }
 
       // Ensure that, if storage dirs come back online, things work again.
-      Mockito.reset(spyImage);
-      spyImage.setRestoreFailedStorage(true);
-      spyImage.attemptRestoreRemovedStorage();
-      fsn.saveNamespace();
-      checkEditExists(fsn, 1);
+      if (restoreStorageAfterFailure) {
+        Mockito.reset(spyImage);
+        spyImage.setRestoreFailedStorage(true);
+        spyImage.attemptRestoreRemovedStorage();
+        fsn.saveNamespace();
+        checkEditExists(fsn, 1);
+      }
 
       // Now shut down and restart the NN
       originalImage.close();

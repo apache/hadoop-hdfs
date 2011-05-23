@@ -8,6 +8,9 @@ Release 0.22.0 - Unreleased
 
   NEW FEATURES
 
+    HDFS-1921. saveNamespace can cause NN to be unable to come up on restart.
+    (Matt Foley)
+
     HDFS-992. Re-factor block access token implementation to conform to the 
     generic Token interface in Common (Kan Zhang and Jitendra Pandey via 
     jghoman)
