@@ -906,12 +906,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -927,12 +923,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data15bytes</expected-output>
+          <expected-output>^15\s+data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -951,24 +943,20 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^120\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data30bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data60bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data120bytes</expected-output>
+          <expected-output>^60\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -985,12 +973,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
+          <expected-output>^15\s+/dir0/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1007,12 +991,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/data15bytes</expected-output>
+          <expected-output>^15\s+dir0/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1031,10 +1011,6 @@
         <command>-fs NAMENODE -rmr /dir0</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
@@ -1065,12 +1041,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs:///data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1089,24 +1061,20 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^120\s+hdfs://\w+[.a-z]*:[0-9]*/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs://\w+[.a-z]*:[0-9]*/data30bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data60bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data120bytes</expected-output>
+          <expected-output>^60\s+hdfs://\w+[.a-z]*:[0-9]*/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1123,12 +1091,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs:///dir0/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1146,16 +1110,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+hdfs:///dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^1.0k( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data1k</expected-output>
+          <expected-output>^1\.0k\s+hdfs:///dir0/data1k</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1174,10 +1134,6 @@
         <command>-fs NAMENODE -rmr hdfs:///dir0</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
@@ -1208,10 +1164,6 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
         </comparator>
@@ -1231,10 +1183,6 @@
         <command>-fs NAMENODE -rmr NAMENODE/*</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
@@ -1266,10 +1214,6 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
         </comparator>
@@ -1290,10 +1234,6 @@
         <command>-fs NAMENODE -rmr NAMENODE/dir0</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 4 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
@@ -1341,7 +1281,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^450\s+hdfs://\w+[.a-z]*:[0-9]*/dir0</expected-output>
+          <expected-output>^450\s+/dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1373,7 +1313,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^450\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0</expected-output>
+          <expected-output>^450\s+dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -1444,7 +1384,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^450\s+hdfs://\w+[.a-z]*:[0-9]*/dir0</expected-output>
+          <expected-output>^450\s+hdfs:///dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -3937,12 +3877,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -3958,12 +3894,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data15bytes</expected-output>
+          <expected-output>^15\s+data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -3980,19 +3912,23 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^120\s+/dir0/dir1/data/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data30bytes</expected-output>
+          <expected-output>^15\s+/dir0/dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data60bytes</expected-output>
+          <expected-output>^1065\s+/dir0/dir1/data/data1k</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data120bytes</expected-output>
+          <expected-output>^30\s+/dir0/dir1/data/data30bytes</expected-output>
+        </comparator>
+        <comparator>
+          <type>RegexpComparator</type>
+          <expected-output>^60\s+/dir0/dir1/data/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4009,19 +3945,23 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^120\s+dir0/dir1/data/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data30bytes</expected-output>
+          <expected-output>^15\s+dir0/dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data60bytes</expected-output>
+          <expected-output>^1065\s+dir0/dir1/data/data1k</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data120bytes</expected-output>
+          <expected-output>^30\s+dir0/dir1/data/data30bytes</expected-output>
+        </comparator>
+        <comparator>
+          <type>RegexpComparator</type>
+          <expected-output>^60\s+dir0/dir1/data/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4038,16 +3978,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+/dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+/dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4064,16 +4000,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4192,12 +4124,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs:///data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4214,19 +4142,23 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data15bytes</expected-output>
+          <expected-output>^120\s+hdfs:///dir1/data/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data30bytes</expected-output>
+          <expected-output>^15\s+hdfs:///dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data60bytes</expected-output>
+          <expected-output>^1065\s+hdfs:///dir1/data/data1k</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data120bytes</expected-output>
+          <expected-output>^30\s+hdfs:///dir1/data/data30bytes</expected-output>
+        </comparator>
+        <comparator>
+          <type>RegexpComparator</type>
+          <expected-output>^60\s+hdfs:///dir1/data/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4243,16 +4175,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+hdfs:///dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs:///dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4334,12 +4262,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4356,19 +4280,23 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data15bytes</expected-output>
+          <expected-output>^120\s+hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data120bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data30bytes</expected-output>
+          <expected-output>^1065\s+hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data1k</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data60bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data120bytes</expected-output>
+          <expected-output>^30\s+hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data30bytes</expected-output>
+        </comparator>
+        <comparator>
+          <type>RegexpComparator</type>
+          <expected-output>^60\s+hdfs://\w+[.a-z]*:[0-9]*/dir1/data/data60bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4385,16 +4313,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4477,12 +4401,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4498,12 +4418,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/data15bytes</expected-output>
+          <expected-output>^15\s+data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4520,19 +4436,19 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^15\s+/dir0/dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data30bytes</expected-output>
+          <expected-output>^30\s+/dir0/dir1/data/data30bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data60bytes</expected-output>
+          <expected-output>^60\s+/dir0/dir1/data/data60bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data120bytes</expected-output>
+          <expected-output>^120\s+/dir0/dir1/data/data120bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4549,19 +4465,19 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^15\s+dir0/dir1/data/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data30bytes</expected-output>
+          <expected-output>^30\s+dir0/dir1/data/data30bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^60( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data60bytes</expected-output>
+          <expected-output>^60\s+dir0/dir1/data/data60bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^120( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/dir1/data/data120bytes</expected-output>
+          <expected-output>^120\s+dir0/dir1/data/data120bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4578,16 +4494,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+/dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+/dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4604,16 +4516,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4732,12 +4640,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs:///data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4756,12 +4660,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs:///dir0/dir1/data/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4778,16 +4678,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+hdfs:///dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs:///dir0/data30bytes</expected-output>
         </comparator>
      </comparators>
     </test>
@@ -4870,12 +4766,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4894,12 +4786,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data15bytes</expected-output>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/dir0/dir1/data/data15bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -4916,16 +4804,12 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 2 items</expected-output>
+          <type>RegexpComparator</type>
+          <expected-output>^15\s+hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
         </comparator>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^15( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data15bytes</expected-output>
-        </comparator>
-        <comparator>
-          <type>RegexpComparator</type>
-          <expected-output>^30( |\t)*hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
+          <expected-output>^30\s+hdfs://\w+[.a-z]*:[0-9]*/dir0/data30bytes</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5512,7 +5396,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]*/dir0</expected-output>
+          <expected-output>^0\s+/dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5529,7 +5413,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/dir0</expected-output>
+          <expected-output>^0\s+dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -5644,7 +5528,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]*/dir0(|\t)*</expected-output>
+          <expected-output>^0\s+hdfs:///dir0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -6025,12 +5909,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/file0</expected-output>
+          <expected-output>^0\s+/user/file0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -6046,12 +5926,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/file0</expected-output>
+          <expected-output>^0\s+file0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -6066,10 +5942,6 @@
         <command>-fs NAMENODE -rm /user</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 3 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/[a-z]*/file0</expected-output>
@@ -6107,12 +5979,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/file0</expected-output>
+          <expected-output>^0\s+hdfs:///user/file0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -6127,10 +5995,6 @@
         <command>-fs NAMENODE -rm hdfs:///user</command>
       </cleanup-commands>
       <comparators>
-        <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 3 items</expected-output>
-        </comparator>
         <comparator>
           <type>RegexpComparator</type>
           <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]+/file0</expected-output>
@@ -6168,12 +6032,8 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 1 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0( |\t)*hdfs://\w+[.a-z]*:[0-9]*/user/file0</expected-output>
+          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]*/user/file0</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -6189,14 +6049,10 @@
       </cleanup-commands>
       <comparators>
         <comparator>
-          <type>TokenComparator</type>
-          <expected-output>Found 3 items</expected-output>
-        </comparator>
-        <comparator>
           <type>RegexpComparator</type>
-          <expected-output>^0( )*hdfs://\w+[.a-z]*:[0-9]+/file0</expected-output>
-          <expected-output>^0( )*hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
-          <expected-output>^0( )*hdfs://\w+[.a-z]*:[0-9]+/file2</expected-output>
+          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]+/file0</expected-output>
+          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
+          <expected-output>^0\s+hdfs://\w+[.a-z]*:[0-9]+/file2</expected-output>
         </comparator>
       </comparators>
     </test>
