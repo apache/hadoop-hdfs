@@ -436,6 +436,20 @@ Trunk (unreleased changes)
     HDFS-1332.  Include more information in exceptions and debug messages
     when BlockPlacementPolicy cannot be satisfied.  (Ted Yu via szetszwo)
 
+    HDFS-1958. Confirmation should be more lenient of user input when
+    formatting the NameNode. (todd)
+
+    HDFS-1905. Improve namenode -format command by not making -clusterId
+    parameter mandatory. (Bharath Mundlapudi via suresh)
+
+    HDFS-1941. Remove -genclusterid option from namenode command.
+    (Bharath Mundlapudi via suresh)
+
+    HDFS-1877.  Add a new test for concurrent read and write.  (CW Chung
+    via szetszwo)
+
+    HDFS-1959. Better error message for missing namenode directory. (eli)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
@@ -595,6 +609,14 @@ Trunk (unreleased changes)
 
     HDFS-1927. Fix a bug which causes ip=null in NameNode audit log.
     (John George via szetszwo)
+
+    HDFS-1953. Federation: Change name node mxbean name in cluster web 
+    console. (Tanping Wang via suresh)
+
+    HDFS-1922. Fix recurring failure of TestJMXGet (Luke Lu via todd)
+
+    HDFS-1371. One bad node can incorrectly flag many files as corrupt.
+    (Tanping Wang via jitendra)
 
 Release 0.22.0 - Unreleased
 
@@ -834,6 +856,8 @@ Release 0.22.0 - Unreleased
 
     HDFS-1947. DFSClient should use mapreduce.task.attempt.id. (eli)
 
+    HDFS-1957. Add documentation for HFTP. (Ari Rabkin via todd)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
@@ -1017,6 +1041,17 @@ Release 0.22.0 - Unreleased
 
     HDFS-1925. SafeModeInfo should use the correct constant instead of a
     hard-coded value for its default. (Joey Echeverria via todd)
+
+    HDFS-1575. Viewing block from web UI is broken. (Aaron T. Myers via todd)
+    
+    HDFS-1932. Ensure that HDFS configuration deprecations are set up in every
+    spot that HDFS configurations are loaded. (Jolly Chen via todd)
+
+    HDFS-1952. FSEditLog.open() appears to succeed even if all EDITS
+    directories fail. (Andrew Wang via todd)
+
+    HDFS-1965. IPCs done using block token-based tickets can't reuse
+    connections (todd)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)

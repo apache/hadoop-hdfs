@@ -81,8 +81,7 @@ import com.google.common.collect.Lists;
 public class SecondaryNameNode implements Runnable {
     
   static{
-    Configuration.addDefaultResource("hdfs-default.xml");
-    Configuration.addDefaultResource("hdfs-site.xml");
+    HdfsConfiguration.init();
   }
   public static final Log LOG = 
     LogFactory.getLog(SecondaryNameNode.class.getName());

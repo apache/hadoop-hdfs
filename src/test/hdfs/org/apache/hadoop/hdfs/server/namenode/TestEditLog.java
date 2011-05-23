@@ -35,10 +35,13 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.*;
 
+import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream;
+import org.apache.hadoop.hdfs.server.common.HdfsConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
@@ -48,7 +51,13 @@ import org.apache.log4j.Level;
 import org.aspectj.util.FileUtil;
 
 import org.mockito.Mockito;
+
 import static org.apache.hadoop.test.MetricsAsserts.*;
+import static org.junit.Assert.fail;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
 
 /**
  * This class tests the creation and validation of a checkpoint.
@@ -667,4 +676,55 @@ public class TestEditLog extends TestCase {
     }
   }
 
+  /*
+   * TODO: need to re-enable this test in HDFS-1073 branch!
+  public void testFailedOpen() throws Exception {
+    Configuration conf = new HdfsConfiguration();
+    MiniDFSCluster cluster = null;
+    cluster = new MiniDFSCluster.Builder(conf).numDataNodes(NUM_DATA_NODES).build();
+    cluster.waitActive();
+    final FSNamesystem fsn = cluster.getNamesystem();
+
+    // Set up spys
+    final FSImage originalImage = fsn.getFSImage();
+    NNStorage storage = originalImage.getStorage();
+    NNStorage spyStorage = spy(storage);
+    originalImage.storage = spyStorage;
+    
+    final FSEditLog editLog = originalImage.getEditLog();
+    FSEditLog spyLog = spy(editLog);
+
+    FSImage spyImage = spy(originalImage);
+    fsn.dir.fsImage = spyImage;
+    spyImage.storage.setStorageDirectories(
+        FSNamesystem.getNamespaceDirs(conf), 
+        FSNamesystem.getNamespaceEditsDirs(conf));
+        
+    // Fail every attempt to open a new edit file
+    doThrow(new IOException("Injected fault: open")).
+      when(spyLog).addNewEditLogStream((File)anyObject());
+    
+    try {
+      spyLog.close();
+      spyLog.open();
+      fail("open did not fail even when all directories failed!");
+    } catch(IOException ioe) {
+      LOG.info("Got expected exception", ioe);
+    } finally {
+      spyLog.close();
+    }
+    
+    // Reset and try it with a working open
+    Mockito.reset(spyLog);
+    spyImage.storage.setStorageDirectories(
+        FSNamesystem.getNamespaceDirs(conf), 
+        FSNamesystem.getNamespaceEditsDirs(conf));
+    spyLog.open();
+    
+    // Close everything off
+    spyLog.close();
+    originalImage.close();
+    fsn.close();
+  }
+  */
 }
