@@ -373,6 +373,10 @@ Trunk (unreleased changes)
     HDFS-1953. Federation: Change name node mxbean name in cluster web 
     console. (Tanping Wang via suresh)
 
+    HDFS-1773. Do not show decommissioned datanodes, which are not in both
+    include and exclude lists, on web and JMX interfaces.
+    (Tanping Wang via szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
