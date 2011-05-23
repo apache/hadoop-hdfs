@@ -532,6 +532,8 @@ Release 0.22.0 - Unreleased
     HDFS-1932. Ensure that HDFS configuration deprecations are set up in every
     spot that HDFS configurations are loaded. (Jolly Chen via todd)
 
+    HDFS-1978. All but first option in LIBHDFS_OPTS is ignored. (eli)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
