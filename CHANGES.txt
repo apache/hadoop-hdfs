@@ -388,6 +388,9 @@ Trunk (unreleased changes)
     HDFS-1890. Improve the name, class and value type of the map
     LeaseRenewer.pendingCreates.  (szetszwo)
 
+    HDFS-1827. Fix timeout problem in TestBlockReplacement.  (Matt Foley
+    via szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
