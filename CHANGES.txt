@@ -409,6 +409,9 @@ Trunk (unreleased changes)
     HDFS-1903. Fix path display for rm/rmr in TestHDFSCLI and TestDFSShell.
     (Daryn Sharp via szetszwo)
 
+    HDFS-1928. Fix path display for touchz in TestHDFSCLI.
+    (Daryn Sharp via todd)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
