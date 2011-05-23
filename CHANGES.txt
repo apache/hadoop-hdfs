@@ -2,6 +2,11 @@ Hadoop HDFS Change Log
 
 Trunk (unreleased changes)
 
+  INCOMPATIBLE CHANGES
+
+    HDFS-1526. Dfs client name for a map/reduce task should be unique
+    among threads. (hairong)
+
   NEW FEATURES
 
     HDFS-1365. Federation: propose ClusterID and BlockPoolID format 
