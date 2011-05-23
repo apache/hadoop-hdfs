@@ -45,6 +45,11 @@ import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
 privileged public aspect BlockReceiverAspects {
   public static final Log LOG = LogFactory.getLog(BlockReceiverAspects.class);
 
+  BlockReceiver BlockReceiver.PacketResponder.getReceiver(){
+    LOG.info("FI: getReceiver() " + getClass().getName());
+    return BlockReceiver.this;
+  }
+
   pointcut callReceivePacket(BlockReceiver blockreceiver) :
     call(* receivePacket(..)) && target(blockreceiver);
 	
@@ -82,7 +87,7 @@ privileged public aspect BlockReceiverAspects {
 
   after(BlockReceiver.PacketResponder responder)
       throws IOException: afterDownstreamStatusRead(responder) {
-    final DataNode d = responder.receiver.getDataNode();
+    final DataNode d = responder.getReceiver().getDataNode();
     DataTransferTest dtTest = DataTransferTestUtil.getDataTransferTest();
     if (dtTest != null)
       dtTest.fiAfterDownstreamStatusRead.run(d.getDatanodeId());
@@ -127,7 +132,7 @@ privileged public aspect BlockReceiverAspects {
       return;
     }
     LOG.debug("FI: Acked total bytes from: " + 
-        pr.receiver.datanode.getStorageId() + ": " + acked);
+        pr.getReceiver().datanode.getStorageId() + ": " + acked);
     if (pTest instanceof PipelinesTest) {
       bytesAckedService((PipelinesTest)pTest, pr, acked);
     }
@@ -135,7 +140,7 @@ privileged public aspect BlockReceiverAspects {
 
   private void bytesAckedService 
       (final PipelinesTest pTest, final PacketResponder pr, final long acked) {
-    NodeBytes nb = new NodeBytes(pr.receiver.datanode.getDatanodeId(), acked);
+    NodeBytes nb = new NodeBytes(pr.getReceiver().datanode.getDatanodeId(), acked);
     try {
       pTest.fiCallSetBytesAcked.run(nb);
     } catch (IOException e) {
@@ -203,7 +208,7 @@ privileged public aspect BlockReceiverAspects {
 
   after(BlockReceiver.PacketResponder packetresponder) throws IOException
       : pipelineAck(packetresponder) {
-    final DatanodeID dnId = packetresponder.receiver.getDataNode().getDatanodeId();
+    final DatanodeID dnId = packetresponder.getReceiver().getDataNode().getDatanodeId();
     LOG.info("FI: fiPipelineAck, datanode=" + dnId);
 
     final DataTransferTest test = DataTransferTestUtil.getDataTransferTest();

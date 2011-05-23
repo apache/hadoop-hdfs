@@ -345,7 +345,7 @@ class DataXceiver extends DataTransferProtocol.Receiver
       if (blockReceiver != null) {
         String mirrorAddr = (mirrorSock == null) ? null : mirrorNode;
         blockReceiver.receiveBlock(mirrorOut, mirrorIn, replyOut,
-            mirrorAddr, null, targets.length);
+            mirrorAddr, null, targets);
 
         // send close-ack for transfer-RBW/Finalized 
         if (isTransfer) {
@@ -609,7 +609,7 @@ class DataXceiver extends DataTransferProtocol.Receiver
 
       // receive a block
       blockReceiver.receiveBlock(null, null, null, null, 
-          dataXceiverServer.balanceThrottler, -1);
+          dataXceiverServer.balanceThrottler, null);
                     
       // notify name node
       datanode.notifyNamenodeReceivedBlock(block, sourceID);
