@@ -324,6 +324,9 @@ Trunk (unreleased changes)
     HDFS-1917. Separate hdfs jars from common in ivy configuration.  (Eric Yang
     via szetszwo)
 
+    HDFS-1945. Removed the deprecated fields in DataTransferProtocol.
+    (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
