@@ -412,6 +412,9 @@ Trunk (unreleased changes)
     HDFS-1928. Fix path display for touchz in TestHDFSCLI.
     (Daryn Sharp via todd)
 
+    HDFS-1933. Update TestDFSShell for improved "test" shell command. (Daryn
+    Sharp via todd)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
