@@ -307,6 +307,9 @@ Trunk (unreleased changes)
     being written are closed for a grace period, and start a new thread when
     new files are opened for write.  (szetszwo)
 
+    HDFS-1870. Move and rename DFSClient.LeaseChecker to a seperated class
+    LeaseRenewer.  (szetszwo)
+
   OPTIMIZATIONS
 
   BUG FIXES
