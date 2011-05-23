@@ -403,6 +403,9 @@ Trunk (unreleased changes)
     HDFS-1902. Fix setrep path display for TestHDFSCLI.  (Daryn Sharp
     via szetszwo)
 
+    HDFS-1912. Update tests for FsShell standardized error messages.
+    (Daryn Sharp via szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
