@@ -7051,7 +7051,7 @@
       <comparators>
         <comparator>
           <type>TokenComparator</type>
-          <expected-output>Can not find listing for /file1</expected-output>
+          <expected-output>count: Can not find listing for /file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -7066,7 +7066,7 @@
       <comparators>
         <comparator>
           <type>TokenComparator</type>
-          <expected-output>Can not find listing for file1</expected-output>
+          <expected-output>count: Can not find listing for file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -7409,7 +7409,7 @@
       <comparators>
         <comparator>
          <type>TokenComparator</type>
-          <expected-output>Can not find listing for /file1</expected-output>
+          <expected-output>count: Can not find listing for /file1</expected-output>
        </comparator>
      </comparators>
    </test>
@@ -7424,7 +7424,7 @@
       <comparators>
         <comparator>
           <type>TokenComparator</type>
-          <expected-output>Can not find listing for file1</expected-output>
+          <expected-output>count: Can not find listing for file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -7761,7 +7761,7 @@
       <comparators>
         <comparator>
           <type>TokenComparator</type>
-          <expected-output>Can not find listing for hdfs:///file1</expected-output>
+          <expected-output>count: Can not find listing for hdfs:/file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -7940,7 +7940,7 @@
       <comparators>
         <comparator>
           <type>TokenComparator</type>
-          <expected-output>Can not find listing for hdfs:///file1</expected-output>
+          <expected-output>count: Can not find listing for hdfs:/file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -8133,7 +8133,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>Can not find listing for hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
+          <expected-output>count: Can not find listing for hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -8312,7 +8312,7 @@
       <comparators>
         <comparator>
           <type>RegexpComparator</type>
-          <expected-output>Can not find listing for hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
+          <expected-output>count: Can not find listing for hdfs://\w+[.a-z]*:[0-9]+/file1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -15481,7 +15481,7 @@
       <comparators>
         <comparator>
           <type>SubstringComparator</type>
-          <expected-output>Can not find listing for /test1</expected-output>
+          <expected-output>setSpaceQuota: Directory does not exist: /test1</expected-output>
         </comparator>
       </comparators>
     </test>
@@ -15547,7 +15547,7 @@
       <comparators>
         <comparator>
           <type>SubstringComparator</type>
-          <expected-output>Can not find listing for /test1</expected-output>
+          <expected-output>clrQuota: Directory does not exist: /test1</expected-output>
         </comparator>
       </comparators>
     </test>
