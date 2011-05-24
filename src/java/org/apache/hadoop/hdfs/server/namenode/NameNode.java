@@ -1468,25 +1468,16 @@ public class NameNode implements NamenodeProtocols, FSConstants {
       }
     }
 
-    FSImage fsImage = new FSImage(dirsToFormat, editDirsToFormat);
-    FSNamesystem nsys = new FSNamesystem(fsImage, conf);
-    
     // if clusterID is not provided - see if you can find the current one
     String clusterId = StartupOption.FORMAT.getClusterId();
     if(clusterId == null || clusterId.equals("")) {
-      // try to get one from the existing storage
-      clusterId = fsImage.getStorage().determineClusterId();
-      if (clusterId == null || clusterId.equals("")) {
-        throw new IllegalArgumentException("Format must be provided with clusterid");
-      }
-      if(isConfirmationNeeded) {
-        System.err.print("Use existing cluster id=" + clusterId + "? (Y or N)");
-        if(System.in.read() != 'Y') {
-          throw new IllegalArgumentException("Format must be provided with clusterid");
-        }
-        while(System.in.read() != '\n'); // discard the enter-key
-      }
+      //Generate a new cluster id
+      clusterId = NNStorage.newClusterID();
     }
+    System.out.println("Formatting using clusterid: " + clusterId);
+    
+    FSImage fsImage = new FSImage(dirsToFormat, editDirsToFormat);
+    FSNamesystem nsys = new FSNamesystem(fsImage, conf);
     nsys.dir.fsImage.getStorage().format(clusterId);
     return false;
   }
@@ -1567,8 +1558,6 @@ public class NameNode implements NamenodeProtocols, FSConstants {
           i += 2;
           startOpt.setClusterId(args[i]);
         }
-      } else if (StartupOption.GENCLUSTERID.getName().equalsIgnoreCase(cmd)) {
-        startOpt = StartupOption.GENCLUSTERID;
       } else if (StartupOption.REGULAR.getName().equalsIgnoreCase(cmd)) {
         startOpt = StartupOption.REGULAR;
       } else if (StartupOption.BACKUP.getName().equalsIgnoreCase(cmd)) {
@@ -1620,11 +1609,6 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         boolean aborted = format(conf, true);
         System.exit(aborted ? 1 : 0);
         return null; // avoid javac warning
-      case GENCLUSTERID:
-        System.err.println("Generating new cluster id:");
-        System.out.println(NNStorage.newClusterID());
-        System.exit(0);
-        return null;
       case FINALIZE:
         aborted = finalize(conf, true);
         System.exit(aborted ? 1 : 0);
