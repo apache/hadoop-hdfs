@@ -440,13 +440,14 @@ Trunk (unreleased changes)
     HDFS-1928. Fix path display for touchz in TestHDFSCLI.
     (Daryn Sharp via todd)
 
+    HDFS-1938. Fix ivy-retrieve-hdfs dependence in build.xml and aop.xml.
+    (Eric Yang via szetszwo)
+
     HDFS-1933. Update TestDFSShell for improved "test" shell command. (Daryn
     Sharp via todd)
     
     HDFS-1931. Update TestDFSShell for improved "du" shell command. (Daryn
     Sharp via todd)
-
-    HDFS-1503. TestSaveNamespace fails. (Todd Lipcon via cos)
 
     HDFS-1509. A savenamespace command writes the fsimage and edits into
     all configured directories. (dhruba)
