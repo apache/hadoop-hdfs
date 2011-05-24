@@ -255,6 +255,9 @@ Trunk (unreleased changes)
 
     HDFS 1911 HDFS tests for the newly added viewfs. (sanjay)
 
+    HDFS-1070. Speedup namenode image loading and saving by storing only
+    local file names. (hairong)
+
     HDFS-1914. Federation: namenode storage directories must be configurable
     specific to name service. (suresh)
 
