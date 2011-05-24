@@ -258,6 +258,9 @@ Trunk (unreleased changes)
     HDFS-1914. Federation: namenode storage directories must be configurable
     specific to name service. (suresh)
 
+    HDFS-1735. Federation: merge FSImage change in federation to
+    FSImage+NNStorage refactoring in trunk (suresh)
+
   IMPROVEMENTS
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
@@ -328,6 +331,8 @@ Trunk (unreleased changes)
     (szetszwo)
 
     HDFS-1506. Refactor fsimage loading code. (hairong)
+
+    HDFS-1557. Separate Storage from FSImage. (Ivan Kelly via jitendra)
 
   OPTIMIZATIONS
 
