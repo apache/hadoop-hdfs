@@ -888,7 +888,7 @@ public class FSImage extends Storage {
               sd1.unlock(); // unlock before removing (in case it will be
                             // restored)
             } catch (Exception e) {
-              // nothing
+              LOG.info("Unable to unlock bad storage directory : " +  sd.getRoot().getPath());
             }
             removedStorageDirs.add(sd1);
             it.remove();
@@ -1241,7 +1241,11 @@ public class FSImage extends Storage {
    * in which case the journal will be lost.
    */
   void saveNamespace(boolean renewCheckpointTime) throws IOException {
+ 
+    // try to restore all failed edit logs here
     assert editLog != null : "editLog must be initialized";
+    attemptRestoreRemovedStorage(true);
+
     editLog.close();
     if(renewCheckpointTime)
       this.checkpointTime = now();
@@ -1285,6 +1289,11 @@ public class FSImage extends Storage {
     for (Iterator<StorageDirectory> it = dirIterator(NameNodeDirType.EDITS);
                                                               it.hasNext();) {
       final StorageDirectory sd = it.next();
+      // if this directory already stores the image and edits, then it was
+      // already processed in the earlier loop.
+      if (sd.getStorageDirType() == NameNodeDirType.IMAGE_AND_EDITS) {
+        continue;
+      }
       FSImageSaver saver = new FSImageSaver(sd, errorSDs);
       Thread saveThread = new Thread(saver, saver.toString());
       saveThreads.add(saveThread);
@@ -1730,10 +1739,11 @@ public class FSImage extends Storage {
   }
 
   /**
-   * See if any of removed storages iw "writable" again, and can be returned 
-   * into service
+   * See if any of removed storages is "writable" again, and can be returned 
+   * into service. If saveNamespace is set, then this methdod is being 
+   * called form saveNamespace.
    */
-  synchronized void attemptRestoreRemovedStorage(boolean saveCurrentImage) {   
+  synchronized void attemptRestoreRemovedStorage(boolean saveNamespace) {   
     // if directory is "alive" - copy the images there...
     if(!restoreFailedStorage || removedStorageDirs.size() == 0) 
       return; //nothing to restore
@@ -1748,7 +1758,15 @@ public class FSImage extends Storage {
       try {
         
         if(root.exists() && root.canWrite()) { 
-          format(sd, saveCurrentImage);
+          /** If this call is being made from savenamespace command, then no
+           * need to format, the savenamespace command will format and write
+           * the new image to this directory anyways.
+           */
+          if (saveNamespace) {
+            sd.clearDirectory();
+          } else {
+            format(sd);
+          }
           LOG.info("restoring dir " + sd.getRoot().getAbsolutePath());
           if(sd.getStorageDirType().isOfType(NameNodeDirType.EDITS)) {
             File eFile = getEditFile(sd);

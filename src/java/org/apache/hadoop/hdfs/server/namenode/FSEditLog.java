@@ -841,8 +841,6 @@ public class FSEditLog {
       return; // nothing to do, edits.new exists!
 
     // check if any of failed storage is now available and put it back
-    // but don't save the current image to it 
-    // (it will be put there as a part of checkpointing)
     fsimage.attemptRestoreRemovedStorage(false);
 
     divertFileStreams(
