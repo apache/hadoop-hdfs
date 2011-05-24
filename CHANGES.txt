@@ -618,6 +618,9 @@ Release 0.22.0 - Unreleased
     HDFS-1071. savenamespace should write the fsimage to all configured 
     fs.name.dir in parallel (Dmytro Molkov via jghoman)
 
+    HDFS-259. Remove intentionally corrupt 0.13 directory layout creation.
+    (Todd Lipcon via eli).
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
