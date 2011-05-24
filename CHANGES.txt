@@ -343,6 +343,9 @@ Trunk (unreleased changes)
     HDFS-1541. Not marking datanodes dead when namenode in safemode.
     (hairong)
 
+    HDFS-1767. Namenode ignores non-initial block report from datanodes
+    when in safemode during startup. (Matt Foley via suresh)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
