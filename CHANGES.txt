@@ -424,6 +424,8 @@ Trunk (unreleased changes)
     HDFS-1931. Update TestDFSShell for improved "du" shell command. (Daryn
     Sharp via todd)
 
+    HDFS-1503. TestSaveNamespace fails. (Todd Lipcon via cos)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
@@ -780,6 +782,8 @@ Release 0.22.0 - Unreleased
 
     HDFS-1529. Incorrect handling of interrupts in waitForAckedSeqno can cause
     deadlock (todd)
+
+    HDFS-1503. TestSaveNamespace fails. (Todd Lipcon via cos)
 
 Release 0.21.1 - Unreleased
 
