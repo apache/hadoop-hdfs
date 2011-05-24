@@ -337,12 +337,6 @@ Trunk (unreleased changes)
 
     HDFS-1557. Separate Storage from FSImage. (Ivan Kelly via jitendra)
 
-    HDFS-1905. Improve namenode -format command by not making -clusterId
-    parameter mandatory. (Bharath Mundlapudi via suresh)
-
-    HDFS-1941. Remove -genclusterid option from namenode command.
-    (Bharath Mundlapudi via suresh)
-
     HDFS-1541. Not marking datanodes dead when namenode in safemode.
     (hairong)
 
