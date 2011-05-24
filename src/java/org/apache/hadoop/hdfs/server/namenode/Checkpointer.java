@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.http.HttpServer;
+import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.util.Daemon;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_BACKUP_HTTP_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_BACKUP_HTTP_ADDRESS_DEFAULT;
@@ -180,28 +181,16 @@ class Checkpointer extends Daemon {
    * files from the remote name-node.
    */
   private void downloadCheckpoint(CheckpointSignature sig) throws IOException {
-    // Retrieve image file
-    String fileid =
-      GetImageServlet.getParamStringForImage(sig.lastCheckpointTxId);
-    
-    Collection<File> list = getFSImage()
-      .getStorage().getFiles(NameNodeDirType.IMAGE, "TODO");
-    File[] files = list.toArray(new File[list.size()]);
-    assert files.length > 0 : "No checkpoint targets.";
     String nnHttpAddr = backupNode.nnHttpAddress;
-    TransferFsImage.getFileClient(nnHttpAddr, fileid, files, false);
-    LOG.info("Downloaded file " + files[0].getName() + " size " +
-             files[0].length() + " bytes.");
 
+    // Retrieve image file
+    MD5Hash hash = TransferFsImage.downloadImageToStorage(
+        nnHttpAddr, sig.lastCheckpointTxId,
+        getFSImage().getStorage(), true);
+    getFSImage().saveDigestAndRenameCheckpointImage(sig.lastCheckpointTxId, hash);
+    
     // Retrieve edits file
-    fileid = "getedit=1";
-    list = getFSImage()
-      .getStorage().getFiles(NameNodeDirType.EDITS, "TODO");
-    files = list.toArray(new File[list.size()]);
-    assert files.length > 0 : "No checkpoint targets.";
-    TransferFsImage.getFileClient(nnHttpAddr, fileid, files, false);
-    LOG.info("Downloaded file " + files[0].getName() + " size " +
-        files[0].length() + " bytes.");
+    // TODO!
   }
 
   /**
@@ -217,7 +206,7 @@ class Checkpointer extends Daemon {
       "&newChecksum=" + getFSImage().getStorage().getImageDigest().toString();
     LOG.info("Posted URL " + backupNode.nnHttpAddress + fileid);
     TransferFsImage.getFileClient(backupNode.nnHttpAddress, 
-        fileid, (File[])null, false);
+        fileid, null, false);
   }
 
   /**

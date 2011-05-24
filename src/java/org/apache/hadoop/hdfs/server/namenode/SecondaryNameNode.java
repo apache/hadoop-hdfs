@@ -48,6 +48,7 @@ import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 import org.apache.hadoop.http.HttpServer;
+import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
@@ -338,54 +339,41 @@ public class SecondaryNameNode implements Runnable {
    * @return true if a new image has been downloaded and needs to be loaded
    * @throws IOException
    */
-  private boolean downloadCheckpointFiles(final CheckpointSignature sig,
-                                          final RemoteEditLogManifest manifest
-                                      ) throws IOException {
+  private static boolean downloadCheckpointFiles(
+      final String nnHostPort,
+      final FSImage dstImage,
+      final CheckpointSignature sig,
+      final RemoteEditLogManifest manifest
+  ) throws IOException {
     try {
         Boolean b = UserGroupInformation.getCurrentUser().doAs(
             new PrivilegedExceptionAction<Boolean>() {
   
           @Override
           public Boolean run() throws Exception {
-            checkpointImage.getStorage().cTime = sig.cTime;
+            dstImage.getStorage().cTime = sig.cTime;
 
             // get fsimage
-            Collection<File> list;
-            File[] srcNames;
             boolean downloadImage = true;
             if (sig.lastCheckpointTxId ==
-                checkpointImage.getStorage().getCheckpointTxId()) {
+                dstImage.getStorage().getCheckpointTxId()) {
               downloadImage = false;
               LOG.info("Image has not changed. Will not download image.");
             } else {
-              String fileid = GetImageServlet.getParamStringForImage(sig.lastCheckpointTxId);
-              
-              String fileName = NNStorage.getCheckpointImageFileName(sig.lastCheckpointTxId);
-              list = getFSImage().getStorage().getFiles(
-                  NameNodeDirType.IMAGE, fileName);
-              srcNames = list.toArray(new File[list.size()]);
-              assert srcNames.length > 0 : "No checkpoint targets.";
-              TransferFsImage.getFileClient(fsName, fileid, srcNames, false);
-              checkpointImage.getStorage().imageDigest = sig.imageDigest;
-              LOG.info("Downloaded file " + srcNames[0].getName() + " size " +
-                  srcNames[0].length() + " bytes.");
-              checkpointImage.checkpointUploadDone(sig.lastCheckpointTxId, sig.getImageDigest());
+              MD5Hash downloadedHash = TransferFsImage.downloadImageToStorage(
+                  nnHostPort, sig.lastCheckpointTxId, dstImage.getStorage(), true);
+              if (!downloadedHash.equals(sig.getImageDigest())) {
+                throw new IOException("Image download was invalid. Expected " +
+                    sig.getImageDigest() + " but got " + downloadedHash);
+              }
+              dstImage.saveDigestAndRenameCheckpointImage(
+                  sig.lastCheckpointTxId, sig.getImageDigest());
             }
         
             // get edits file
             for (RemoteEditLog log : manifest.getLogs()) {
-              String fileid =
-                GetImageServlet.getParamStringForLog(log);
-              String fileName = NNStorage.getFinalizedEditsFileName(
-                  log.getStartTxId(), log.getEndTxId());
-              list = getFSImage().getStorage().getFiles(
-                  NameNodeDirType.EDITS, fileName);
-              srcNames = list.toArray(new File[list.size()]);;
-              assert srcNames.length > 0 : "No checkpoint targets.";
-              TransferFsImage.getFileClient(fsName, fileid, srcNames, false);
-              LOG.info("Downloaded file " + srcNames[0].getName() + " size " +
-                  srcNames[0].length() + " bytes.");
-                
+              TransferFsImage.downloadEditsToStorage(
+                  nnHostPort, log, dstImage.getStorage());
             }
         
             return Boolean.valueOf(downloadImage);
@@ -410,7 +398,7 @@ public class SecondaryNameNode implements Runnable {
       "&token=" + sig.toString() +
       "&newChecksum=" + checkpointImage.getStorage().getImageDigest();
     LOG.info("Posted URL " + fsName + fileid);
-    TransferFsImage.getFileClient(fsName, fileid, (File[])null, false);
+    TransferFsImage.getFileClient(fsName, fileid, null, false);
   }
 
   /**
@@ -464,7 +452,8 @@ public class SecondaryNameNode implements Runnable {
       "Bad edit log manifest (expected txid = " + (sig.lastCheckpointTxId + 1) +
       ": " + manifest;
 
-    boolean loadImage = downloadCheckpointFiles(sig, manifest);   // Fetch fsimage and edits
+    boolean loadImage = downloadCheckpointFiles(
+        fsName, checkpointImage, sig, manifest);   // Fetch fsimage and edits
     doMerge(sig, manifest, loadImage);                   // Do the merge
   
     //

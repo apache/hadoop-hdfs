@@ -980,10 +980,13 @@ public class FSImage implements NNStorageListener, Closeable {
   }
 
   /**
-   * This is called when a checkpoint upload finishes successfully.
+   * This is called by the 2NN after having downloaded an image, and by
+   * the NN after having received a new image from the 2NN. It
+   * renames the image from fsimage_N.ckpt to fsimage_N and also
+   * saves the related .md5 file into place.
    */
-  synchronized void checkpointUploadDone(long txid, MD5Hash digest)
-  throws IOException {
+  synchronized void saveDigestAndRenameCheckpointImage(
+      long txid, MD5Hash digest) throws IOException {
     renameCheckpoint(txid);
     List<StorageDirectory> badSds = Lists.newArrayList();
     

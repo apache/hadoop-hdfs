@@ -800,7 +800,7 @@ public class NNStorage extends Storage implements Closeable {
    * @return A list of the given File in every available storage directory,
    * regardless of whether it might exist.
    */
-  Collection<File> getFiles(NameNodeDirType dirType, String fileName) {
+  List<File> getFiles(NameNodeDirType dirType, String fileName) {
     ArrayList<File> list = new ArrayList<File>();
     Iterator<StorageDirectory> it =
       (dirType == null) ? dirIterator() : dirIterator(dirType);
