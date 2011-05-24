@@ -340,6 +340,9 @@ Trunk (unreleased changes)
     HDFS-1941. Remove -genclusterid option from namenode command.
     (Bharath Mundlapudi via suresh)
 
+    HDFS-1541. Not marking datanodes dead when namenode in safemode.
+    (hairong)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
