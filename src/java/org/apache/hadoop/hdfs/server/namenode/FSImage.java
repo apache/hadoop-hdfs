@@ -1108,8 +1108,9 @@ public class FSImage extends Storage {
    * "re-save" and consolidate the edit-logs
    */
   boolean loadFSImage(File curFile) throws IOException {
-    FSImageFormat.Loader loader = new FSImageFormat.Loader(conf);
-    loader.load(curFile, getFSNamesystem());
+    FSImageFormat.Loader loader = new FSImageFormat.Loader(
+        conf, getFSNamesystem());
+    loader.load(curFile);
 
     namesystem.setBlockPoolId(this.getBlockPoolID());
 

@@ -327,6 +327,8 @@ Trunk (unreleased changes)
     HDFS-1945. Removed the deprecated fields in DataTransferProtocol.
     (szetszwo)
 
+    HDFS-1506. Refactor fsimage loading code. (hairong)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
