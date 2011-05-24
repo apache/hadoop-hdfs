@@ -329,6 +329,9 @@ Trunk (unreleased changes)
 
   OPTIMIZATIONS
 
+    HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
+    downloads and loading. (hairong)
+
   BUG FIXES
 
     HDFS-1449. Fix test failures - ExtendedBlock must return 
