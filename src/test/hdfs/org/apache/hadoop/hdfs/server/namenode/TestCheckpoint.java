@@ -79,6 +79,11 @@ public class TestCheckpoint extends TestCase {
   static final int fileSize = 8192;
   static final int numDatanodes = 3;
   short replication = 3;
+  
+  @Override
+  public void setUp() throws IOException {
+    FileUtil.fullyDeleteContents(new File(MiniDFSCluster.getBaseDirectory()));
+  }
 
   static void writeFile(FileSystem fileSys, Path name, int repl)
     throws IOException {
@@ -877,7 +882,7 @@ public class TestCheckpoint extends TestCase {
     Configuration conf = new HdfsConfiguration();
 
     cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes)
-        .format(false).build();
+        .format(true).build();
     NameNode nn = cluster.getNameNode();
 
     SecondaryNameNode secondary = startSecondaryNameNode(conf);

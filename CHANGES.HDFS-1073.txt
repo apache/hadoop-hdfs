@@ -34,3 +34,4 @@ HDFS-1985. Clean up image transfer servlet (todd)
 HDFS-1984. Enable multiple secondary namenodes to run simultaneously (todd)
 HDFS-1987. Re-enable TestCheckpoint.testSecondaryImageDownload which was not
            running previously. (todd)
+HDFS-1993. TestCheckpoint needs to clean up between cases (todd)
