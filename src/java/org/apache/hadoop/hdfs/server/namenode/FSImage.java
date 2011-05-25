@@ -51,7 +51,6 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.FSImageStorageInspector.LoadPlan;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
-import org.apache.hadoop.hdfs.server.namenode.NNStorage.NNStorageListener;
 import org.apache.hadoop.hdfs.server.protocol.CheckpointCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
@@ -70,7 +69,7 @@ import com.google.common.collect.Lists;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class FSImage implements NNStorageListener, Closeable {
+public class FSImage implements Closeable {
   protected static final Log LOG = LogFactory.getLog(FSImage.class.getName());
 
   // checkpoint states
@@ -143,7 +142,6 @@ public class FSImage implements NNStorageListener, Closeable {
     if (ns != null) {
       storage.setUpgradeManager(ns.upgradeManager);
     }
-    storage.registerListener(this);
 
     if(conf.getBoolean(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY,
                        DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_DEFAULT)) {
@@ -169,6 +167,11 @@ public class FSImage implements NNStorageListener, Closeable {
                                 Collection<URI> editsDirs) {
     checkpointDirs = dirs;
     checkpointEditsDirs = editsDirs;
+  }
+  
+  void format(String clusterId) throws IOException {
+    storage.format(clusterId);
+    saveFSImageInAllDirs(0);    
   }
   
   /**
@@ -1039,29 +1042,6 @@ public class FSImage implements NNStorageListener, Closeable {
 
   public NNStorage getStorage() {
     return storage;
-  }
-
-  @Override // NNStorageListener
-  public void errorOccurred(StorageDirectory sd) throws IOException {
-    // do nothing,
-  }
-
-  
-  @Override // NNStorageListener
-  public void formatOccurred(StorageDirectory sd) throws IOException {
-    if (sd.getStorageDirType().isOfType(NameNodeDirType.IMAGE)) {
-      sd.lock();
-      try {
-        // TODO what happens if you add a new storage dir to an already existing
-        // namespace? Need a testcase for this.
-        saveFSImage(sd, 0);
-        renameCheckpointInDir(sd, 0);
-      } finally {
-        sd.unlock();
-      }
-      LOG.info("Storage directory " + sd.getRoot()
-               + " has been successfully formatted.");
-    }
   }
 
   public int getLayoutVersion() {

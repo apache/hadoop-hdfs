@@ -116,31 +116,6 @@ public class NNStorage extends Storage implements Closeable {
     }
   }
 
-  /**
-   * Interface to be implemented by classes which make use of storage
-   * directories. They are  notified when a StorageDirectory is causing errors,
-   * becoming available or being formatted.
-   *
-   * This allows the implementors of the interface take their own specific
-   * action on the StorageDirectory when this occurs.
-   */
-  interface NNStorageListener {
-    /**
-     * An error has occurred with a StorageDirectory.
-     * @param sd The storage directory causing the error.
-     * @throws IOException
-     */
-    void errorOccurred(StorageDirectory sd) throws IOException;
-
-    /**
-     * A storage directory has been formatted.
-     * @param sd The storage directory being formatted.
-     * @throws IOException
-     */
-    void formatOccurred(StorageDirectory sd) throws IOException;
-  }
-
-  final private List<NNStorageListener> listeners;
   private UpgradeManager upgradeManager = null;
   protected String blockpoolID = ""; // id of the block pool
 
@@ -178,7 +153,6 @@ public class NNStorage extends Storage implements Closeable {
     super(NodeType.NAME_NODE);
 
     storageDirs = new CopyOnWriteArrayList<StorageDirectory>();
-    this.listeners = new CopyOnWriteArrayList<NNStorageListener>();
     
     setStorageDirectories(imageDirs, editsDirs);
   }
@@ -192,7 +166,6 @@ public class NNStorage extends Storage implements Closeable {
     super(NodeType.NAME_NODE, storageInfo);
 
     storageDirs = new CopyOnWriteArrayList<StorageDirectory>();
-    this.listeners = new CopyOnWriteArrayList<NNStorageListener>();
     this.blockpoolID = bpid;
   }
 
@@ -222,7 +195,6 @@ public class NNStorage extends Storage implements Closeable {
 
   @Override // Closeable
   public void close() throws IOException {
-    listeners.clear();
     unlockAll();
     storageDirs.clear();
   }
@@ -549,9 +521,6 @@ public class NNStorage extends Storage implements Closeable {
    * in this filesystem. */
   private void format(StorageDirectory sd) throws IOException {
     sd.clearDirectory(); // create currrent dir
-    for (NNStorageListener listener : listeners) {
-      listener.formatOccurred(sd);
-    }
     sd.write();
     writeTransactionIdFile(sd, 0);
 
@@ -878,17 +847,6 @@ public class NNStorage extends Storage implements Closeable {
   }
 
   /**
-   * Register a listener. The listener will be notified of changes to the list
-   * of available storage directories.
-   *
-   * @see NNStorageListener
-   * @param sel A storage listener.
-   */
-  void registerListener(NNStorageListener sel) {
-    listeners.add(sel);
-  }
-
-  /**
    * Disable the check for pre-upgradable layouts. Needed for BackupImage.
    * @param val Whether to disable the preupgradeable layout check.
    */
@@ -922,10 +880,6 @@ public class NNStorage extends Storage implements Closeable {
 
     String lsd = listStorageDirectories();
     LOG.debug("current list of storage dirs:" + lsd);
-
-    for (NNStorageListener listener : listeners) {
-      listener.errorOccurred(sd);
-    }
 
     LOG.info("About to remove corresponding storage: "
              + sd.getRoot().getAbsolutePath());

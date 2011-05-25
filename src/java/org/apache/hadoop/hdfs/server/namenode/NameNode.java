@@ -1488,7 +1488,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
     
     FSImage fsImage = new FSImage(conf, null, dirsToFormat, editDirsToFormat);
     FSNamesystem nsys = new FSNamesystem(fsImage, conf);
-    nsys.dir.fsImage.getStorage().format(clusterId);
+    nsys.dir.fsImage.format(clusterId);
     return false;
   }
 
