@@ -284,7 +284,7 @@ public class TestEditLogRace {
 
         // Verify edit logs before the save
         // They should start with the first edit after the checkpoint
-        long logStartTxId = fsimage.getStorage().getCheckpointTxId() + 1; 
+        long logStartTxId = fsimage.getStorage().getMostRecentCheckpointTxId() + 1; 
         verifyEditLogs(namesystem, fsimage,
             NNStorage.getInProgressEditsFileName(logStartTxId),
             logStartTxId);
@@ -294,7 +294,7 @@ public class TestEditLogRace {
         namesystem.saveNamespace();
         LOG.info("Save " + i + ": leaving safemode");
 
-        long savedImageTxId = fsimage.getStorage().getCheckpointTxId();
+        long savedImageTxId = fsimage.getStorage().getMostRecentCheckpointTxId();
         
         // Verify that edit logs post save got finalized and aren't corrupt
         verifyEditLogs(namesystem, fsimage,
@@ -305,7 +305,7 @@ public class TestEditLogRace {
         // the log roll writes the "BEGIN" transaction to the new log.
         // TODO: consider making enterSafeMode actually close the edit log
         // at that point?
-        assertEquals(fsimage.getStorage().getCheckpointTxId(),
+        assertEquals(fsimage.getStorage().getMostRecentCheckpointTxId(),
                      editLog.getLastWrittenTxId() - 1);
 
         namesystem.leaveSafeMode(false);

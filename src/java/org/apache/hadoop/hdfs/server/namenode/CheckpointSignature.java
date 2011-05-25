@@ -38,11 +38,11 @@ import com.google.common.collect.Ordering;
 public class CheckpointSignature extends StorageInfo 
                       implements WritableComparable<CheckpointSignature> {
   private static final String FIELD_SEPARATOR = ":";
-  MD5Hash imageDigest = null;
+  private static final int NUM_FIELDS = 7;
 
   String blockpoolID = "";
   
-  long lastCheckpointTxId;
+  long mostRecentCheckpointTxId;
   long curSegmentTxId;
 
   public CheckpointSignature() {}
@@ -51,30 +51,22 @@ public class CheckpointSignature extends StorageInfo
     super(fsImage.getStorage());
     blockpoolID = fsImage.getBlockPoolID();
     
-    lastCheckpointTxId = fsImage.getStorage().getCheckpointTxId();
+    mostRecentCheckpointTxId = fsImage.getStorage().getMostRecentCheckpointTxId();
     curSegmentTxId = fsImage.getEditLog().getCurSegmentTxId();
-    imageDigest = fsImage.getStorage().getImageDigest();
   }
 
   CheckpointSignature(String str) {
     String[] fields = str.split(FIELD_SEPARATOR);
-    assert fields.length == 8 : "Must be 8 fields in CheckpointSignature";
-    layoutVersion = Integer.valueOf(fields[0]);
-    namespaceID = Integer.valueOf(fields[1]);
-    cTime = Long.valueOf(fields[2]);
-    lastCheckpointTxId  = Long.valueOf(fields[3]);
-    curSegmentTxId  = Long.valueOf(fields[4]);
-    imageDigest = new MD5Hash(fields[5]);
-    clusterID = fields[6];
-    blockpoolID = fields[7];
-  }
-
-  /**
-   * Get the MD5 image digest
-   * @return the MD5 image digest
-   */
-  MD5Hash getImageDigest() {
-    return imageDigest;
+    assert fields.length == NUM_FIELDS :
+      "Must be " + NUM_FIELDS + " fields in CheckpointSignature";
+    int i = 0;
+    layoutVersion = Integer.valueOf(fields[i++]);
+    namespaceID = Integer.valueOf(fields[i++]);
+    cTime = Long.valueOf(fields[i++]);
+    mostRecentCheckpointTxId  = Long.valueOf(fields[i++]);
+    curSegmentTxId  = Long.valueOf(fields[i++]);
+    clusterID = fields[i++];
+    blockpoolID = fields[i++];
   }
 
   /**
@@ -106,9 +98,8 @@ public class CheckpointSignature extends StorageInfo
     return String.valueOf(layoutVersion) + FIELD_SEPARATOR
          + String.valueOf(namespaceID) + FIELD_SEPARATOR
          + String.valueOf(cTime) + FIELD_SEPARATOR
-         + String.valueOf(lastCheckpointTxId) + FIELD_SEPARATOR
+         + String.valueOf(mostRecentCheckpointTxId) + FIELD_SEPARATOR
          + String.valueOf(curSegmentTxId) + FIELD_SEPARATOR
-         + imageDigest.toString() + FIELD_SEPARATOR
          + clusterID + FIELD_SEPARATOR
          + blockpoolID ;
   }
@@ -117,20 +108,17 @@ public class CheckpointSignature extends StorageInfo
     if(layoutVersion != si.getStorage().layoutVersion
        || namespaceID != si.getStorage().namespaceID 
        || cTime != si.getStorage().cTime
-       || !imageDigest.equals(si.getStorage().getImageDigest())
        || !clusterID.equals(si.getClusterID())
        || !blockpoolID.equals(si.getBlockPoolID())) {
       // checkpointTime can change when the image is saved - do not compare
       throw new IOException("Inconsistent checkpoint fields.\n"
           + "LV = " + layoutVersion + " namespaceID = " + namespaceID
           + " cTime = " + cTime
-          + " ; imageDigest = " + imageDigest
           + " ; clusterId = " + clusterID
           + " ; blockpoolId = " + blockpoolID
           + ".\nExpecting respectively: "
           + si.getStorage().layoutVersion + "; " 
           + si.getStorage().namespaceID + "; " + si.getStorage().cTime
-          + "; " + si.getStorage().getImageDigest()
           + "; " + si.getClusterID() + "; " 
           + si.getBlockPoolID() + ".");
     }
@@ -144,9 +132,8 @@ public class CheckpointSignature extends StorageInfo
       .compare(layoutVersion, o.layoutVersion)
       .compare(namespaceID, o.namespaceID)
       .compare(cTime, o.cTime)
-      .compare(lastCheckpointTxId, o.lastCheckpointTxId)
+      .compare(mostRecentCheckpointTxId, o.mostRecentCheckpointTxId)
       .compare(curSegmentTxId, o.curSegmentTxId)
-      .compare(imageDigest, o.imageDigest)
       .compare(clusterID, o.clusterID)
       .compare(blockpoolID, o.blockpoolID)
       .result();
@@ -161,9 +148,8 @@ public class CheckpointSignature extends StorageInfo
 
   public int hashCode() {
     return layoutVersion ^ namespaceID ^
-            (int)(cTime ^ lastCheckpointTxId ^ curSegmentTxId)
-            ^ clusterID.hashCode() ^ blockpoolID.hashCode()
-            ^ imageDigest.hashCode();
+            (int)(cTime ^ mostRecentCheckpointTxId ^ curSegmentTxId)
+            ^ clusterID.hashCode() ^ blockpoolID.hashCode();
   }
 
   /////////////////////////////////////////////////
@@ -172,17 +158,14 @@ public class CheckpointSignature extends StorageInfo
   public void write(DataOutput out) throws IOException {
     super.write(out);
     WritableUtils.writeString(out, blockpoolID);
-    out.writeLong(lastCheckpointTxId);
+    out.writeLong(mostRecentCheckpointTxId);
     out.writeLong(curSegmentTxId);
-    imageDigest.write(out);
   }
 
   public void readFields(DataInput in) throws IOException {
     super.readFields(in);
     blockpoolID = WritableUtils.readString(in);
-    lastCheckpointTxId = in.readLong();
+    mostRecentCheckpointTxId = in.readLong();
     curSegmentTxId = in.readLong();
-    imageDigest = new MD5Hash();
-    imageDigest.readFields(in);
   }
 }

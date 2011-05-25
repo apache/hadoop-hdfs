@@ -64,7 +64,8 @@ public abstract class MD5FileUtils {
   }
   
   /**
-   * Read the md5 checksum stored alongside the given file.
+   * Read the md5 checksum stored alongside the given file, or null
+   * if no md5 is stored.
    * @param dataFile the file containing data
    * @return the checksum stored in dataFile.md5
    */
@@ -72,6 +73,10 @@ public abstract class MD5FileUtils {
     File md5File = getDigestFileForFile(dataFile);
 
     String md5Line;
+    
+    if (!md5File.exists()) {
+      return null;
+    }
     
     BufferedReader reader =
       new BufferedReader(new FileReader(md5File));

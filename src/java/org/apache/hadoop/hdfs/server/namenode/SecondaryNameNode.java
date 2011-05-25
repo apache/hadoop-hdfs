@@ -47,6 +47,7 @@ import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
+import org.apache.hadoop.hdfs.util.MD5FileUtils;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.ipc.RPC;
@@ -62,6 +63,7 @@ import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.StringUtils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
 /**********************************************************
@@ -123,6 +125,11 @@ public class SecondaryNameNode implements Runnable {
 
   FSImage getFSImage() {
     return checkpointImage;
+  }
+  
+  @VisibleForTesting
+  void setFSImage(CheckpointStorage image) {
+    this.checkpointImage = image;
   }
 
   /**
@@ -323,7 +330,6 @@ public class SecondaryNameNode implements Runnable {
         LOG.error("Exception in doCheckpoint: ");
         LOG.error(StringUtils.stringifyException(e));
         e.printStackTrace();
-        checkpointImage.getStorage().imageDigest = null;
       } catch (Throwable e) {
         LOG.error("Throwable Exception in doCheckpoint: ");
         LOG.error(StringUtils.stringifyException(e));
@@ -355,19 +361,15 @@ public class SecondaryNameNode implements Runnable {
 
             // get fsimage
             boolean downloadImage = true;
-            if (sig.lastCheckpointTxId ==
-                dstImage.getStorage().getCheckpointTxId()) {
+            if (sig.mostRecentCheckpointTxId ==
+                dstImage.getStorage().getMostRecentCheckpointTxId()) {
               downloadImage = false;
               LOG.info("Image has not changed. Will not download image.");
             } else {
               MD5Hash downloadedHash = TransferFsImage.downloadImageToStorage(
-                  nnHostPort, sig.lastCheckpointTxId, dstImage.getStorage(), true);
-              if (!downloadedHash.equals(sig.getImageDigest())) {
-                throw new IOException("Image download was invalid. Expected " +
-                    sig.getImageDigest() + " but got " + downloadedHash);
-              }
+                  nnHostPort, sig.mostRecentCheckpointTxId, dstImage.getStorage(), true);
               dstImage.saveDigestAndRenameCheckpointImage(
-                  sig.lastCheckpointTxId, sig.getImageDigest());
+                  sig.mostRecentCheckpointTxId, downloadedHash);
             }
         
             // get edits file
@@ -395,8 +397,7 @@ public class SecondaryNameNode implements Runnable {
   private void putFSImage(CheckpointSignature sig, long txid) throws IOException {
     String fileid = "putimage=1&txid=" + txid + "&port=" + imagePort +
       "&machine=" + infoBindAddress + 
-      "&token=" + sig.toString() +
-      "&newChecksum=" + checkpointImage.getStorage().getImageDigest();
+      "&token=" + sig.toString();
     LOG.info("Posted URL " + fsName + fileid);
     TransferFsImage.getFileClient(fsName, fileid, null, false);
   }
@@ -446,10 +447,10 @@ public class SecondaryNameNode implements Runnable {
     }
 
     RemoteEditLogManifest manifest =
-      namenode.getEditLogManifest(sig.lastCheckpointTxId + 1);
+      namenode.getEditLogManifest(sig.mostRecentCheckpointTxId + 1);
     assert !manifest.getLogs().isEmpty();
-    assert manifest.getLogs().get(0).getStartTxId() == sig.lastCheckpointTxId + 1 :
-      "Bad edit log manifest (expected txid = " + (sig.lastCheckpointTxId + 1) +
+    assert manifest.getLogs().get(0).getStartTxId() == sig.mostRecentCheckpointTxId + 1 :
+      "Bad edit log manifest (expected txid = " + (sig.mostRecentCheckpointTxId + 1) +
       ": " + manifest;
 
     boolean loadImage = downloadCheckpointFiles(
@@ -460,7 +461,7 @@ public class SecondaryNameNode implements Runnable {
     // Upload the new image into the NameNode. Then tell the Namenode
     // to make this new uploaded image as the most current image.
     //
-    long txid = checkpointImage.getStorage().getCheckpointTxId();
+    long txid = checkpointImage.getStorage().getMostRecentCheckpointTxId();
     putFSImage(sig, txid);
 
     // error simulation code for junit test
@@ -728,9 +729,10 @@ public class SecondaryNameNode implements Runnable {
       
       this.getStorage().setStorageInfo(sig);
       if (loadImage) {
-        File file = getStorage().findImageFile(sig.lastCheckpointTxId);
+        File file = getStorage().findImageFile(sig.mostRecentCheckpointTxId);
+        MD5Hash hash = MD5FileUtils.readStoredMd5ForFile(file);
         LOG.debug("2NN loading image from " + file);
-        loadFSImage(file, sig.getImageDigest());
+        loadFSImage(file, hash);
       }
       List<File> editsFiles = Lists.newArrayList();
       for (RemoteEditLog log : manifest.getLogs()) {
@@ -740,7 +742,6 @@ public class SecondaryNameNode implements Runnable {
       }
       LOG.info("SecondaryNameNode about to load edits from " +
           editsFiles.size() + " file(s).");
-      LOG.debug("Before merge, image digest is " + this.getStorage().getImageDigest());
       loadEdits(editsFiles);
       
       storage.setClusterID(sig.getClusterID());
@@ -750,7 +751,6 @@ public class SecondaryNameNode implements Runnable {
       // multiple concurrent checkpointers with big fsimages. Test this.
       sig.validateStorageInfo(this);
       saveFSImageInAllDirs(editLog.getLastWrittenTxId());
-      LOG.debug("After save, image digest is " + this.getStorage().getImageDigest());
       getStorage().writeAll();
     }
   }

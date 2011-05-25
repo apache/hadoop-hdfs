@@ -388,7 +388,7 @@ public class NameNode implements NamenodeProtocols, FSConstants {
         getHostPortString(rpcAddress),
         getHostPortString(httpAddress),
         getFSImage().getStorage(), getRole(),
-        getFSImage().getStorage().getCheckpointTxId());
+        getFSImage().getStorage().getMostRecentCheckpointTxId());
     return nodeRegistration;
   }
 

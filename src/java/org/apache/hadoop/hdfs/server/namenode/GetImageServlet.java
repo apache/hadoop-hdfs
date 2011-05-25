@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
+import org.apache.hadoop.hdfs.util.MD5FileUtils;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
@@ -83,7 +84,7 @@ public class GetImageServlet extends HttpServlet {
           if (parsedParams.isGetImage()) {
             long txid = parsedParams.getTxId();
             File imageFile = nnImage.getStorage().getFsImageName(txid);
-            setContentLengthFromFile(response, imageFile);
+            setVerificationHeaders(response, imageFile);
             // send fsImage
             TransferFsImage.getFileServer(response.getOutputStream(), imageFile,
                 getThrottler(conf)); 
@@ -93,7 +94,7 @@ public class GetImageServlet extends HttpServlet {
             
             File editFile = nnImage.getStorage()
                 .findFinalizedEditsFile(startTxId, endTxId);
-            setContentLengthFromFile(response, editFile);
+            setVerificationHeaders(response, editFile);
             
             // send edits
             TransferFsImage.getFileServer(response.getOutputStream(), editFile,
@@ -105,7 +106,6 @@ public class GetImageServlet extends HttpServlet {
 
             // issue a HTTP get request to download the new fsimage 
             nnImage.validateCheckpointUpload(parsedParams.getToken());
-            nnImage.newImageDigest = parsedParams.getNewChecksum();
             MD5Hash downloadImageDigest = reloginIfNecessary().doAs(
                 new PrivilegedExceptionAction<MD5Hash>() {
                 @Override
@@ -115,11 +115,6 @@ public class GetImageServlet extends HttpServlet {
                       nnImage.getStorage(), true);
                   }
             });
-            if (!nnImage.newImageDigest.equals(downloadImageDigest)) {
-              throw new IOException("The downloaded image is corrupt," +
-                  " expecting a checksum " + nnImage.newImageDigest +
-                  " but received a checksum " + downloadImageDigest);
-            }
             nnImage.saveDigestAndRenameCheckpointImage(txid, downloadImageDigest);
           }
           return null;
@@ -195,9 +190,18 @@ public class GetImageServlet extends HttpServlet {
     return false;
   }
   
-  private void setContentLengthFromFile(HttpServletResponse response, File file) {
+  /**
+   * Set headers for content length, and, if available, md5.
+   * @throws IOException 
+   */
+  private void setVerificationHeaders(HttpServletResponse response, File file)
+  throws IOException {
     response.setHeader(TransferFsImage.CONTENT_LENGTH,
         String.valueOf(file.length()));
+    MD5Hash hash = MD5FileUtils.readStoredMd5ForFile(file);
+    if (hash != null) {
+      response.setHeader(TransferFsImage.MD5_HEADER, hash.toString());
+    }
   }
 
   static String getParamStringForImage(long txid) {
@@ -216,7 +220,6 @@ public class GetImageServlet extends HttpServlet {
     private int remoteport;
     private String machineName;
     private CheckpointSignature token;
-    private MD5Hash newChecksum = null;
     private long startTxId, endTxId, txId;
 
     /**
@@ -252,8 +255,6 @@ public class GetImageServlet extends HttpServlet {
           machineName = pmap.get("machine")[0];
         } else if (key.equals("token")) { 
           token = new CheckpointSignature(pmap.get("token")[0]);
-        } else if (key.equals("newChecksum")) {
-          newChecksum = new MD5Hash(pmap.get("newChecksum")[0]);
         }
       }
 
@@ -292,14 +293,6 @@ public class GetImageServlet extends HttpServlet {
 
     CheckpointSignature getToken() {
       return token;
-    }
-
-    /**
-     * Get the MD5 digest of the new image
-     * @return the MD5 digest of the new image
-     */
-    MD5Hash getNewChecksum() {
-      return newChecksum;
     }
     
     String getInfoServer() throws IOException{

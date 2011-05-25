@@ -185,9 +185,9 @@ class Checkpointer extends Daemon {
 
     // Retrieve image file
     MD5Hash hash = TransferFsImage.downloadImageToStorage(
-        nnHttpAddr, sig.lastCheckpointTxId,
+        nnHttpAddr, sig.mostRecentCheckpointTxId,
         getFSImage().getStorage(), true);
-    getFSImage().saveDigestAndRenameCheckpointImage(sig.lastCheckpointTxId, hash);
+    getFSImage().saveDigestAndRenameCheckpointImage(sig.mostRecentCheckpointTxId, hash);
     
     // Retrieve edits file
     // TODO!
@@ -202,8 +202,7 @@ class Checkpointer extends Daemon {
     int httpPort = httpSocAddr.getPort();
     String fileid = "putimage=1&port=" + httpPort +
       "&machine=" + infoBindAddress +
-      "&token=" + sig.toString() +
-      "&newChecksum=" + getFSImage().getStorage().getImageDigest().toString();
+      "&token=" + sig.toString();
     LOG.info("Posted URL " + backupNode.nnHttpAddress + fileid);
     TransferFsImage.getFileClient(backupNode.nnHttpAddress, 
         fileid, null, false);

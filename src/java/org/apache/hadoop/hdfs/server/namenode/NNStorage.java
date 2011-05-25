@@ -142,7 +142,6 @@ public class NNStorage extends Storage implements Closeable {
 
   final private List<NNStorageListener> listeners;
   private UpgradeManager upgradeManager = null;
-  protected MD5Hash imageDigest = null;
   protected String blockpoolID = ""; // id of the block pool
 
   /**
@@ -158,7 +157,7 @@ public class NNStorage extends Storage implements Closeable {
    * recent fsimage file. This does not include any transactions
    * that have since been written to the edit log.
    */
-  protected long checkpointTxId = FSConstants.INVALID_TXID;
+  protected long mostRecentCheckpointTxId = FSConstants.INVALID_TXID;
 
   /**
    * list of failed (and thus removed) storages
@@ -482,15 +481,15 @@ public class NNStorage extends Storage implements Closeable {
   /**
    * Set the transaction ID of the last checkpoint
    */
-  void setCheckpointTxId(long checkpointTxId) {
-    this.checkpointTxId = checkpointTxId;
+  void setMostRecentCheckpointTxId(long txid) {
+    this.mostRecentCheckpointTxId = txid;
   }
 
   /**
    * Return the transaction ID of the last checkpoint.
    */
-  long getCheckpointTxId() {
-    return checkpointTxId;
+  long getMostRecentCheckpointTxId() {
+    return mostRecentCheckpointTxId;
   }
 
   /**
@@ -671,7 +670,7 @@ public class NNStorage extends Storage implements Closeable {
             "file " + STORAGE_FILE_VERSION
             + " does not have the checkpoint transaction id set.");
       }
-      this.checkpointTxId = Long.valueOf(sCheckpointId);
+      this.mostRecentCheckpointTxId = Long.valueOf(sCheckpointId);
     } else if (sCheckpointId != null) {
       throw new InconsistentFSStateException(sd.getRoot(),
           "file " + STORAGE_FILE_VERSION +
@@ -707,7 +706,7 @@ public class NNStorage extends Storage implements Closeable {
                         Integer.toString(uVersion));
     }
 
-    props.setProperty(CHECKPOINT_TXID_PROPERTY, String.valueOf(checkpointTxId));
+    props.setProperty(CHECKPOINT_TXID_PROPERTY, String.valueOf(mostRecentCheckpointTxId));
   }
   
   static File getStorageFile(StorageDirectory sd, NameNodeFile type, long imageTxId) {
@@ -876,22 +875,6 @@ public class NNStorage extends Storage implements Closeable {
     LOG.info("\n   Distributed upgrade for NameNode version "
              + upgradeManager.getUpgradeVersion() + " to current LV "
              + FSConstants.LAYOUT_VERSION + " is initialized.");
-  }
-
-  /**
-   * Set the digest for the latest image stored by NNStorage.
-   * @param digest The digest for the image.
-   */
-  void setImageDigest(MD5Hash digest) {
-    this.imageDigest = digest;
-  }
-
-  /**
-   * Get the digest for the latest image storage by NNStorage.
-   * @return The digest for the latest image.
-   */
-  MD5Hash getImageDigest() {
-    return imageDigest;
   }
 
   /**

@@ -36,7 +36,9 @@ import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
+import org.apache.hadoop.hdfs.util.MD5FileUtils;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.conf.Configuration;
 
 /**
@@ -162,7 +164,6 @@ public class BackupImage extends FSImage {
 
     // set storage fields
     storage.setStorageInfo(sig);
-    storage.setImageDigest(sig.getImageDigest());
 
     FSDirectory fsDir = getFSNamesystem().dir;
     if(fsDir.isEmpty()) {
@@ -177,8 +178,9 @@ public class BackupImage extends FSImage {
 
       getFSDirectoryRootLock().writeLock();
       try { // load image under rootDir lock
-        loadFSImage(NNStorage.getStorageFile(sdName, NameNodeFile.IMAGE, TODO_TXID),
-            sig.getImageDigest());
+        File imageFile = null; // TODO
+        MD5Hash expectedMD5 = MD5FileUtils.readStoredMd5ForFile(imageFile);
+        loadFSImage(imageFile, expectedMD5);
       } finally {
         getFSDirectoryRootLock().writeUnlock();
       }

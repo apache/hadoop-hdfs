@@ -79,7 +79,6 @@ public class FSImage implements NNStorageListener, Closeable {
   protected FSNamesystem namesystem = null;
   protected FSEditLog editLog = null;
   private boolean isUpgradeFinalized = false;
-  protected MD5Hash newImageDigest = null;
 
   protected NNStorage storage;
 
@@ -666,7 +665,7 @@ public class FSImage implements NNStorageListener, Closeable {
     LOG.debug("About to load edits:\n  " + Joiner.on("\n  ").join(editLogs));
       
     FSEditLogLoader loader = new FSEditLogLoader(namesystem);
-    long startingTxId = storage.getCheckpointTxId() + 1;
+    long startingTxId = storage.getMostRecentCheckpointTxId() + 1;
     int numLoaded = 0;
     // Load latest edits
     for (File edits : editLogs) {
@@ -682,7 +681,7 @@ public class FSImage implements NNStorageListener, Closeable {
     getFSNamesystem().dir.updateCountForINodeWithQuota();    
     
     // update the txid for the edit log
-    editLog.setNextTxId(storage.getCheckpointTxId() + numLoaded + 1);
+    editLog.setNextTxId(storage.getMostRecentCheckpointTxId() + numLoaded + 1);
 
     // If we loaded any edits, need to save.
     return numLoaded > 0;
@@ -709,11 +708,9 @@ public class FSImage implements NNStorageListener, Closeable {
           " is corrupt with MD5 checksum of " + readImageMd5 +
           " but expecting " + expectedMd5);
     }
-    
-    storage.setImageDigest(readImageMd5); // set this fsimage's checksum
 
     long txId = loader.getLoadedImageTxId();
-    storage.setCheckpointTxId(txId);
+    storage.setMostRecentCheckpointTxId(txId);
     editLog.setNextTxId(txId + 1);
   }
 
@@ -730,8 +727,7 @@ public class FSImage implements NNStorageListener, Closeable {
     saver.save(newFile, getFSNamesystem(), compression);
     
     MD5FileUtils.saveMD5File(dstFile, saver.getSavedDigest());
-    storage.setImageDigest(saver.getSavedDigest());
-    storage.setCheckpointTxId(editLog.getLastWrittenTxId());
+    storage.setMostRecentCheckpointTxId(editLog.getLastWrittenTxId());
   }
 
   /**
@@ -891,11 +887,11 @@ public class FSImage implements NNStorageListener, Closeable {
    */
   void validateCheckpointUpload(CheckpointSignature sig) throws IOException { 
     // verify token
-    long expectedTxId = getEditLog().getLastWrittenTxId();
-    if (sig.curSegmentTxId != expectedTxId) {
-      throw new IOException("Namenode has an edit log corresponding to txid " +
-          expectedTxId + " but new checkpoint was created using editlog " +
-          "ending at txid " + sig.curSegmentTxId + ". Checkpoint Aborted.");
+    long curTxId = getEditLog().getLastWrittenTxId();
+    if (sig.curSegmentTxId > curTxId) {
+      throw new IOException("Namenode has already reached txid " +
+          curTxId + " but new checkpoint was created using editlog " +
+          "starting at txid " + sig.curSegmentTxId + ". Checkpoint Aborted.");
     }
 
     sig.validateStorageInfo(this);
@@ -934,7 +930,7 @@ public class FSImage implements NNStorageListener, Closeable {
             && bnReg.getCTime() > storage.getCTime())
         || (bnReg.getLayoutVersion() == storage.getLayoutVersion()
             && bnReg.getCTime() == storage.getCTime()
-            && bnReg.getCheckpointTxId() > storage.getCheckpointTxId()))
+            && bnReg.getCheckpointTxId() > storage.getMostRecentCheckpointTxId()))
       // remote node has newer image age
       msg = "Name node " + bnReg.getAddress()
             + " has newer image layout version: LV = " +bnReg.getLayoutVersion()
@@ -942,7 +938,7 @@ public class FSImage implements NNStorageListener, Closeable {
             + " checkpointTxId = " + bnReg.getCheckpointTxId()
             + ". Current version: LV = " + storage.getLayoutVersion()
             + " cTime = " + storage.getCTime()
-            + " checkpointTxId = " + storage.getCheckpointTxId();
+            + " checkpointTxId = " + storage.getMostRecentCheckpointTxId();
     if(msg != null) {
       LOG.error(msg);
       return new NamenodeCommand(NamenodeProtocol.ACT_SHUTDOWN);
@@ -950,7 +946,7 @@ public class FSImage implements NNStorageListener, Closeable {
     boolean isImgObsolete = true;
     if(bnReg.getLayoutVersion() == storage.getLayoutVersion()
         && bnReg.getCTime() == storage.getCTime()
-        && bnReg.getCheckpointTxId() == storage.getCheckpointTxId())
+        && bnReg.getCheckpointTxId() == storage.getMostRecentCheckpointTxId())
       isImgObsolete = false;
     boolean needToReturnImg = true;
     if(storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0)
@@ -1003,9 +999,8 @@ public class FSImage implements NNStorageListener, Closeable {
     // So long as this is the newest image available,
     // advertise it as such to other checkpointers
     // from now on
-    if (txid > storage.getCheckpointTxId()) {
-      storage.setCheckpointTxId(txid);
-      storage.setImageDigest(digest);
+    if (txid > storage.getMostRecentCheckpointTxId()) {
+      storage.setMostRecentCheckpointTxId(txid);
     }
   }
 

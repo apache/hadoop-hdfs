@@ -50,6 +50,8 @@ import com.google.common.collect.Lists;
 class TransferFsImage implements FSConstants {
   
   public final static String CONTENT_LENGTH = "Content-Length";
+  public final static String MD5_HEADER = "X-MD5-Digest";
+
   private static final Log LOG = LogFactory.getLog(TransferFsImage.class);
 
   static MD5Hash downloadImageToStorage(
@@ -115,6 +117,13 @@ class TransferFsImage implements FSConstants {
         if (num <= 0) {
           break;
         }
+
+        if (ErrorSimulator.getErrorSimulation(4)) {
+          // Simulate a corrupted byte on the wire
+          LOG.warn("SIMULATING A CORRUPT BYTE IN IMAGE TRANSFER!");
+          buf[0]++;
+        }
+        
         outstream.write(buf, 0, num);
         if (throttler != null) {
           throttler.throttle(num);
@@ -165,6 +174,9 @@ class TransferFsImage implements FSConstants {
       throw new IOException(CONTENT_LENGTH + " header is not provided " +
                             "by the namenode when trying to fetch " + str);
     }
+    
+    MD5Hash advertisedDigest = parseMD5Header(connection);
+
     long received = 0;
     InputStream stream = connection.getInputStream();
     MessageDigest digester = null;
@@ -205,6 +217,24 @@ class TransferFsImage implements FSConstants {
                               advertisedSize);
       }
     }
-    return digester==null ? null : new MD5Hash(digester.digest());
+
+    if (digester != null) {
+      MD5Hash computedDigest = new MD5Hash(digester.digest());
+      
+      if (advertisedDigest != null &&
+          !computedDigest.equals(advertisedDigest)) {
+        throw new IOException("File " + str + " computed digest " +
+            computedDigest + " does not match advertised digest " + 
+            advertisedDigest);
+      }
+      return computedDigest;
+    } else {
+      return null;
+    }    
+  }
+
+  private static MD5Hash parseMD5Header(HttpURLConnection connection) {
+    String header = connection.getHeaderField(MD5_HEADER);
+    return (header != null) ? new MD5Hash(header) : null;
   }
 }
