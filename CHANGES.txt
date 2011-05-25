@@ -452,6 +452,9 @@ Trunk (unreleased changes)
     HDFS-1509. A savenamespace command writes the fsimage and edits into
     all configured directories. (dhruba)
 
+    HDFS-1927. Fix a bug which causes ip=null in NameNode audit log.
+    (John George via szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
