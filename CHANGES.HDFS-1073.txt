@@ -32,3 +32,5 @@ HDFS-1926. Remove references to StorageDirectory from JournalManager interface
 HDFS-1893. Change edit logs and images to be named based on txid (todd)
 HDFS-1985. Clean up image transfer servlet (todd)
 HDFS-1984. Enable multiple secondary namenodes to run simultaneously (todd)
+HDFS-1987. Re-enable TestCheckpoint.testSecondaryImageDownload which was not
+           running previously. (todd)

@@ -949,19 +949,19 @@ public class TestCheckpoint extends TestCase {
   }
   
   /**
-   * Simulate a secondary node failure to transfer image
-   * back to the name-node.
-   * Used to truncate primary fsimage file.
+   * Test that the secondary doesn't have to re-download image
+   * if it hasn't changed.
    */
   @SuppressWarnings("deprecation")
-  public void testSecondaryImageDownload(Configuration conf)
+  public void testSecondaryImageDownload()
     throws IOException {
+    Configuration conf = new HdfsConfiguration();
     System.out.println("Starting testSecondaryImageDownload");
     conf.set(DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, "0.0.0.0:0");
     Path dir = new Path("/checkpoint");
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
                                                .numDataNodes(numDatanodes)
-                                               .format(false).build();
+                                               .format(true).build();
     cluster.waitActive();
     FileSystem fileSys = cluster.getFileSystem();
     FSImage image = cluster.getNameNode().getFSImage();
@@ -971,28 +971,47 @@ public class TestCheckpoint extends TestCase {
       // Make the checkpoint
       //
       SecondaryNameNode secondary = startSecondaryNameNode(conf);
-      long fsimageLength = image.getStorage()
-        .getStorageFile(image.getStorage().dirIterator(NameNodeDirType.IMAGE).next(),
-                        NameNodeFile.IMAGE, 0xDEADBEEF).length();
-      assertFalse("Image is downloaded", secondary.doCheckpoint());
 
-      // Verify that image file sizes did not change.
-      for (Iterator<StorageDirectory> it = 
-             image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
-        assertTrue("Image size does not change", image.getStorage().getStorageFile(it.next(), 
-                                NameNodeFile.IMAGE, 0xDEADBEEF).length() == fsimageLength);
-      }
+      File secondaryDir = new File(MiniDFSCluster.getBaseDirectory(), "namesecondary1");
+      File secondaryCurrent = new File(secondaryDir, "current");
+
+      long expectedTxIdToDownload = cluster.getNameNode().getFSImage()
+      .getStorage().getMostRecentCheckpointTxId();
+
+      File secondaryFsImageBefore = new File(secondaryCurrent,
+          "fsimage_" + expectedTxIdToDownload);
+      File secondaryFsImageAfter = new File(secondaryCurrent,
+          "fsimage_" + (expectedTxIdToDownload + 2));
+      
+      assertFalse("Secondary should start with empty current/ dir",
+          secondaryFsImageBefore.exists());
+
+      assertTrue("Secondary should have loaded an image",
+          secondary.doCheckpoint());
+      
+      assertTrue("Secondary should have downloaded original image",
+          secondaryFsImageBefore.exists());
+      assertTrue("Secondary should have created a new image",
+          secondaryFsImageAfter.exists());
+      
+      long fsimageLength = secondaryFsImageBefore.length();
+      assertEquals("Image size should not have changed",
+          fsimageLength,
+          secondaryFsImageAfter.length());
 
       // change namespace
       fileSys.mkdirs(dir);
-      assertTrue("Image is not downloaded", secondary.doCheckpoint());
-
-      for (Iterator<StorageDirectory> it = 
-             image.getStorage().dirIterator(NameNodeDirType.IMAGE); it.hasNext();) {
-        assertTrue("Image size increased", 
-                   image.getStorage().getStorageFile(it.next(), 
-                                                     NameNodeFile.IMAGE, 0xDEADBEEF).length() > fsimageLength);
-     }
+      
+      assertFalse("Another checkpoint should not have to re-load image",
+          secondary.doCheckpoint());
+      
+      for (StorageDirectory sd :
+        image.getStorage().dirIterable(NameNodeDirType.IMAGE)) {
+        File imageFile = NNStorage.getImageFile(sd,
+            expectedTxIdToDownload + 5);
+        assertTrue("Image size increased",
+            imageFile.length() > fsimageLength);
+      }
 
       secondary.shutdown();
     } finally {
