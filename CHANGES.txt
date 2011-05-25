@@ -343,6 +343,9 @@ Trunk (unreleased changes)
     HDFS-1767. Namenode ignores non-initial block report from datanodes
     when in safemode during startup. (Matt Foley via suresh)
 
+    HDFS-1877.  Add a new test for concurrent read and write.  (CW Chung
+    via szetszwo)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
