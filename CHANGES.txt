@@ -543,6 +543,9 @@ Release 0.22.0 - Unreleased
     HDFS-1997. Image transfer process misreports client side exceptions.
     (todd via eli)
 
+    HDFS-2000. Missing deprecation for io.bytes.per.checksum.
+    (Aaron T. Myers vie eli)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
