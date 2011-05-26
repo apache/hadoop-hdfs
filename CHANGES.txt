@@ -349,6 +349,9 @@ Trunk (unreleased changes)
     HDFS-1939.  In ivy.xml, test conf should not extend common conf.
     (Eric Yang via szetszwo)
 
+    HDFS-1996.  ivy: hdfs test jar should be independent to common test jar.
+    (Eric Yang via szetszwo)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
