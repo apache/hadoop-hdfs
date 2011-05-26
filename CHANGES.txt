@@ -346,6 +346,9 @@ Trunk (unreleased changes)
     HDFS-1877.  Add a new test for concurrent read and write.  (CW Chung
     via szetszwo)
 
+    HDFS-1939.  In ivy.xml, test conf should not extend common conf.
+    (Eric Yang via szetszwo)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image

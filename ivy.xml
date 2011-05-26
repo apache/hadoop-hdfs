@@ -39,7 +39,7 @@
     <conf name="common" visibility="private" extends="compile" description="Hadoop common artifacts"/>
     <conf name="hdfs" visibility="private" extends="compile,runtime" description="HDFS dependent artifacts"/>
     <conf name="javadoc" visibility="private" description="artiracts required while performing doc generation" extends="common"/>
-    <conf name="test" extends="common" visibility="private" description="the classpath needed to run tests"/>
+    <conf name="test" extends="master" visibility="private" description="the classpath needed to run tests"/>
     <conf name="system" extends="test" visibility="private" description="the classpath needed to run system tests"/>
     <conf name="releaseaudit" visibility="private" description="Artifacts required for releaseaudit target"/>
     <conf name="jdiff" visibility="private" extends="common"/>
@@ -53,14 +53,22 @@
   </publications>
   <dependencies>
     
-    <dependency org="org.apache.hadoop" name="hadoop-common" rev="${hadoop-common.version}" conf="common->default"/>
-    <dependency org="org.apache.hadoop" name="hadoop-common-test" rev="${hadoop-common.version}" conf="test->default"/>
-    <dependency org="org.apache.hadoop" name="hadoop-common-instrumented" rev="${hadoop-common.version}" conf="system->default"/>
+    <dependency org="org.apache.hadoop" name="hadoop-common" rev="${hadoop-common.version}" conf="common->default">
+      <exclude module="ant"/>
+    </dependency>
+    <dependency org="org.apache.hadoop" name="hadoop-common-instrumented" rev="${hadoop-common.version}" conf="system->default">
+      <exclude module="ant"/>
+    </dependency>
 
     <dependency org="commons-daemon" name="commons-daemon" rev="${commons-daemon.version}" conf="hdfs->default" />
 
     <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}" conf="common->default"/>
     <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}" conf="common->default"/>
+
+    <dependency org="org.slf4j" name="slf4j-api" rev="${slf4j-api.version}" conf="test->master"/>
+    <dependency org="org.slf4j" name="slf4j-log4j12" rev="${slf4j-log4j12.version}" conf="test->master"/>
+    <dependency org="org.apache.hadoop" name="hadoop-common-test" rev="${hadoop-common.version}" conf="test->master"/>
+
     <dependency org="checkstyle" name="checkstyle" rev="${checkstyle.version}" conf="checkstyle->default"/>
     <dependency org="jdiff" name="jdiff" rev="${jdiff.version}" conf="jdiff->default"/>
     <dependency org="xerces" name="xerces" rev="${xerces.version}" conf="jdiff->default"/>
