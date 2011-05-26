@@ -36,3 +36,5 @@ HDFS-1987. Re-enable TestCheckpoint.testSecondaryImageDownload which was not
            running previously. (todd)
 HDFS-1993. TestCheckpoint needs to clean up between cases (todd)
 HDFS-1992. Remove vestiges of NNStorageListener. (todd)
+HDFS-1991. Some refactoring of Secondary NameNode to be able to share more
+           code with the BackupNode or CheckpointNode. (todd)

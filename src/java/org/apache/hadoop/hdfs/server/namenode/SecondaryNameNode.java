@@ -43,11 +43,9 @@ import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageState;
-import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
-import org.apache.hadoop.hdfs.util.MD5FileUtils;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.ipc.RPC;
@@ -104,7 +102,6 @@ public class SecondaryNameNode implements Runnable {
   private int imagePort;
   private String infoBindAddress;
 
-  private FSNamesystem namesystem;
   private Collection<URI> checkpointDirs;
   private Collection<URI> checkpointEditsDirs;
   private long checkpointPeriod;    // in seconds
@@ -345,7 +342,7 @@ public class SecondaryNameNode implements Runnable {
    * @return true if a new image has been downloaded and needs to be loaded
    * @throws IOException
    */
-  private static boolean downloadCheckpointFiles(
+  static boolean downloadCheckpointFiles(
       final String nnHostPort,
       final FSImage dstImage,
       final CheckpointSignature sig,
@@ -455,8 +452,8 @@ public class SecondaryNameNode implements Runnable {
 
     boolean loadImage = downloadCheckpointFiles(
         fsName, checkpointImage, sig, manifest);   // Fetch fsimage and edits
-    doMerge(sig, manifest, loadImage);                   // Do the merge
-  
+    doMerge(conf, sig, manifest, loadImage, checkpointImage);
+    
     //
     // Upload the new image into the NameNode. Then tell the Namenode
     // to make this new uploaded image as the most current image.
@@ -480,21 +477,6 @@ public class SecondaryNameNode implements Runnable {
 
   private void startCheckpoint() throws IOException {
     checkpointImage.startCheckpoint();
-  }
-
-  /**
-   * Merge downloaded image and edits and write the new image into
-   * current storage directory.
-   * @param manifest 
-   */
-  private void doMerge(
-      CheckpointSignature sig, RemoteEditLogManifest manifest, boolean loadImage)
-  throws IOException {
-    if (loadImage) {
-      namesystem = new FSNamesystem(checkpointImage, conf);
-    }
-    assert namesystem.dir.fsImage == checkpointImage;
-    checkpointImage.doMerge(sig, manifest, loadImage);
   }
 
   /**
@@ -701,57 +683,42 @@ public class SecondaryNameNode implements Runnable {
         storage.moveLastCheckpoint(sd);
       }
     }
+  }
+  
+  static void doMerge(Configuration conf, 
+      CheckpointSignature sig, RemoteEditLogManifest manifest,
+      boolean loadImage, FSImage dstImage) throws IOException {   
+    NNStorage dstStorage = dstImage.getStorage();
+    
+    dstStorage.setStorageInfo(sig);
+    if (loadImage) {
+      // TODO: dstImage.namesystem.close(); ??
+      dstImage.namesystem = new FSNamesystem(dstImage, conf);
+      dstImage.editLog = new FSEditLog(dstStorage);
 
-    /**
-     * Merge image and edits, and verify consistency with the signature.
-     * @param manifest 
-     */
-    private void doMerge(CheckpointSignature sig,
-                         RemoteEditLogManifest manifest,
-                         boolean loadImage)
-    throws IOException {
-      StorageDirectory sdName = null;
-      StorageDirectory sdEdits = null;
-      Iterator<StorageDirectory> it = null;
-      if (loadImage) {
-        it = getStorage().dirIterator(NameNodeDirType.IMAGE);
-        if (it.hasNext())
-          sdName = it.next();
-        if (sdName == null) {
-          throw new IOException("Could not locate checkpoint fsimage");
-        }
-      }
-      it = getStorage().dirIterator(NameNodeDirType.EDITS);
-      if (it.hasNext())
-        sdEdits = it.next();
-      if (sdEdits == null)
-        throw new IOException("Could not locate checkpoint edits");
-      
-      this.getStorage().setStorageInfo(sig);
-      if (loadImage) {
-        File file = getStorage().findImageFile(sig.mostRecentCheckpointTxId);
-        MD5Hash hash = MD5FileUtils.readStoredMd5ForFile(file);
-        LOG.debug("2NN loading image from " + file);
-        loadFSImage(file, hash);
-      }
-      List<File> editsFiles = Lists.newArrayList();
-      for (RemoteEditLog log : manifest.getLogs()) {
-        File f = getStorage().findFinalizedEditsFile(
-            log.getStartTxId(), log.getEndTxId());
-        editsFiles.add(f);
-      }
-      LOG.info("SecondaryNameNode about to load edits from " +
-          editsFiles.size() + " file(s).");
-      loadEdits(editsFiles);
-      
-      storage.setClusterID(sig.getClusterID());
-      storage.setBlockPoolID(sig.getBlockpoolID());
-      
-      // TODO I think the below validation might be too strict -- it would disallow
-      // multiple concurrent checkpointers with big fsimages. Test this.
-      sig.validateStorageInfo(this);
-      saveFSImageInAllDirs(editLog.getLastWrittenTxId());
-      getStorage().writeAll();
+      File file = dstStorage.findImageFile(sig.mostRecentCheckpointTxId);
+      LOG.debug("2NN loading image from " + file);
+      dstImage.loadFSImage(file);
     }
+    List<File> editsFiles = Lists.newArrayList();
+    for (RemoteEditLog log : manifest.getLogs()) {
+      File f = dstStorage.findFinalizedEditsFile(
+          log.getStartTxId(), log.getEndTxId());
+      editsFiles.add(f);
+    }
+    LOG.info("SecondaryNameNode about to load edits from " +
+        editsFiles.size() + " file(s).");
+    dstImage.loadEdits(editsFiles);
+    
+    // TODO: why do we need the following two lines? We shouldn't have even
+    // been able to download an image from a NN that had a different
+    // cluster ID or blockpool ID! this should only be done for the
+    // very first checkpoint.
+    dstStorage.setClusterID(sig.getClusterID());
+    dstStorage.setBlockPoolID(sig.getBlockpoolID());
+    
+    sig.validateStorageInfo(dstImage);
+    dstImage.saveFSImageInAllDirs(dstImage.getEditLog().getLastWrittenTxId());
+    dstStorage.writeAll();
   }
 }

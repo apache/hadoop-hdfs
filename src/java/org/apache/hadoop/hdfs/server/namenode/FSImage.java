@@ -641,10 +641,9 @@ public class FSImage implements Closeable {
     // storage directory to read properties from
     sdForProperties.read();
     File imageFile = loadPlan.getImageFile();
-    MD5Hash expectedMD5 = MD5FileUtils.readStoredMd5ForFile(imageFile);
 
     try {
-      loadFSImage(imageFile, expectedMD5);
+      loadFSImage(imageFile);
     } catch (IOException ioe) {
       throw new IOException("Failed to load image from " + loadPlan.getImageFile(), ioe);
     }
@@ -691,6 +690,15 @@ public class FSImage implements Closeable {
   }
 
 
+  /**
+   * Load the image namespace from the given image file, verifying
+   * it against the MD5 sum stored in its associated .md5 file.
+   */
+  void loadFSImage(File imageFile) throws IOException {
+    MD5Hash expectedMD5 = MD5FileUtils.readStoredMd5ForFile(imageFile);
+    loadFSImage(imageFile, expectedMD5);
+  }
+  
   /**
    * Load in the filesystem image from file. It's a big list of
    * filenames and blocks.  Return whether we should

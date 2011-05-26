@@ -463,7 +463,7 @@ public class TestCheckpoint extends TestCase {
 
       // start new instance of secondary and verify that 
       // a new rollEditLog suceedes inspite of the fact that 
-      // edits.new already exists.
+      // edits.new already exists. TODO update this comment!
       //
       secondary = startSecondaryNameNode(conf);
       secondary.doCheckpoint();  // this should work correctly
@@ -988,7 +988,8 @@ public class TestCheckpoint extends TestCase {
       File secondaryFsImageAfter = new File(secondaryCurrent,
           "fsimage_" + (expectedTxIdToDownload + 2));
       
-      assertFalse("Secondary should start with empty current/ dir",
+      assertFalse("Secondary should start with empty current/ dir " +
+          "but " + secondaryFsImageBefore + " exists",
           secondaryFsImageBefore.exists());
 
       assertTrue("Secondary should have loaded an image",
