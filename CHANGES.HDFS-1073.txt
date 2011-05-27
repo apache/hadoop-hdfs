@@ -40,3 +40,5 @@ HDFS-1991. Some refactoring of Secondary NameNode to be able to share more
            code with the BackupNode or CheckpointNode. (todd)
 HDFS-1994. Fix race conditions when running two rapidly checkpointing
            Secondary NameNodes. (todd)
+HDFS-2001. Remove use of previous.checkpoint and lastcheckpoint.tmp directories
+           (todd)

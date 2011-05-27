@@ -131,6 +131,11 @@ public class TestSaveNamespace {
       doAnswer(new FaultySaveImage()).
         when(spyImage).saveFSImage((StorageDirectory)anyObject(), anyLong());
       break;
+
+    /*
+     TODO: these two cases no longer make sense for HDFS-1073. Need to go
+     through saveNamespace path and find other good points to inject errors
+     for this test.
     case MOVE_CURRENT:
       // The spy throws a RuntimeException when calling moveCurrent()
       doThrow(new RuntimeException("Injected fault: moveCurrent")).
@@ -141,6 +146,7 @@ public class TestSaveNamespace {
       doThrow(new RuntimeException("Injected fault: moveLastCheckpoint")).
         when(spyStorage).moveLastCheckpoint((StorageDirectory)anyObject());
       break;
+      */
     }
 
     try {

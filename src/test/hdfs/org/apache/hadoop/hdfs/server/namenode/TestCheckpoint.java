@@ -606,38 +606,9 @@ public class TestCheckpoint extends TestCase {
     }
     nn.stop();
 
-    // recover failed checkpoint
-    nn = startNameNode(conf, primaryDirs, primaryEditsDirs,
-                        StartupOption.REGULAR);
-    Collection<URI> secondaryDirs = FSImage.getCheckpointDirs(conf, null);
-    for(URI uri : secondaryDirs) {
-      File dir = new File(uri.getPath());
-      Storage.rename(new File(dir, "current"), 
-                     new File(dir, "lastcheckpoint.tmp"));
-    }
-    secondary = startSecondaryNameNode(conf);
-    secondary.shutdown();
-    for(URI uri : secondaryDirs) {
-      File dir = new File(uri.getPath());
-      assertTrue(new File(dir, "current").exists()); 
-      assertFalse(new File(dir, "lastcheckpoint.tmp").exists());
-    }
-    
-    // complete failed checkpoint
-    for(URI uri : secondaryDirs) {
-      File dir = new File(uri.getPath());
-      Storage.rename(new File(dir, "previous.checkpoint"), 
-                     new File(dir, "lastcheckpoint.tmp"));
-    }
-    secondary = startSecondaryNameNode(conf);
-    secondary.shutdown();
-    for(URI uri : secondaryDirs) {
-      File dir = new File(uri.getPath());
-      assertTrue(new File(dir, "current").exists()); 
-      assertTrue(new File(dir, "previous.checkpoint").exists()); 
-      assertFalse(new File(dir, "lastcheckpoint.tmp").exists());
-    }
-    nn.stop(); nn = null;
+    // TODO: need tests that make sure that partially completed checkpoints
+    // don't leave an fsimage_ckpt file around, and that the 2NN cleans up
+    // any such files at startup
     
     // Check that everything starts ok now.
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes).format(false).build();
@@ -906,6 +877,63 @@ public class TestCheckpoint extends TestCase {
 
     secondary.shutdown();
     cluster.shutdown();
+  }
+  
+  /**
+   * Tests the following sequence of events:
+   * - secondary successfully makes a checkpoint
+   * - it then fails while trying to upload it
+   * - it then fails again for the same reason
+   * - it then tries to checkpoint a third time
+   */
+  @SuppressWarnings("deprecation")
+  public void testCheckpointAfterTwoFailedUploads() throws IOException {
+    MiniDFSCluster cluster = null;
+    SecondaryNameNode secondary = null;
+    
+    Configuration conf = new HdfsConfiguration();
+
+    ErrorSimulator.initializeErrorSimulationEvent(5);
+
+    try {
+      cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes)
+          .format(true).build();
+  
+      secondary = startSecondaryNameNode(conf);
+
+      ErrorSimulator.setErrorSimulation(1);
+      
+      // Fail to checkpoint once
+      try {
+        secondary.doCheckpoint();
+        fail("Should have failed upload");
+      } catch (IOException ioe) {
+        LOG.info("Got expected failure", ioe);
+        assertTrue(ioe.toString().contains("Simulating error1"));
+      }
+
+      // Fail to checkpoint again
+      try {
+        secondary.doCheckpoint();
+        fail("Should have failed upload");
+      } catch (IOException ioe) {
+        LOG.info("Got expected failure", ioe);
+        assertTrue(ioe.toString().contains("Simulating error1"));
+      } finally {
+        ErrorSimulator.clearErrorSimulation(1);
+      }
+
+      // Now with the cleared error simulation, it should succeed
+      secondary.doCheckpoint();
+      
+    } finally {
+      if (secondary != null) {
+        secondary.shutdown();
+      }
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
   }
   
   /**

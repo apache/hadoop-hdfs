@@ -446,10 +446,8 @@ public class SecondaryNameNode implements Runnable {
    * @return if the image is fetched from primary or not
    */
   boolean doCheckpoint() throws IOException {
-
-    // Do the required initialization of the merge work area.
-    startCheckpoint();
-
+    checkpointImage.ensureCurrentDirExists();
+    
     // Tell the namenode to start logging transactions in a new edit file
     // Returns a token that would be used to upload the merged image.
     CheckpointSignature sig = namenode.rollEditLog();
@@ -491,16 +489,10 @@ public class SecondaryNameNode implements Runnable {
                             "after uploading new image to NameNode");
     }
 
-    checkpointImage.endCheckpoint();
-
     LOG.warn("Checkpoint done. New Image Size: " 
              + checkpointImage.getStorage().getFsImageName(txid).length());
     
     return loadImage;
-  }
-
-  private void startCheckpoint() throws IOException {
-    checkpointImage.startCheckpoint();
   }
 
   /**
@@ -684,27 +676,19 @@ public class SecondaryNameNode implements Runnable {
         }
       }
     }
-
+    
     /**
-     * Prepare directories for a new checkpoint.
-     * <p>
-     * Rename <code>current</code> to <code>lastcheckpoint.tmp</code>
-     * and recreate <code>current</code>.
-     * @throws IOException
+     * Ensure that the current/ directory exists in all storage
+     * directories
      */
-    void startCheckpoint() throws IOException {
+    void ensureCurrentDirExists() throws IOException {
       for (Iterator<StorageDirectory> it
              = storage.dirIterator(); it.hasNext();) {
         StorageDirectory sd = it.next();
-        storage.moveCurrent(sd);
-      }
-    }
-
-    void endCheckpoint() throws IOException {
-      for (Iterator<StorageDirectory> it
-             = storage.dirIterator(); it.hasNext();) {
-        StorageDirectory sd = it.next();
-        storage.moveLastCheckpoint(sd);
+        File curDir = sd.getCurrentDir();
+        if (!curDir.exists() && !curDir.mkdirs()) {
+          throw new IOException("Could not create directory " + curDir);
+        }
       }
     }
   }

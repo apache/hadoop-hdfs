@@ -134,6 +134,7 @@ public class BackupImage extends FSImage {
    * @throws IOException
    */
   synchronized void reset() throws IOException {
+    /* TODO: BackupNode
     // reset NameSpace tree
     FSDirectory fsDir = getFSNamesystem().dir;
     fsDir.reset();
@@ -149,6 +150,7 @@ public class BackupImage extends FSImage {
       // rename current to lastcheckpoint.tmp
       storage.moveCurrent(sd);
     }
+    */
   }
 
   /**
@@ -392,10 +394,13 @@ public class BackupImage extends FSImage {
       notifyAll();
     }
 
+    /*
+     * TODO: bn
     // Rename lastcheckpoint.tmp to previous.checkpoint
     for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
       StorageDirectory sd = it.next();
       storage.moveLastCheckpoint(sd);
     }
+    */
   }
 }
