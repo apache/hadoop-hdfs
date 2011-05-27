@@ -187,6 +187,7 @@ class TransferFsImage implements FSConstants {
       digester = MD5Hash.getDigester();
       stream = new DigestInputStream(stream, digester);
     }
+    boolean finishedReceiving = false;
 
     if (localPaths == null) {
       localPaths = Collections.emptyList(); 
@@ -212,13 +213,17 @@ class TransferFsImage implements FSConstants {
           }
         }
       }
+      finishedReceiving = true;
     } finally {
       stream.close();
       for (FileOutputStream fos : outputStreams) {
         fos.getChannel().force(true);
         fos.close();
       }
-      if (received != advertisedSize) {
+      if (finishedReceiving && received != advertisedSize) {
+        // only throw this exception if we think we read all of it on our end
+        // -- otherwise a client-side IOException would be masked by this
+        // exception that makes it look like a server-side problem!
         throw new IOException("File " + str + " received length " + received +
                               " is not of the advertised size " +
                               advertisedSize);

@@ -18,15 +18,14 @@
 # included in all the hdfs scripts with source command
 # should not be executed directly
 
-bin=`dirname "$0"`
+bin=`which "$0"`
+bin=`dirname "${bin}"`
 bin=`cd "$bin"; pwd`
 
-export HADOOP_HDFS_HOME="${HADOOP_HDFS_HOME:-$bin/..}"
+export HADOOP_PREFIX="${HADOOP_PREFIX:-$bin/..}"
 
-if [ -d "${HADOOP_COMMON_HOME}" ]; then
-  . "$HADOOP_COMMON_HOME"/bin/hadoop-config.sh
-elif [ -d "${HADOOP_HOME}" ]; then
-  . "$HADOOP_HOME"/bin/hadoop-config.sh
+if [ -d "$bin" ]; then
+  . $bin/../libexec/hadoop-config.sh
 elif [ -e "${HADOOP_HDFS_HOME}"/bin/hadoop-config.sh ]; then
   . "$HADOOP_HDFS_HOME"/bin/hadoop-config.sh
 else

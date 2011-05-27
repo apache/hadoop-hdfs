@@ -367,11 +367,12 @@ public class TestStartup extends TestCase {
     LOG.info("Test compressing image.");
     Configuration conf = new Configuration();
     FileSystem.setDefaultUri(conf, "hdfs://localhost:0");
-    conf.set("dfs.http.address", "127.0.0.1:0");
+    conf.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, "127.0.0.1:0");
     File base_dir = new File(System.getProperty(
         "test.build.data", "build/test/data"), "dfs/");
-    conf.set("dfs.name.dir", new File(base_dir, "name").getPath());
-    conf.setBoolean("dfs.permissions", false);
+    conf.set(DFSConfigKeys.DFS_NAMENODE_NAME_DIR_KEY,
+        new File(base_dir, "name").getPath());
+    conf.setBoolean(DFSConfigKeys.DFS_PERMISSIONS_ENABLED_KEY, false);
 
     DFSTestUtil.formatNameNode(conf);
 

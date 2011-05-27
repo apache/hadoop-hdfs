@@ -101,8 +101,8 @@ Trunk (unreleased changes)
     HDFS-1663. Federation: Rename getPoolId() everywhere to 
     getBlockPoolId() (tanping via boryas)
 
-    HDFS-1652. FederationL Add support for multiple namenodes in MiniDFSCluster.
-    (suresh)
+    HDFS-1652. FederationL Add support for multiple namenodes in 
+    MiniDFSCluster. (suresh)
 
     HDFS-1672. Federation: refactor stopDatanode(name) to work 
     with multiple Block Pools (boryas)
@@ -243,8 +243,8 @@ Trunk (unreleased changes)
 
     HDFS-1754. Federation: testFsck fails. (boryas)
 
-    HDFS-1755. Federation: The BPOfferService must always connect to namenode as 
-    the login user. (jitendra)
+    HDFS-1755. Federation: The BPOfferService must always connect to namenode
+    as the login user. (jitendra)
 
     HDFS-1675. Support transferring RBW between datanodes. (szetszwo)
 
@@ -281,6 +281,9 @@ Trunk (unreleased changes)
     HDFS-1914. Federation: namenode storage directories must be configurable
     specific to name service. (suresh)
 
+    HDFS-1963. Create RPM and Debian packages for HDFS. Changes deployment
+    layout to be consistent across the binary tgz, rpm, and deb.
+    (Eric Yang via omalley)
 
   IMPROVEMENTS
 
@@ -442,13 +445,16 @@ Trunk (unreleased changes)
     HDFS-1905. Improve namenode -format command by not making -clusterId
     parameter mandatory. (Bharath Mundlapudi via suresh)
 
-    HDFS-1941. Remove -genclusterid option from namenode command.
-    (Bharath Mundlapudi via suresh)
-
     HDFS-1877.  Add a new test for concurrent read and write.  (CW Chung
     via szetszwo)
 
     HDFS-1959. Better error message for missing namenode directory. (eli)
+
+    HDFS-1996.  ivy: hdfs test jar should be independent to common test jar.
+    (Eric Yang via szetszwo)
+
+    HDFS-1812. TestHDFSCLI should clean up cluster in teardown method.
+    (Uma Maheswara Rao G via todd)
 
   OPTIMIZATIONS
 
@@ -617,6 +623,17 @@ Trunk (unreleased changes)
 
     HDFS-1371. One bad node can incorrectly flag many files as corrupt.
     (Tanping Wang via jitendra)
+
+    HDFS-1943. Fail to start datanode while start-dfs.sh is executed by 
+    root user. (Wei Yongjun via jghoman)
+
+    HDFS-1983. Fix path display for copy and rm commands in TestHDFSCLI and
+    TestDFSShell. (Daryn Sharp via todd)
+
+    HDFS-1999. Tests use deprecated configs. (Aaron T. Myers via eli)
+
+    HDFS-1592. Datanode startup doesn't honor volumes.tolerated. 
+    (Bharath Mundlapudi via jitendra)
 
 Release 0.22.0 - Unreleased
 
@@ -1052,6 +1069,17 @@ Release 0.22.0 - Unreleased
 
     HDFS-1965. IPCs done using block token-based tickets can't reuse
     connections (todd)
+
+    HDFS-1978. All but first option in LIBHDFS_OPTS is ignored. (eli)
+
+    HDFS-1964. Fix incorrect HTML unescaping in DatanodeJspHelper
+    (Aaron T. Myers via todd)
+
+    HDFS-1997. Image transfer process misreports client side exceptions.
+    (todd via eli)
+
+    HDFS-2000. Missing deprecation for io.bytes.per.checksum.
+    (Aaron T. Myers vie eli)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)
@@ -2137,14 +2165,11 @@ Release 0.21.0 - 2010-08-13
     HDFS-1750. ListPathsServlet should not use HdfsFileStatus.getLocalName()
     to get file name since it may return an empty string.  (szetszwo)
 
-Release 0.20.3 - 2011-1-5
+Release 0.20.3 - Unreleased
 
   IMPROVEMENTS
 
   BUG FIXES
-
-    HDFS-955. New implementation of saveNamespace() to avoid loss of edits 
-    when name-node fails during saving. (shv)
 
     HDFS-1041. DFSClient.getFileChecksum(..) should retry if connection to
     the first datanode fails.  (szetszwo)
@@ -2155,10 +2180,22 @@ Release 0.20.3 - 2011-1-5
     HDFS-1258. Clearing namespace quota on "/" corrupts fs image.
     (Aaron T. Myers via szetszwo)
 
+    HDFS-1406. TestCLI fails on Ubuntu with default /etc/hosts. (cos)
+
+Release 0.20.203.0 - 2011-5-11
+
+  IMPROVEMENTS
+
+    HADOOP-7259. Contrib modules should include the build.properties from
+    the enclosing hadoop directory. (omalley)
+
+  BUG FIXES
+
     HDFS-132. Fix namenode to not report files deleted metrics for deletions
     done while replaying edits during startup. (suresh & shv)
 
-    HDFS-1406. TestCLI fails on Ubuntu with default /etc/hosts. (cos)
+    HDFS-955. New implementation of saveNamespace() to avoid loss of edits 
+    when name-node fails during saving. (shv)
 
 Release 0.20.2 - 2009-09-01
 
