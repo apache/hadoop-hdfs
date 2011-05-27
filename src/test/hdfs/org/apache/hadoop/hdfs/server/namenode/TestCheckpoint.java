@@ -23,13 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
-
-import junit.framework.TestCase;
 
 import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.commons.logging.LogFactory;
@@ -51,13 +46,16 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
-import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.SecondaryNameNode.CheckpointStorage;
+import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.tools.DFSAdmin;
 import org.apache.hadoop.test.GenericTestUtils;
 import org.apache.hadoop.test.GenericTestUtils.DelayAnswer;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.log4j.Level;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -68,6 +66,7 @@ import com.google.common.collect.Lists;
  * This class tests the creation and validation of a checkpoint.
  */
 public class TestCheckpoint extends TestCase {
+
   static {
     ((Log4JLogger)FSImage.LOG).getLogger().setLevel(Level.ALL);
   }
@@ -214,9 +213,6 @@ public class TestCheckpoint extends TestCase {
     cluster = new MiniDFSCluster.Builder(conf).numDataNodes(numDatanodes)
                                               .format(false).build();
     cluster.waitActive();
-    // Also check that the edits file is empty here
-    // and that temporary checkpoint files are gone.
-    FSImage image = cluster.getNameNode().getFSImage();
     
     fileSys = cluster.getFileSystem();
     try {
@@ -671,6 +667,16 @@ public class TestCheckpoint extends TestCase {
     conf.set(DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, "0.0.0.0:0");
     return new SecondaryNameNode(conf);
   }
+  
+  @SuppressWarnings("deprecation")
+  SecondaryNameNode startSecondaryNameNode(Configuration conf, int index)
+      throws IOException {
+    Configuration snnConf = new Configuration(conf);
+    snnConf.set(DFSConfigKeys.DFS_NAMENODE_SECONDARY_HTTP_ADDRESS_KEY, "0.0.0.0:0");
+    snnConf.set(DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_DIR_KEY,
+        MiniDFSCluster.getBaseDirectory() + "/2nn-" + index);
+    return new SecondaryNameNode(snnConf);
+  }
 
   /**
    * Tests checkpoint in HDFS.
@@ -1030,7 +1036,16 @@ public class TestCheckpoint extends TestCase {
    * Test case where two secondary namenodes are checkpointing the same
    * NameNode. This differs from {@link #testMultipleSecondaryNamenodes()}
    * since that test runs against two distinct NNs.
-   * @throws InterruptedException 
+   * 
+   * This case tests the following interleaving:
+   * - 2NN A downloads image (up to txid 2)
+   * - 2NN A about to save its own checkpoint
+   * - 2NN B downloads image (up to txid 4)
+   * - 2NN B uploads checkpoint (txid 4)
+   * - 2NN A uploads checkpoint (txid 2)
+   * 
+   * It verifies that this works even though the earlier-txid checkpoint gets
+   * uploaded after the later-txid checkpoint.
    */
   @SuppressWarnings("deprecation")
   public void testMultipleSecondaryNNsAgainstSameNN() throws Exception {
@@ -1040,25 +1055,11 @@ public class TestCheckpoint extends TestCase {
     .numDataNodes(0)
     .format(true).build();
 
-    // Configuration for first 2NN
-    Configuration conf1 = new Configuration(conf);
-    String checkpointDir1 = MiniDFSCluster.getBaseDirectory() + "/2nn-1";
-    conf1.set(DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_DIR_KEY,
-        checkpointDir1);
-
-    
-    // Configuration for second 2NN
-    Configuration conf2 = new Configuration(conf);
-    String checkpointDir2 = MiniDFSCluster.getBaseDirectory() + "/2nn-2";
-    conf2.set(DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_DIR_KEY,
-        checkpointDir2);
-   
     SecondaryNameNode secondary1 = null, secondary2 = null;
     try {
-      
       // Start 2NNs
-      secondary1 = startSecondaryNameNode(conf1);
-      secondary2 = startSecondaryNameNode(conf2);
+      secondary1 = startSecondaryNameNode(conf, 1);
+      secondary2 = startSecondaryNameNode(conf, 2);
       
       // Make the first 2NN's checkpoint process delayable - we can pause it
       // right before it saves its checkpoint image.
@@ -1068,21 +1069,9 @@ public class TestCheckpoint extends TestCase {
         .saveFSImageInAllDirs(Mockito.anyLong());
 
       // Set up a thread to do a checkpoint from the first 2NN
-      final SecondaryNameNode secondary1Final = secondary1;
-      final AtomicReference<Throwable> thrown =
-        new AtomicReference<Throwable>();
-      Thread checkpointThread = new Thread() {
-        @Override
-        public void run() {
-          try {
-            secondary1Final.doCheckpoint();
-          } catch (Throwable t) {
-            thrown.set(t);
-          }
-        }
-      };
+      DoCheckpointThread checkpointThread = new DoCheckpointThread(secondary1);
       checkpointThread.start();
-      
+
       // Wait for the first checkpointer to get to where it should save its image.
       delayer.waitForCall();
       
@@ -1094,9 +1083,7 @@ public class TestCheckpoint extends TestCase {
       
       // It should have succeeded even though another checkpoint raced with it.
       checkpointThread.join();
-      if (thrown.get() != null) {
-        throw new RuntimeException(thrown.get());
-      }
+      checkpointThread.propagateExceptions();
       
       // primary should record "last checkpoint" as the higher txid (even though
       // a checkpoint with a lower txid finished most recently)
@@ -1110,39 +1097,190 @@ public class TestCheckpoint extends TestCase {
       // NN should have received new checkpoint
       assertEquals(6, storage.getMostRecentCheckpointTxId());
     } finally {
-      if (secondary1 != null) {
-        secondary1.shutdown();
-      }
-      if (secondary2 != null) {
-        secondary2.shutdown();
-      }
+      cleanup(secondary1);
+      cleanup(secondary2);
       if (cluster != null) {
         cluster.shutdown();
       }
     }
     
     // Validate invariant that files named the same are the same.
-    List<File> nameDirs = Lists.newArrayList();
-    for (URI u : cluster.getNameDirs(0)) {
-      nameDirs.add(new File(u.getPath(), "current"));
-    }
-    List<File> allCurrentDirs = Lists.newArrayList(nameDirs);
-    allCurrentDirs.add(new File(checkpointDir1, "current"));
-    allCurrentDirs.add(new File(checkpointDir2, "current"));
-    FSImageTestUtil.assertParallelFilesAreIdentical(allCurrentDirs,
-        ImmutableSet.of("VERSION"));
-    
-    // Validate that the NN received checkpoints at txid 2 and txid 4
+    assertParallelFilesInvariant(cluster, ImmutableList.of(secondary1, secondary2));
+    // Validate that the NN received checkpoints at expected txids
     // (i.e that both checkpoints went through)
-    for (File nameDir : nameDirs) {
+    assertNNHasCheckpoints(cluster, ImmutableList.of(2,4,6));
+  }
+  
+  
+  /**
+   * Test case where two secondary namenodes are checkpointing the same
+   * NameNode. This differs from {@link #testMultipleSecondaryNamenodes()}
+   * since that test runs against two distinct NNs.
+   * 
+   * This case tests the following interleaving:
+   * - 2NN A) calls rollEdits()
+   * - 2NN B) calls rollEdits()
+   * - 2NN A) paused at getRemoteEditLogManifest()
+   * - 2NN B) calls getRemoteEditLogManifest() (returns up to txid 4)
+   * - 2NN B) uploads checkpoint fsimage_4
+   * - 2NN A) allowed to proceed, also returns up to txid 4
+   * - 2NN A) uploads checkpoint fsimage_4 as well, should fail gracefully
+   * 
+   * It verifies that one of the two gets an error that it's uploading a
+   * duplicate checkpoint, and the other one succeeds.
+   */
+  @SuppressWarnings("deprecation")
+  public void testMultipleSecondaryNNsAgainstSameNN2() throws Exception {
+    Configuration conf = new HdfsConfiguration();
+
+    MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
+    .numDataNodes(0)
+    .format(true).build();
+
+    SecondaryNameNode secondary1 = null, secondary2 = null;
+    try {
+      // Start 2NNs
+      secondary1 = startSecondaryNameNode(conf, 1);
+      secondary2 = startSecondaryNameNode(conf, 2);
+      
+      // Make the first 2NN's checkpoint process delayable - we can pause it
+      // right before it calls getRemoteEditLogManifest.
+      // The method to set up a spy on an RPC protocol is a little bit involved
+      // since we can't spy directly on a proxy object. This sets up a mock
+      // which delegates all its calls to the original object, instead.
+      final NamenodeProtocol origNN = secondary1.getNameNode();
+      final Answer<Object> delegator = new GenericTestUtils.DelegateAnswer(origNN);
+      NamenodeProtocol spyNN = Mockito.mock(NamenodeProtocol.class, delegator);
+      DelayAnswer delayer = new DelayAnswer(LOG) {
+        protected Object passThrough(InvocationOnMock invocation) throws Throwable {
+          return delegator.answer(invocation);
+        }
+      };
+      secondary1.setNameNode(spyNN);
+      
+      Mockito.doAnswer(delayer).when(spyNN)
+        .getEditLogManifest(Mockito.anyLong());      
+          
+      // Set up a thread to do a checkpoint from the first 2NN
+      DoCheckpointThread checkpointThread = new DoCheckpointThread(secondary1);
+      checkpointThread.start();
+
+      // Wait for the first checkpointer to be about to call getEditLogManifest
+      delayer.waitForCall();
+      
+      // Now make the second checkpointer run an entire checkpoint
+      secondary2.doCheckpoint();
+      
+      // NN should have now received fsimage_4
+      NNStorage storage = cluster.getNameNode().getFSImage().getStorage();
+      assertEquals(4, storage.getMostRecentCheckpointTxId());
+      
+      // Let the first one finish
+      delayer.proceed();
+      
+      // Letting the first node continue should catch an exception
+      checkpointThread.join();
+      try {
+        checkpointThread.propagateExceptions();
+        fail("Didn't throw!");
+      } catch (Exception ioe) {
+        assertTrue("Unexpected exception: " +
+            StringUtils.stringifyException(ioe),
+            ioe.toString().contains("Another checkpointer already uploaded"));
+        LOG.info("Caught expected exception", ioe);
+      }
+      
+      // primary should still consider fsimage_4 the latest
+      assertEquals(4, storage.getMostRecentCheckpointTxId());
+      
+      // Now have second one checkpoint one more time just to make sure that
+      // the NN isn't left in a broken state
+      secondary2.doCheckpoint();
+      assertEquals(6, storage.getMostRecentCheckpointTxId());
+      
+      // Let the first one also go again on its own to make sure it can
+      // continue at next checkpoint
+      secondary1.setNameNode(origNN);
+      secondary1.doCheckpoint();
+      
+      // NN should have received new checkpoint
+      assertEquals(8, storage.getMostRecentCheckpointTxId());
+    } finally {
+      cleanup(secondary1);
+      cleanup(secondary2);
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
+    
+    // Validate invariant that files named the same are the same.
+    assertParallelFilesInvariant(cluster, ImmutableList.of(secondary1, secondary2));
+    // Validate that the NN received checkpoints at expected txids
+    // (i.e that both checkpoints went through)
+    assertNNHasCheckpoints(cluster, ImmutableList.of(4,6,8));
+  }
+
+
+  @SuppressWarnings("deprecation")
+  private void cleanup(SecondaryNameNode snn) {
+    if (snn != null) {
+      try {
+        snn.shutdown();
+      } catch (Exception e) {
+        LOG.warn("Could not shut down secondary namenode", e);
+      }
+    }
+  }
+
+  /**
+   * Assert that the NameNode has checkpoints at the expected
+   * transaction IDs.
+   */
+  private void assertNNHasCheckpoints(MiniDFSCluster cluster,
+      List<Integer> txids) {
+
+    for (File nameDir : getNameNodeCurrentDirs(cluster)) {
       // Should have fsimage_N for the three checkpoints
-      for (long checkpointTxId : ImmutableList.of(2,4,6)) {
+      for (long checkpointTxId : txids) {
         File image = new File(nameDir, "fsimage_" + checkpointTxId);
         assertTrue("Expected non-empty " + image, image.length() > 0);
       }
     }
   }
 
+  /**
+   * Assert that if any two files have the same name across the 2NNs
+   * and NN, they should have the same content too.
+   */
+  @SuppressWarnings("deprecation")
+  private void assertParallelFilesInvariant(MiniDFSCluster cluster,
+      ImmutableList<SecondaryNameNode> secondaries) throws Exception {
+    List<File> allCurrentDirs = Lists.newArrayList();
+    allCurrentDirs.addAll(getNameNodeCurrentDirs(cluster));
+    for (SecondaryNameNode snn : secondaries) {
+      allCurrentDirs.addAll(getCheckpointCurrentDirs(snn));
+    }
+    FSImageTestUtil.assertParallelFilesAreIdentical(allCurrentDirs,
+        ImmutableSet.of("VERSION"));    
+  }
+  
+  private List<File> getNameNodeCurrentDirs(MiniDFSCluster cluster) {
+    List<File> nameDirs = Lists.newArrayList();
+    for (URI u : cluster.getNameDirs(0)) {
+      nameDirs.add(new File(u.getPath(), "current"));
+    }
+    return nameDirs;
+  }
+
+  @SuppressWarnings("deprecation")
+  private List<File> getCheckpointCurrentDirs(SecondaryNameNode secondary) {
+    List<File> ret = Lists.newArrayList();
+    for (URI u : secondary.getCheckpointDirs()) {
+      File checkpointDir = new File(u.getPath());
+      ret.add(new File(checkpointDir, "current"));
+    }
+    return ret;
+  }
 
   @SuppressWarnings("deprecation")
   private CheckpointStorage spyOnSecondaryImage(SecondaryNameNode secondary1) {
@@ -1150,4 +1288,33 @@ public class TestCheckpoint extends TestCase {
     secondary1.setFSImage(spy);
     return spy;
   }
+  
+  /**
+   * A utility class to perform a checkpoint in a different thread.
+   */
+  @SuppressWarnings("deprecation")
+  private static class DoCheckpointThread extends Thread {
+    private final SecondaryNameNode snn;
+    private volatile Throwable thrown = null;
+    
+    DoCheckpointThread(SecondaryNameNode snn) {
+      this.snn = snn;
+    }
+    
+    @Override
+    public void run() {
+      try {
+        snn.doCheckpoint();
+      } catch (Throwable t) {
+        thrown = t;
+      }
+    }
+    
+    void propagateExceptions() {
+      if (thrown != null) {
+        throw new RuntimeException(thrown);
+      }
+    }
+  }
+
 }

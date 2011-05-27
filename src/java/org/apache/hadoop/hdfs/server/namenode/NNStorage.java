@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.Closeable;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
@@ -55,6 +56,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 
 import org.apache.hadoop.hdfs.server.namenode.JournalStream.JournalType;
+import org.apache.hadoop.hdfs.util.AtomicFileOutputStream;
 import org.apache.hadoop.conf.Configuration;
 
 import org.apache.hadoop.io.IOUtils;
@@ -434,17 +436,11 @@ public class NNStorage extends Storage implements Closeable {
     Preconditions.checkArgument(txid >= 0, "bad txid: " + txid);
     
     File txIdFile = getStorageFile(sd, NameNodeFile.SEEN_TXID);
-    if (txIdFile.exists() && ! txIdFile.delete()) {
-        LOG.error("Cannot delete checkpoint time file: "
-                  + txIdFile.getCanonicalPath());
-    }
     LOG.info("===> writing txid " + txid + " to " + txIdFile);
-    FileOutputStream fos = new FileOutputStream(txIdFile);
+    OutputStream fos = new AtomicFileOutputStream(txIdFile);
     try {
       fos.write(String.valueOf(txid).getBytes());
       fos.write('\n');
-      fos.flush();
-      fos.getChannel().force(true);
     } finally {
       IOUtils.cleanup(LOG, fos);
     }
@@ -737,15 +733,12 @@ public class NNStorage extends Storage implements Closeable {
   }
     
   /**
-   * Return the first readable image file for the given txid.
+   * Return the first readable image file for the given txid, or null
+   * if no such image can be found
    */
   File findImageFile(long txid) throws IOException {
-    File ret = findFile(NameNodeDirType.IMAGE,
+    return findFile(NameNodeDirType.IMAGE,
         getImageFileName(txid));
-    if (ret == null) {
-      throw new IOException("No image file for txid " + txid + " exists!");
-    }
-    return ret;
   }
 
   /**

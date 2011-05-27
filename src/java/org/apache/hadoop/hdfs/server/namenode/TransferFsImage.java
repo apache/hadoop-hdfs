@@ -41,6 +41,7 @@ import org.apache.hadoop.hdfs.DFSUtil.ErrorSimulator;
 import org.apache.hadoop.io.MD5Hash;
 import org.apache.hadoop.security.UserGroupInformation;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 
@@ -62,7 +63,9 @@ class TransferFsImage implements FSConstants {
     
     List<File> dstFiles = dstStorage.getFiles(
         NameNodeDirType.IMAGE, fileName);
-    assert !dstFiles.isEmpty() : "No checkpoint targets.";
+    if (dstFiles.isEmpty()) {
+      throw new IOException("No targets in destination storage!");
+    }
     
     MD5Hash hash = getFileClient(fsName, fileid, dstFiles, needDigest);
     LOG.info("Downloaded file " + dstFiles.get(0).getName() + " size " +
@@ -193,6 +196,10 @@ class TransferFsImage implements FSConstants {
 
     try {
       for (File f : localPaths) {
+        if (f.exists()) {
+          LOG.warn("Overwriting existing file " + f
+              + " with file downloaded from " + str);
+        }
         outputStreams.add(new FileOutputStream(f));
       }
       int num = 1;

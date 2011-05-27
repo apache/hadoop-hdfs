@@ -62,6 +62,7 @@ import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 /**********************************************************
@@ -120,6 +121,7 @@ public class SecondaryNameNode implements Runnable {
       + "\nCheckpoint Edits Dirs: " + checkpointEditsDirs;
   }
 
+  @VisibleForTesting
   FSImage getFSImage() {
     return checkpointImage;
   }
@@ -128,7 +130,22 @@ public class SecondaryNameNode implements Runnable {
   void setFSImage(CheckpointStorage image) {
     this.checkpointImage = image;
   }
+  
+  @VisibleForTesting
+  NamenodeProtocol getNameNode() {
+    return namenode;
+  }
+  
+  @VisibleForTesting
+  void setNameNode(NamenodeProtocol namenode) {
+    this.namenode = namenode;
+  }
 
+  @VisibleForTesting
+  List<URI> getCheckpointDirs() {
+    return ImmutableList.copyOf(checkpointDirs);
+  }
+  
   /**
    * Create a connection to the primary namenode.
    */
@@ -445,11 +462,18 @@ public class SecondaryNameNode implements Runnable {
 
     RemoteEditLogManifest manifest =
       namenode.getEditLogManifest(sig.mostRecentCheckpointTxId + 1);
-    assert !manifest.getLogs().isEmpty();
-    assert manifest.getLogs().get(0).getStartTxId() == sig.mostRecentCheckpointTxId + 1 :
-      "Bad edit log manifest (expected txid = " + (sig.mostRecentCheckpointTxId + 1) +
-      ": " + manifest;
 
+    // Sanity check manifest - these could happen if, eg, someone on the
+    // NN side accidentally rmed the storage directories
+    if (manifest.getLogs().isEmpty()) {
+      throw new IOException("Found no edit logs to download on NN since txid " 
+          + sig.mostRecentCheckpointTxId);
+    }
+    if (manifest.getLogs().get(0).getStartTxId() != sig.mostRecentCheckpointTxId + 1) {
+      throw new IOException("Bad edit log manifest (expected txid = " +
+          (sig.mostRecentCheckpointTxId + 1) + ": " + manifest);
+    }
+    
     boolean loadImage = downloadCheckpointFiles(
         fsName, checkpointImage, sig, manifest);   // Fetch fsimage and edits
     doMerge(conf, sig, manifest, loadImage, checkpointImage);
@@ -684,7 +708,7 @@ public class SecondaryNameNode implements Runnable {
       }
     }
   }
-  
+    
   static void doMerge(Configuration conf, 
       CheckpointSignature sig, RemoteEditLogManifest manifest,
       boolean loadImage, FSImage dstImage) throws IOException {   
@@ -697,6 +721,11 @@ public class SecondaryNameNode implements Runnable {
       dstImage.editLog = new FSEditLog(dstStorage);
 
       File file = dstStorage.findImageFile(sig.mostRecentCheckpointTxId);
+      if (file == null) {
+        throw new IOException("Couldn't find image file at txid " + 
+            sig.mostRecentCheckpointTxId + " even though it should have " +
+            "just been downloaded");
+      }
       LOG.debug("2NN loading image from " + file);
       dstImage.loadFSImage(file);
     }

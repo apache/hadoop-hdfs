@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
 import org.apache.commons.logging.Log;
+import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
+import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -77,8 +79,40 @@ public abstract class GenericTestUtils {
       } catch (InterruptedException ie) {
         throw new IOException("Interrupted waiting on latch", ie);
       }
+      return passThrough(invocation);
+    }
+
+    protected Object passThrough(InvocationOnMock invocation) throws Throwable {
       return invocation.callRealMethod();
     }
   }
+  
+  /**
+   * An Answer implementation that simply forwards all calls through
+   * to a delegate.
+   * 
+   * This is useful as the default Answer for a mock object, to create
+   * something like a spy on an RPC proxy. For example:
+   * <code>
+   *    NamenodeProtocol origNNProxy = secondary.getNameNode();
+   *    NamenodeProtocol spyNNProxy = Mockito.mock(NameNodeProtocol.class,
+   *        new DelegateAnswer(origNNProxy);
+   *    doThrow(...).when(spyNNProxy).getBlockLocations(...);
+   *    ...
+   * </code>
+   */
+  public static class DelegateAnswer implements Answer<Object> { 
+    private final Object delegate;
+    
+    public DelegateAnswer(Object delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public Object answer(InvocationOnMock invocation) throws Throwable {
+      return invocation.getMethod().invoke(
+          delegate, invocation.getArguments());
+    }
+  };
   
 }

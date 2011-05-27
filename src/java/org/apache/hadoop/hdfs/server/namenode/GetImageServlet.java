@@ -59,6 +59,9 @@ public class GetImageServlet extends HttpServlet {
   private static final String START_TXID_PARAM = "startTxId";
   private static final String END_TXID_PARAM = "endTxId";
   
+  private static Set<Long> currentlyDownloadingCheckpoints =
+    Collections.<Long>synchronizedSet(new HashSet<Long>());
+  
   public void doGet(final HttpServletRequest request,
                     final HttpServletResponse response
                     ) throws ServletException, IOException {
@@ -101,21 +104,35 @@ public class GetImageServlet extends HttpServlet {
                 getThrottler(conf));
           } else if (parsedParams.isPutImage()) {
             final long txid = parsedParams.getTxId();
-            // TODO need some synchronization here so multiple
-            // checkpointers can't upload the same image!
 
-            // issue a HTTP get request to download the new fsimage 
-            nnImage.validateCheckpointUpload(parsedParams.getToken());
-            MD5Hash downloadImageDigest = reloginIfNecessary().doAs(
-                new PrivilegedExceptionAction<MD5Hash>() {
-                @Override
-                public MD5Hash run() throws Exception {
-                  return TransferFsImage.downloadImageToStorage(
-                      parsedParams.getInfoServer(), txid,
-                      nnImage.getStorage(), true);
-                  }
-            });
-            nnImage.saveDigestAndRenameCheckpointImage(txid, downloadImageDigest);
+            if (! currentlyDownloadingCheckpoints.add(txid)) {
+              throw new IOException(
+                  "Another checkpointer is already in the process of uploading a" +
+                  " checkpoint made at transaction ID " + txid);
+            }
+
+            try {
+              if (nnImage.getStorage().findImageFile(txid) != null) {
+                throw new IOException(
+                    "Another checkpointer already uploaded an checkpoint " +
+                    "for txid " + txid);
+              }
+              
+              // issue a HTTP get request to download the new fsimage 
+              nnImage.validateCheckpointUpload(parsedParams.getToken());
+              MD5Hash downloadImageDigest = reloginIfNecessary().doAs(
+                  new PrivilegedExceptionAction<MD5Hash>() {
+                  @Override
+                  public MD5Hash run() throws Exception {
+                    return TransferFsImage.downloadImageToStorage(
+                        parsedParams.getInfoServer(), txid,
+                        nnImage.getStorage(), true);
+                    }
+              });
+              nnImage.saveDigestAndRenameCheckpointImage(txid, downloadImageDigest);
+            } finally {
+              currentlyDownloadingCheckpoints.remove(txid);
+            }
           }
           return null;
         }
