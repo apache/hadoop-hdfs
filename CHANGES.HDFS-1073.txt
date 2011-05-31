@@ -42,3 +42,4 @@ HDFS-1994. Fix race conditions when running two rapidly checkpointing
            Secondary NameNodes. (todd)
 HDFS-2001. Remove use of previous.checkpoint and lastcheckpoint.tmp directories
            (todd)
+HDFS-2015. Remove checkpointTxId from VERSION file. (todd)

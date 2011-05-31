@@ -76,8 +76,7 @@ public class NNStorage extends Storage implements Closeable {
   private static final Log LOG = LogFactory.getLog(NNStorage.class.getName());
 
   static final String MESSAGE_DIGEST_PROPERTY = "imageMD5Digest";
-  static final String CHECKPOINT_TXID_PROPERTY = "checkpointTxId";
-
+  
   //
   // The filenames used for storing the images
   //
@@ -583,22 +582,7 @@ public class NNStorage extends Storage implements Closeable {
     setDistributedUpgradeState(
         sDUS == null? false : Boolean.parseBoolean(sDUS),
         sDUV == null? getLayoutVersion() : Integer.parseInt(sDUV));
-
-    String sCheckpointId = props.getProperty(CHECKPOINT_TXID_PROPERTY);
-    if (layoutVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
-      if (sCheckpointId == null) {
-        throw new InconsistentFSStateException(sd.getRoot(),
-            "file " + STORAGE_FILE_VERSION
-            + " does not have the checkpoint transaction id set.");
-      }
-      this.mostRecentCheckpointTxId = Long.valueOf(sCheckpointId);
-    } else if (sCheckpointId != null) {
-      throw new InconsistentFSStateException(sd.getRoot(),
-          "file " + STORAGE_FILE_VERSION +
-          " has checkpoint transaction id when version is " 
-          + layoutVersion);
     }
-  }
 
   /**
    * Write version file into the storage directory.
@@ -626,8 +610,6 @@ public class NNStorage extends Storage implements Closeable {
       props.setProperty("distributedUpgradeVersion",
                         Integer.toString(uVersion));
     }
-
-    props.setProperty(CHECKPOINT_TXID_PROPERTY, String.valueOf(mostRecentCheckpointTxId));
   }
   
   static File getStorageFile(StorageDirectory sd, NameNodeFile type, long imageTxId) {
