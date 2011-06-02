@@ -598,6 +598,7 @@
         maxmemory="${test.junit.maxmemory}"
         dir="${basedir}" timeout="${test.timeout}"
         errorProperty="tests.failed" failureProperty="tests.failed">
+        <sysproperty key="java.net.preferIPv4Stack" value="true"/>
         <sysproperty key="test.build.data" value="@{test.dir}/data"/>
         <sysproperty key="test.cache.data" value="${test.cache.data}"/>     
         <sysproperty key="test.debug.data" value="${test.debug.data}"/>

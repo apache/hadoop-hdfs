@@ -473,6 +473,9 @@ Trunk (unreleased changes)
     HDFS-2020. Fix TestDFSUpgradeFromImage by removing the use of DataNode
     as a singleton. (suresh via todd)
 
+    HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
+    (suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
