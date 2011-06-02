@@ -467,6 +467,9 @@ Trunk (unreleased changes)
     HDFS-1983. Fix path display for copy and rm commands in TestHDFSCLI and
     TestDFSShell. (Daryn Sharp via todd)
 
+    HDFS-1936. Layout version change from HDFS-1822 causes upgrade failure.
+    (suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
