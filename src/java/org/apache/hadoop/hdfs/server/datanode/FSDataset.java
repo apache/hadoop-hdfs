@@ -1131,6 +1131,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
     return f;
   }
     
+  private final DataNode datanode;
   final FSVolumeSet volumes;
   private final int maxBlocksPerDir;
   final ReplicasMap volumeMap;
@@ -1147,7 +1148,9 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
   /**
    * An FSDataset has a directory where it loads its data files.
    */
-  public FSDataset(DataStorage storage, Configuration conf) throws IOException {
+  public FSDataset(DataNode datanode, DataStorage storage, Configuration conf)
+      throws IOException {
+    this.datanode = datanode;
     this.maxBlocksPerDir = conf.getInt("dfs.datanode.numblocks", 64);
     this.supportAppends = conf.getBoolean(DFSConfigKeys.DFS_SUPPORT_APPEND_KEY,
                                       DFSConfigKeys.DFS_SUPPORT_APPEND_DEFAULT);
@@ -1989,7 +1992,6 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
         return f;
    
       // if file is not null, but doesn't exist - possibly disk failed
-      DataNode datanode = DataNode.getDataNode();
       datanode.checkDiskError();
     }
     
@@ -2243,7 +2245,6 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
    */
   public void checkAndUpdate(String bpid, long blockId, File diskFile,
       File diskMetaFile, FSVolume vol) {
-    DataNode datanode = DataNode.getDataNode();
     Block corruptBlock = null;
     ReplicaInfo memBlockInfo;
     synchronized (this) {

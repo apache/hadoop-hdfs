@@ -54,6 +54,7 @@ public class DirectoryScanner implements Runnable {
   private static final Log LOG = LogFactory.getLog(DirectoryScanner.class);
   private static final int DEFAULT_SCAN_INTERVAL = 21600;
 
+  private final DataNode datanode;
   private final FSDataset dataset;
   private final ExecutorService reportCompileThreadPool;
   private final ScheduledExecutorService masterThread;
@@ -218,7 +219,8 @@ public class DirectoryScanner implements Runnable {
     }
   }
 
-  DirectoryScanner(FSDataset dataset, Configuration conf) {
+  DirectoryScanner(DataNode dn, FSDataset dataset, Configuration conf) {
+    this.datanode = dn;
     this.dataset = dataset;
     int interval = conf.getInt("dfs.datanode.directoryscan.interval",
         DEFAULT_SCAN_INTERVAL);
@@ -270,7 +272,7 @@ public class DirectoryScanner implements Runnable {
       String[] bpids = dataset.getBPIdlist();
       for(String bpid : bpids) {
         UpgradeManagerDatanode um = 
-          DataNode.getUpgradeManagerDatanode(bpid);
+          datanode.getUpgradeManagerDatanode(bpid);
         if (um != null && !um.isUpgradeCompleted()) {
           //If distributed upgrades underway, exit and wait for next cycle.
           LOG.warn("this cycle terminating immediately because Distributed Upgrade is in process");

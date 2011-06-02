@@ -100,7 +100,7 @@ public class DataBlockScanner implements Runnable {
   private void waitForInit(String bpid) {
     UpgradeManagerDatanode um = null;
     if(bpid != null && !bpid.equals(""))
-      um = DataNode.getUpgradeManagerDatanode(bpid);
+      um = datanode.getUpgradeManagerDatanode(bpid);
     
     while ((um != null && ! um.isUpgradeCompleted())
         || (getBlockPoolSetSize() < datanode.getAllBpOs().length)

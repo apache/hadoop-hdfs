@@ -470,6 +470,9 @@ Trunk (unreleased changes)
     HDFS-1936. Layout version change from HDFS-1822 causes upgrade failure.
     (suresh)
 
+    HDFS-2020. Fix TestDFSUpgradeFromImage by removing the use of DataNode
+    as a singleton. (suresh via todd)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
