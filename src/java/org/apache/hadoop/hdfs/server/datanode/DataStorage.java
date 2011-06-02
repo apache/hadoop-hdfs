@@ -34,6 +34,8 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.FileUtil.HardLink;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.Storage;
@@ -311,7 +313,7 @@ public class DataStorage extends Storage {
    * @throws IOException if the directory is not empty or it can not be removed
    */
   private void cleanupDetachDir(File detachDir) throws IOException {
-    if (layoutVersion >= PRE_RBW_LAYOUT_VERSION &&
+    if (!LayoutVersion.supports(Feature.APPEND_RBW_DIR, layoutVersion) &&
         detachDir.exists() && detachDir.isDirectory() ) {
       
         if (detachDir.list().length != 0 ) {
@@ -404,7 +406,7 @@ public class DataStorage extends Storage {
   private void linkAllBlocks(File fromDir, File toDir) throws IOException {
     // do the link
     int diskLayoutVersion = this.getLayoutVersion();
-    if (diskLayoutVersion < PRE_RBW_LAYOUT_VERSION) { // RBW version
+    if (LayoutVersion.supports(Feature.APPEND_RBW_DIR, diskLayoutVersion)) {
       // hardlink finalized blocks in tmpDir/finalized
       linkBlocks(new File(fromDir, STORAGE_DIR_FINALIZED), 
           new File(toDir, STORAGE_DIR_FINALIZED), diskLayoutVersion);

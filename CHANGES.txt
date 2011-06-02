@@ -552,6 +552,9 @@ Release 0.22.0 - Unreleased
     HDFS-977. DataNode.createInterDataNodeProtocolProxy() guards a log
     at the wrong level. (Harsh J Chouraria via todd)
 
+    HDFS-1936. Layout version change from HDFS-1822 causes upgrade failure.
+    (suresh)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS

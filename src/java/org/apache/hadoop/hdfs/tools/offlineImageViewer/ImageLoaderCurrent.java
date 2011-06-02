@@ -26,6 +26,8 @@ import java.util.Date;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo.AdminStates;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.FSImage;
 import org.apache.hadoop.hdfs.server.namenode.FSImageSerialization;
@@ -156,7 +158,7 @@ class ImageLoaderCurrent implements ImageLoader {
 
       v.visit(ImageElement.GENERATION_STAMP, in.readLong());
 
-      if (imageVersion <= -25) {
+      if (LayoutVersion.supports(Feature.FSIMAGE_COMPRESSION, imageVersion)) {
         boolean isCompressed = in.readBoolean();
         v.visit(ImageElement.IS_COMPRESSED, imageVersion);
         if (isCompressed) {
@@ -176,7 +178,7 @@ class ImageLoaderCurrent implements ImageLoader {
 
       processINodesUC(in, v, skipBlocks);
 
-      if (imageVersion <= -24) {
+      if (LayoutVersion.supports(Feature.DELEGATION_TOKEN, imageVersion)) {
         processDelegationTokens(in, v);
       }
       
@@ -340,7 +342,7 @@ class ImageLoaderCurrent implements ImageLoader {
       v.visit(ImageElement.INODE_PATH, FSImageSerialization.readString(in));
       v.visit(ImageElement.REPLICATION, in.readShort());
       v.visit(ImageElement.MODIFICATION_TIME, formatDate(in.readLong()));
-      if(imageVersion <= -17) // added in version -17
+      if(LayoutVersion.supports(Feature.FILE_ACCESS_TIME, imageVersion))
         v.visit(ImageElement.ACCESS_TIME, formatDate(in.readLong()));
       v.visit(ImageElement.BLOCK_SIZE, in.readLong());
       int numBlocks = in.readInt();
@@ -350,10 +352,10 @@ class ImageLoaderCurrent implements ImageLoader {
       // File or directory
       if (numBlocks > 0 || numBlocks == -1) {
         v.visit(ImageElement.NS_QUOTA, numBlocks == -1 ? in.readLong() : -1);
-        if(imageVersion <= -18) // added in version -18
+        if (LayoutVersion.supports(Feature.DISKSPACE_QUOTA, imageVersion))
           v.visit(ImageElement.DS_QUOTA, numBlocks == -1 ? in.readLong() : -1);
       }
-      if (imageVersion <= -23 && numBlocks == -2) {
+      if (numBlocks == -2) {
         v.visit(ImageElement.SYMLINK, Text.readString(in));
       }
 

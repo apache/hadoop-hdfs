@@ -43,6 +43,8 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
@@ -677,7 +679,8 @@ public class FSImage extends Storage {
         sDUV == null? getLayoutVersion() : Integer.parseInt(sDUV));
     
     String sMd5 = props.getProperty(MESSAGE_DIGEST_PROPERTY);
-    if (layoutVersion <= -26) {
+    if (LayoutVersion.supports(Feature.FSIMAGE_CHECKSUM, layoutVersion)) {
+    
       if (sMd5 == null) {
         throw new InconsistentFSStateException(sd.getRoot(),
             "file " + STORAGE_FILE_VERSION + " does not have MD5 image digest.");
@@ -860,8 +863,8 @@ public class FSImage extends Storage {
     RandomAccessFile oldFile = new RandomAccessFile(oldF, "rws");
     try {
       oldFile.seek(0);
-      int odlVersion = oldFile.readInt();
-      if (odlVersion < LAST_PRE_UPGRADE_LAYOUT_VERSION)
+      int oldVersion = oldFile.readInt();
+      if (oldVersion < LAST_PRE_UPGRADE_LAYOUT_VERSION)
         return false;
     } finally {
       oldFile.close();
