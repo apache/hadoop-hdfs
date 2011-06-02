@@ -476,6 +476,9 @@ Trunk (unreleased changes)
     HDFS-1891. Disable IPV6 for junit tests to fix TestBackupNode failure.
     (suresh)
 
+    HDFS-1995. Federation: Minor bug fixes and modification cluster web UI.
+    (Tanping Wang via suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
