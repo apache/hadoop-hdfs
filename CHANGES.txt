@@ -352,6 +352,9 @@ Trunk (unreleased changes)
     HDFS-1996.  ivy: hdfs test jar should be independent to common test jar.
     (Eric Yang via szetszwo)
 
+    HDFS-1986. Add option to get http/https address from 
+    DFSUtil#getInfoServer(). (Tanping via suresh)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
