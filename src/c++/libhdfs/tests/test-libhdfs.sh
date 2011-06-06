@@ -104,8 +104,8 @@ CLASSPATH=${CLASSPATH}:$JAVA_HOME/lib/tools.jar
 if [ -d "$HADOOP_HOME/build/classes" ]; then
   CLASSPATH=${CLASSPATH}:$HADOOP_HOME/build/classes
 fi
-if [ -d "$HADOOP_HOME/build/webapps" ]; then
-  CLASSPATH=${CLASSPATH}:$HADOOP_HOME/build
+if [ -d "$HADOOP_HOME/build/web/webapps" ]; then
+  CLASSPATH=${CLASSPATH}:$HADOOP_HOME/build/web
 fi
 if [ -d "$HADOOP_HOME/build/test/classes" ]; then
   CLASSPATH=${CLASSPATH}:$HADOOP_HOME/build/test/classes
