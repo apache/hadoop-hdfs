@@ -570,6 +570,14 @@ public class FSImage extends Storage {
       }
       StorageDirectory sdPrev = prevState.new StorageDirectory(sd.getRoot());
       sdPrev.read(sdPrev.getPreviousVersionFile());  // read and verify consistency of the prev dir
+      if (prevState.getLayoutVersion() != FSConstants.LAYOUT_VERSION) {
+        throw new IOException(
+          "Cannot rollback to storage version " +
+          prevState.getLayoutVersion() +
+          " using this version of the NameNode, which uses storage version " +
+          FSConstants.LAYOUT_VERSION + ". " +
+          "Please use the previous version of HDFS to perform the rollback.");
+      }
       canRollback = true;
     }
     if (!canRollback)
@@ -736,11 +744,15 @@ public class FSImage extends Storage {
       props.setProperty("distributedUpgradeState", Boolean.toString(uState));
       props.setProperty("distributedUpgradeVersion", Integer.toString(uVersion)); 
     }
-    if (imageDigest == null) {
-      imageDigest = MD5Hash.digest(
-          new FileInputStream(getImageFile(sd, NameNodeFile.IMAGE)));
+    if (LayoutVersion.supports(Feature.FSIMAGE_CHECKSUM, layoutVersion)) {
+      // Though the current NN supports this feature, this function
+      // is called with old layoutVersions from the upgrade tests.
+      if (imageDigest == null) {
+        imageDigest = MD5Hash.digest(
+            new FileInputStream(getImageFile(sd, NameNodeFile.IMAGE)));
+      }
+      props.setProperty(MESSAGE_DIGEST_PROPERTY, imageDigest.toString());
     }
-    props.setProperty(MESSAGE_DIGEST_PROPERTY, imageDigest.toString());
 
     writeCheckpointTime(sd);
   }
@@ -1285,6 +1297,11 @@ public class FSImage extends Storage {
    * Save current image and empty journal into {@code current} directory.
    */
   protected void saveCurrent(StorageDirectory sd) throws IOException {
+    if (getLayoutVersion() != FSConstants.LAYOUT_VERSION) {
+      throw new IllegalStateException(
+        "NN with storage version " + FSConstants.LAYOUT_VERSION  +
+        "cannot save an image with version " + getLayoutVersion());
+    }
     File curDir = sd.getCurrentDir();
     NameNodeDirType dirType = (NameNodeDirType)sd.getStorageDirType();
     // save new image or new edits

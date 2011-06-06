@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.NodeType;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
+import org.apache.hadoop.util.StringUtils;
 
 /**
 * This test ensures the appropriate response (successful or failure) from
@@ -89,7 +90,7 @@ public class TestDFSRollback extends TestCase {
    * Attempts to start a NameNode with the given operation.  Starting
    * the NameNode should throw an exception.
    */
-  void startNameNodeShouldFail(StartupOption operation) {
+  void startNameNodeShouldFail(StartupOption operation, String searchString) {
     try {
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0)
                                                 .startupOption(operation)
@@ -99,6 +100,10 @@ public class TestDFSRollback extends TestCase {
                                                 .build(); // should fail
       throw new AssertionError("NameNode should have failed to start");
     } catch (Exception expected) {
+      if (!expected.getMessage().contains(searchString)) {
+        fail("Expected substring '" + searchString + "' in exception " +
+            "but got: " + StringUtils.stringifyException(expected));
+      }
       // expected
     }
   }
@@ -164,7 +169,8 @@ public class TestDFSRollback extends TestCase {
 
       log("NameNode rollback without existing previous dir", numDirs);
       UpgradeUtilities.createStorageDirs(NAME_NODE, nameNodeDirs, "current");
-      startNameNodeShouldFail(StartupOption.ROLLBACK);
+      startNameNodeShouldFail(StartupOption.ROLLBACK,
+          "None of the storage directories contain previous fs state");
       UpgradeUtilities.createEmptyDirs(nameNodeDirs);
       
       log("DataNode rollback without existing previous dir", numDirs);
@@ -227,7 +233,8 @@ public class TestDFSRollback extends TestCase {
       for (File f : baseDirs) { 
         FileUtil.fullyDelete(new File(f,"edits"));
       }
-      startNameNodeShouldFail(StartupOption.ROLLBACK);
+      startNameNodeShouldFail(StartupOption.ROLLBACK,
+          "Edits file is not found");
       UpgradeUtilities.createEmptyDirs(nameNodeDirs);
       
       log("NameNode rollback with no image file", numDirs);
@@ -236,7 +243,8 @@ public class TestDFSRollback extends TestCase {
       for (File f : baseDirs) { 
         FileUtil.fullyDelete(new File(f,"fsimage")); 
       }
-      startNameNodeShouldFail(StartupOption.ROLLBACK);
+      startNameNodeShouldFail(StartupOption.ROLLBACK,
+          "Image file is not found");
       UpgradeUtilities.createEmptyDirs(nameNodeDirs);
       
       log("NameNode rollback with corrupt version file", numDirs);
@@ -245,7 +253,8 @@ public class TestDFSRollback extends TestCase {
       for (File f : baseDirs) { 
         UpgradeUtilities.corruptFile(new File(f,"VERSION")); 
       }
-      startNameNodeShouldFail(StartupOption.ROLLBACK);
+      startNameNodeShouldFail(StartupOption.ROLLBACK,
+          "file VERSION is invalid");
       UpgradeUtilities.createEmptyDirs(nameNodeDirs);
       
       log("NameNode rollback with old layout version in previous", numDirs);
@@ -255,7 +264,8 @@ public class TestDFSRollback extends TestCase {
                                          new StorageInfo(1,
                                                          UpgradeUtilities.getCurrentNamespaceID(null),
                                                          UpgradeUtilities.getCurrentFsscTime(null)));
-      startNameNodeShouldFail(StartupOption.UPGRADE);
+      startNameNodeShouldFail(StartupOption.ROLLBACK,
+          "Cannot rollback to storage version 1 using this version");
       UpgradeUtilities.createEmptyDirs(nameNodeDirs);
     } // end numDir loop
   }

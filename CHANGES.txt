@@ -555,6 +555,9 @@ Release 0.22.0 - Unreleased
     HDFS-1936. Layout version change from HDFS-1822 causes upgrade failure.
     (suresh)
 
+    HDFS-1969. Running rollback on new-version namenode destroys the
+    namespace. (todd)
+
 Release 0.21.1 - Unreleased
 
   IMPROVEMENTS
