@@ -590,6 +590,16 @@ creations/deletions), or "all".</description>
 </property>
 
 <property>
+  <name>dfs.namenode.num.checkpoints.retained</name>
+  <value>2</value>
+  <description>The number of image checkpoint files that will be retained by
+  the NameNode and Secondary NameNode in their storage directories. All edit
+  logs necessary to recover an up-to-date namespace from the oldest retained
+  checkpoint will also be retained.
+  </description>
+</property>
+
+<property>
   <name>dfs.namenode.delegation.key.update-interval</name>
   <value>86400000</value>
   <description>The update interval for master key for delegation tokens 

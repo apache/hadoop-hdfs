@@ -41,6 +41,7 @@ import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
@@ -179,6 +180,14 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
       }
     }
     return ret;
+  }
+  
+  public List<FoundFSImage> getFoundImages() {
+    return ImmutableList.copyOf(foundImages);
+  }
+  
+  public List<FoundEditLog> getFoundEditLogs() {
+    return ImmutableList.copyOf(foundEditLogs);
   }
 
   @Override
@@ -442,6 +451,11 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
     public long getTxId() {
       return txId;
     }
+    
+    @Override
+    public String toString() {
+      return file.toString();
+    }
   }
   
   /**
@@ -512,6 +526,11 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
           "Couldn't rename corrupt log " + src + " to " + dst);
       }
       file = dst;
+    }
+    
+    @Override
+    public String toString() {
+      return file.toString();
     }
   }
 

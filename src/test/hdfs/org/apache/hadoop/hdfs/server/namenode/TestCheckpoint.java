@@ -1117,6 +1117,9 @@ public class TestCheckpoint extends TestCase {
       // a checkpoint with a lower txid finished most recently)
       NNStorage storage = cluster.getNameNode().getFSImage().getStorage();
       assertEquals(4, storage.getMostRecentCheckpointTxId());
+
+      // Should have accepted both checkpoints
+      assertNNHasCheckpoints(cluster, ImmutableList.of(2,4));
       
       // Now have second one checkpoint one more time just to make sure that
       // the NN isn't left in a broken state
@@ -1134,9 +1137,10 @@ public class TestCheckpoint extends TestCase {
     
     // Validate invariant that files named the same are the same.
     assertParallelFilesInvariant(cluster, ImmutableList.of(secondary1, secondary2));
-    // Validate that the NN received checkpoints at expected txids
-    // (i.e that both checkpoints went through)
-    assertNNHasCheckpoints(cluster, ImmutableList.of(2,4,6));
+
+    // NN should have removed the checkpoint at txid 2 at this point, but has
+    // one at txid 6
+    assertNNHasCheckpoints(cluster, ImmutableList.of(4,6));
   }
   
   
@@ -1226,6 +1230,9 @@ public class TestCheckpoint extends TestCase {
       secondary2.doCheckpoint();
       assertEquals(6, storage.getMostRecentCheckpointTxId());
       
+      // Should have accepted both checkpoints
+      assertNNHasCheckpoints(cluster, ImmutableList.of(4,6));
+
       // Let the first one also go again on its own to make sure it can
       // continue at next checkpoint
       secondary1.setNameNode(origNN);
@@ -1245,7 +1252,7 @@ public class TestCheckpoint extends TestCase {
     assertParallelFilesInvariant(cluster, ImmutableList.of(secondary1, secondary2));
     // Validate that the NN received checkpoints at expected txids
     // (i.e that both checkpoints went through)
-    assertNNHasCheckpoints(cluster, ImmutableList.of(4,6,8));
+    assertNNHasCheckpoints(cluster, ImmutableList.of(6,8));
   }
 
 

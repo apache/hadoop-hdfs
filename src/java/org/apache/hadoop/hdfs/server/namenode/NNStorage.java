@@ -121,6 +121,8 @@ public class NNStorage extends Storage implements Closeable {
 
   private UpgradeManager upgradeManager = null;
   protected String blockpoolID = ""; // id of the block pool
+  
+  private final NNStorageArchivalManager archivalManager;
 
   /**
    * flag that controls if we try to restore failed storages
@@ -158,18 +160,8 @@ public class NNStorage extends Storage implements Closeable {
     storageDirs = new CopyOnWriteArrayList<StorageDirectory>();
     
     setStorageDirectories(imageDirs, editsDirs);
-  }
-
-  /**
-   * Construct the NNStorage.
-   * @param storageInfo storage information
-   * @param bpid block pool Id
-   */
-  public NNStorage(StorageInfo storageInfo, String bpid) {
-    super(NodeType.NAME_NODE, storageInfo);
-
-    storageDirs = new CopyOnWriteArrayList<StorageDirectory>();
-    this.blockpoolID = bpid;
+    
+    archivalManager = new NNStorageArchivalManager(conf, this);
   }
 
   @Override // Storage
@@ -540,6 +532,19 @@ public class NNStorage extends Storage implements Closeable {
       format(sd);
     }
   }
+
+  /**
+   * Archive any files in the storage directories that are no longer
+   * necessary.
+   */
+  public void archiveOldStorage() {
+    try {
+      archivalManager.archiveOldStorage();
+    } catch (Exception e) {
+      LOG.warn("Unable to archive old storage", e);
+    }
+  }
+
 
   /**
    * Generate new namespaceID.
@@ -941,5 +946,68 @@ public class NNStorage extends Storage implements Closeable {
   
   public String getBlockPoolID() {
     return blockpoolID;
+  }
+
+  /**
+   * Iterate over all current storage directories, inspecting them
+   * with the given inspector.
+   */
+  void inspectStorageDirs(FSImageStorageInspector inspector)
+      throws IOException {
+
+    // Process each of the storage directories to find the pair of
+    // newest image file and edit file
+    for (Iterator<StorageDirectory> it = dirIterator(); it.hasNext();) {
+      StorageDirectory sd = it.next();
+      inspector.inspectDirectory(sd);
+    }
+  }
+
+  /**
+   * Iterate over all of the storage dirs, reading their contents to determine
+   * their layout versions. Returns an FSImageStorageInspector which has
+   * inspected each directory.
+   * 
+   * <b>Note:</b> this can mutate the storage info fields (ctime, version, etc).
+   * @throws IOException if no valid storage dirs are found
+   */
+  FSImageStorageInspector readAndInspectDirs()
+      throws IOException {
+    int minLayoutVersion = Integer.MAX_VALUE; // the newest
+    int maxLayoutVersion = Integer.MIN_VALUE; // the oldest
+    
+    // First determine what range of layout versions we're going to inspect
+    for (Iterator<StorageDirectory> it = dirIterator();
+         it.hasNext();) {
+      StorageDirectory sd = it.next();
+      if (!sd.getVersionFile().exists()) {
+        FSImage.LOG.warn("Storage directory " + sd + " contains no VERSION file. Skipping...");
+        continue;
+      }
+      sd.read(); // sets layoutVersion
+      minLayoutVersion = Math.min(minLayoutVersion, getLayoutVersion());
+      maxLayoutVersion = Math.max(maxLayoutVersion, getLayoutVersion());
+    }
+    
+    if (minLayoutVersion > maxLayoutVersion) {
+      throw new IOException("No storage directories contained VERSION information");
+    }
+    assert minLayoutVersion <= maxLayoutVersion;
+    
+    // If we have any storage directories with the new layout version
+    // (ie edits_<txnid>) then use the new inspector, which will ignore
+    // the old format dirs.
+    FSImageStorageInspector inspector;
+    if (LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, minLayoutVersion)) {
+      inspector = new FSImageTransactionalStorageInspector();
+      if (!LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, maxLayoutVersion)) {
+        FSImage.LOG.warn("Ignoring one or more storage directories with old layouts");
+      }
+    } else {
+      inspector = new FSImageOldStorageInspector();
+    }
+    
+    inspectStorageDirs(inspector);
+    return inspector;
   }
 }

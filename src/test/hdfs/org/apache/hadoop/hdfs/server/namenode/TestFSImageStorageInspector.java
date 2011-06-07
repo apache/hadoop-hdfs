@@ -358,7 +358,7 @@ public class TestFSImageStorageInspector {
    * @param previousExists should we mock that the previous/ dir exists?
    * @param fileNames the names of files contained in current/
    */
-  private StorageDirectory mockDirectory(
+  static StorageDirectory mockDirectory(
       StorageDirType type,
       boolean previousExists,
       String...  fileNames) {

@@ -567,51 +567,6 @@ public class FSImage implements Closeable {
     storage.writeTransactionIdFileToStorage(editLog.getCurSegmentTxId());
   };
 
-  private FSImageStorageInspector inspectStorageDirs() throws IOException {
-    int minLayoutVersion = Integer.MAX_VALUE; // the newest
-    int maxLayoutVersion = Integer.MIN_VALUE; // the oldest
-    
-    // First determine what range of layout versions we're going to inspect
-    for (Iterator<StorageDirectory> it = storage.dirIterator();
-         it.hasNext();) {
-      StorageDirectory sd = it.next();
-      if (!sd.getVersionFile().exists()) {
-        LOG.warn("Storage directory " + sd + " contains no VERSION file. Skipping...");
-        continue;
-      }
-      sd.read(); // sets layoutVersion
-      minLayoutVersion = Math.min(minLayoutVersion, storage.getLayoutVersion());
-      maxLayoutVersion = Math.max(maxLayoutVersion, storage.getLayoutVersion());
-    }
-    
-    if (minLayoutVersion > maxLayoutVersion) {
-      throw new IOException("No storage directories contained VERSION information");
-    }
-    assert minLayoutVersion <= maxLayoutVersion;
-    
-    // If we have any storage directories with the new layout version
-    // (ie edits_<txnid>) then use the new inspector, which will ignore
-    // the old format dirs.
-    FSImageStorageInspector inspector;
-    if (LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, minLayoutVersion)) {
-      inspector = new FSImageTransactionalStorageInspector();
-      if (!LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, maxLayoutVersion)) {
-        LOG.warn("Ignoring one or more storage directories with old layouts");
-      }
-    } else {
-      inspector = new FSImageOldStorageInspector();
-    }
-
-    // Process each of the storage directories to find the pair of
-    // newest image file and edit file
-    for (Iterator<StorageDirectory> it = storage.dirIterator(); it.hasNext();) {
-      StorageDirectory sd = it.next();
-      inspector.inspectDirectory(sd);
-    }
-
-    return inspector;
-  }
-
   /**
    * Choose latest image from one of the directories,
    * load it and merge with the edits from that directory.
@@ -628,7 +583,7 @@ public class FSImage implements Closeable {
    * @throws IOException
    */
   boolean loadFSImage() throws IOException {
-    FSImageStorageInspector inspector = inspectStorageDirs();
+    FSImageStorageInspector inspector = storage.readAndInspectDirs();
     
     isUpgradeFinalized = inspector.isUpgradeFinalized();
     
@@ -854,6 +809,10 @@ public class FSImage implements Closeable {
     // TODO Double-check for regressions against HDFS-1505 and HDFS-1921.
 
     renameCheckpoint(txid);
+    
+    // Since we now have a new checkpoint, we can clean up some
+    // old edit logs and checkpoints.
+    storage.archiveOldStorage();
   }
 
   /**

@@ -130,6 +130,10 @@ public class GetImageServlet extends HttpServlet {
                     }
               });
               nnImage.saveDigestAndRenameCheckpointImage(txid, downloadImageDigest);
+              
+              // Now that we have a new checkpoint, we might be able to
+              // remove some old ones.
+              nnImage.getStorage().archiveOldStorage();
             } finally {
               currentlyDownloadingCheckpoints.remove(txid);
             }

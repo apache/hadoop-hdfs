@@ -43,6 +43,7 @@ import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageState;
+import org.apache.hadoop.hdfs.server.namenode.NNStorageArchivalManager.StorageArchiver;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLog;
 import org.apache.hadoop.hdfs.server.protocol.RemoteEditLogManifest;
@@ -491,6 +492,10 @@ public class SecondaryNameNode implements Runnable {
 
     LOG.warn("Checkpoint done. New Image Size: " 
              + checkpointImage.getStorage().getFsImageName(txid).length());
+    
+    // Since we've successfully checkpointed, we can remove some old
+    // image files
+    checkpointImage.getStorage().archiveOldStorage();
     
     return loadImage;
   }
