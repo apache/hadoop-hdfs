@@ -482,6 +482,9 @@ Trunk (unreleased changes)
     HDFS-1995. Federation: Minor bug fixes and modification cluster web UI.
     (Tanping Wang via suresh)
 
+    HDFS-1998. Federation: Make refresh-namenodes.sh refresh all the
+    namenode. (Tanping Wang via suresh)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
