@@ -67,9 +67,9 @@ public interface ClientProtocol extends VersionedProtocol {
    * Compared to the previous version the following changes have been introduced:
    * (Only the latest change is reflected.
    * The log of historical changes can be retrieved from the svn).
-   * 64: Remove ClientProtocol changes related to -list-corruptfiles
+   * 65: recoverLease return if the file is closed or not
    */
-  public static final long versionID = 64L;
+  public static final long versionID = 65L;
   
   ///////////////////////////////////////
   // File contents
@@ -512,6 +512,17 @@ public interface ClientProtocol extends VersionedProtocol {
    */
   public void renewLease(String clientName) throws AccessControlException,
       IOException;
+
+  /**
+   * Start lease recovery.
+   * Lightweight NameNode operation to trigger lease recovery
+   * 
+   * @param src path of the file to start lease recovery
+   * @param clientName name of the current client
+   * @return true if the file is already closed
+   * @throws IOException
+   */
+  public boolean recoverLease(String src, String clientName) throws IOException;
 
   public int GET_STATS_CAPACITY_IDX = 0;
   public int GET_STATS_USED_IDX = 1;
