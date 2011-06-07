@@ -2288,6 +2288,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       String recoveryLeaseHolder) throws AlreadyBeingCreatedException, 
       IOException, UnresolvedLinkException {
     LOG.info("Recovering lease=" + lease + ", src=" + src);
+    
+    assert !isInSafeMode();
 
     INodeFile iFile = dir.getFileINode(src);
     if (iFile == null) {
@@ -2409,9 +2411,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   }
 
   Lease reassignLease(Lease lease, String src, String newHolder,
-                      INodeFileUnderConstruction pendingFile) {
+      INodeFileUnderConstruction pendingFile) throws IOException {
     if(newHolder == null)
       return lease;
+    logReassignLease(lease.getHolder(), src, newHolder);
+    return reassignLeaseInternal(lease, src, newHolder, pendingFile);
+  }
+  
+  Lease reassignLeaseInternal(Lease lease, String src, String newHolder,
+      INodeFileUnderConstruction pendingFile) throws IOException {
     pendingFile.setClientName(newHolder);
     return leaseManager.reassignLease(lease, src, newHolder);
   }
@@ -5365,6 +5373,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     writeLock();
     try {
       getEditLog().logUpdateMasterKey(key);
+    } finally {
+      writeUnlock();
+    }
+    getEditLog().logSync();
+  }
+  
+  private void logReassignLease(String leaseHolder, String src,
+      String newHolder) throws IOException {
+    writeLock();
+    try {
+      getEditLog().logReassignLease(leaseHolder, src, newHolder);
     } finally {
       writeUnlock();
     }

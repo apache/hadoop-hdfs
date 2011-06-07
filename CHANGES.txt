@@ -258,7 +258,7 @@ Trunk (unreleased changes)
     HDFS-1813. Federation: Authentication using BlockToken in RPC to datanode 
                fails. (jitendra)
 
-    HDFS_1630. Support fsedits checksum. (hairong)
+    HDFS-1630. Support fsedits checksum. (hairong)
 
     HDFS-1606. Provide a stronger data guarantee in the write pipeline by
     adding a new datanode when an existing datanode failed.  (szetszwo)
@@ -286,6 +286,12 @@ Trunk (unreleased changes)
     (Eric Yang via omalley)
 
   IMPROVEMENTS
+
+    HDFS-2019. Fix all the places where Java method File.list is used with
+    FileUtil.list API (Bharath Mundlapudi via mattf)
+
+    HDFS-1934. Fix NullPointerException when certain File APIs return null
+    (Bharath Mundlapudi via mattf)
 
     HDFS-1510. Added test-patch.properties required by test-patch.sh (nigel)
 
@@ -433,10 +439,10 @@ Trunk (unreleased changes)
     HDFS-1573. Add useful tracing information to Lease Renewer thread names
     (todd)
 
-    HDFS-1939.  In ivy.xml, test conf should not extend common conf.
+    HDFS-1939. In ivy.xml, test conf should not extend common conf.
     (Eric Yang via szetszwo)
 
-    HDFS-1332.  Include more information in exceptions and debug messages
+    HDFS-1332  Include more information in exceptions and debug messages
     when BlockPlacementPolicy cannot be satisfied.  (Ted Yu via szetszwo)
 
     HDFS-1958. Confirmation should be more lenient of user input when
@@ -445,16 +451,39 @@ Trunk (unreleased changes)
     HDFS-1905. Improve namenode -format command by not making -clusterId
     parameter mandatory. (Bharath Mundlapudi via suresh)
 
-    HDFS-1877.  Add a new test for concurrent read and write.  (CW Chung
+    HDFS-1877. Add a new test for concurrent read and write.  (CW Chung
     via szetszwo)
 
     HDFS-1959. Better error message for missing namenode directory. (eli)
 
-    HDFS-1996.  ivy: hdfs test jar should be independent to common test jar.
+    HDFS-1996. ivy: hdfs test jar should be independent to common test jar.
     (Eric Yang via szetszwo)
 
     HDFS-1812. TestHDFSCLI should clean up cluster in teardown method.
     (Uma Maheswara Rao G via todd)
+
+    HDFS-1884. Improve TestDFSStorageStateRecovery to properly throw in the
+    case of errors. (Aaron T. Myers via todd)
+
+    HDFS-1727. fsck command should display command usage if user passes any
+    illegal argument. (Sravan Kumar via todd)
+
+    HDFS-1636. If dfs.name.dir points to an empty dir, namenode format
+    shouldn't require confirmation. (Harsh J Chouraria via todd)
+
+    HDFS-1966. Encapsulate individual DataTransferProtocol op headers.
+    (szetszwo)
+
+    HDFS-2024. Format TestWriteRead source codes.  (CW Chung via szetszwo)
+
+    HDFS-1968. Enhance TestWriteRead to support position/sequential read,
+    append, truncate and verbose options.  (CW Chung via szetszwo)
+
+    HDFS-1986. Add option to get http/https address from 
+    DFSUtil#getInfoServer(). (Tanping via suresh)
+
+    HDFS-2029. In TestWriteRead, check visible length immediately after
+    openning the file and fix code style.  (John George via szetszwo)
 
   OPTIMIZATIONS
 
@@ -634,6 +663,38 @@ Trunk (unreleased changes)
 
     HDFS-1592. Datanode startup doesn't honor volumes.tolerated. 
     (Bharath Mundlapudi via jitendra)
+
+    HDFS-1920. libhdfs does not build for ARM processors.
+    (Trevor Robinson via eli)
+
+    HDFS-1936. Layout version change from HDFS-1822 causes upgrade failure.
+    (suresh)
+
+    HDFS-2021. Update numBytesAcked before sending the ack in PacketResponder.
+    (John George via szetszwo)
+
+    HDFS-2020. Fix TestDFSUpgradeFromImage by removing the use of DataNode
+    as a singleton. (suresh via todd)
+
+    HDFS-2022. ant binary should build libhdfs. (Eric Yang via eli)
+
+    HDFS-2014. Change HDFS scripts to work in developer enviroment post
+    RPM packaging changes. (Eric Yang via suresh)
+
+    HDFS-1995. Federation: Minor bug fixes and modification cluster web UI.
+    (Tanping Wang via suresh)
+
+    HDFS-1907. Fix position read for reading still-being-written file in
+    DFSInputStream.  (John George via szetszwo)
+
+    HDFS-1923. In TestFiDataTransferProtocol2, reduce random sleep time period
+    and increase the number of datanodes.  (szetszwo)
+
+    HDFS-1149. Lease reassignment should be persisted to the edit log.
+    (Aaron T. Myers via todd)
+
+    HDFS-1998. Federation: Make refresh-namenodes.sh refresh all the
+    namenode. (Tanping Wang via suresh)
 
 Release 0.22.0 - Unreleased
 
@@ -875,6 +936,12 @@ Release 0.22.0 - Unreleased
 
     HDFS-1957. Add documentation for HFTP. (Ari Rabkin via todd)
 
+    HDFS-1454. Update the documentation to reflect that clients don't write
+    blocks to local disk before copying to HDFS. (Harsh J Chouraria via todd)
+
+    HDFS-1980. Move build/webapps deeper in the build directory heirarchy
+    to aid eclipse users. (todd)
+
   OPTIMIZATIONS
 
     HDFS-1140. Speedup INode.getPathComponents. (Dmytro Molkov via shv)
@@ -1080,6 +1147,15 @@ Release 0.22.0 - Unreleased
 
     HDFS-2000. Missing deprecation for io.bytes.per.checksum.
     (Aaron T. Myers vie eli)
+
+    HDFS-977. DataNode.createInterDataNodeProtocolProxy() guards a log
+    at the wrong level. (Harsh J Chouraria via todd)
+
+    HDFS-1969. Running rollback on new-version namenode destroys the
+    namespace. (todd)
+
+    HDFS-2039. TestNameNodeMetrics uses a bad test root path, preventing it
+    from running inside Eclipse. (todd)
 
 Release 0.21.1 - Unreleased
     HDFS-1466. TestFcHdfsSymlink relies on /tmp/test not existing. (eli)

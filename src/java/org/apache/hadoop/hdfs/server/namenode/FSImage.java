@@ -39,6 +39,8 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
@@ -225,12 +227,13 @@ public class FSImage implements Closeable {
     }
 
 
-    if (storage.getLayoutVersion() < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION) {
+    int layoutVersion = storage.getLayoutVersion();
+    if (layoutVersion < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION) {
       NNStorage.checkVersionUpgradable(storage.getLayoutVersion());
     }
     if (startOpt != StartupOption.UPGRADE
-        && storage.getLayoutVersion() < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION
-        && storage.getLayoutVersion() != FSConstants.LAYOUT_VERSION) {
+        && layoutVersion < Storage.LAST_PRE_UPGRADE_LAYOUT_VERSION
+        && layoutVersion != FSConstants.LAYOUT_VERSION) {
       throw new IOException(
           "\nFile system image contains an old layout version " 
           + storage.getLayoutVersion() + ".\nAn upgrade to version "
@@ -239,12 +242,12 @@ public class FSImage implements Closeable {
     }
     
     // Upgrade to federation requires -upgrade -clusterid <clusterID> option
-    if (startOpt == StartupOption.UPGRADE
-        && storage.getLayoutVersion() > Storage.LAST_PRE_FEDERATION_LAYOUT_VERSION) {
+    if (startOpt == StartupOption.UPGRADE && 
+        !LayoutVersion.supports(Feature.FEDERATION, layoutVersion)) {
       if (startOpt.getClusterId() == null) {
         throw new IOException(
             "\nFile system image contains an old layout version "
-                + storage.getLayoutVersion() + ".\nAn upgrade to version "
+                + layoutVersion + ".\nAn upgrade to version "
                 + FSConstants.LAYOUT_VERSION
                 + " is required.\nPlease restart NameNode with "
                 + "-upgrade -clusterid <clusterID> option.");
@@ -448,6 +451,14 @@ public class FSImage implements Closeable {
 
       // read and verify consistency of the prev dir
       sdPrev.read(sdPrev.getPreviousVersionFile());
+      if (prevState.getLayoutVersion() != FSConstants.LAYOUT_VERSION) {
+        throw new IOException(
+          "Cannot rollback to storage version " +
+          prevState.getLayoutVersion() +
+          " using this version of the NameNode, which uses storage version " +
+          FSConstants.LAYOUT_VERSION + ". " +
+          "Please use the previous version of HDFS to perform the rollback.");
+      }
       canRollback = true;
     }
     if (!canRollback)

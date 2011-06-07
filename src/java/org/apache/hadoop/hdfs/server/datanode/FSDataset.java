@@ -99,7 +99,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
                                 dir.toString());
         }
       } else {
-        File[] files = dir.listFiles();
+        File[] files = FileUtil.listFiles(dir); 
         int numChildren = 0;
         for (int idx = 0; idx < files.length; idx++) {
           if (files[idx].isDirectory()) {
@@ -187,7 +187,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
      * original file name; otherwise the tmp file is deleted.
      */
     private void recoverTempUnlinkedBlock() throws IOException {
-      File files[] = dir.listFiles();
+      File files[] = FileUtil.listFiles(dir);
       for (File file : files) {
         if (!FSDataset.isUnlinkTmpFile(file)) {
           continue;
@@ -420,9 +420,9 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
      * @param isFinalized true if the directory has finalized replicas;
      *                    false if the directory has rbw replicas
      */
-    private void addToReplicasMap(ReplicasMap volumeMap, 
-        File dir, boolean isFinalized) {
-      File blockFiles[] = dir.listFiles();
+    private void addToReplicasMap(ReplicasMap volumeMap, File dir,
+        boolean isFinalized) throws IOException {
+      File blockFiles[] = FileUtil.listFiles(dir);
       for (File blockFile : blockFiles) {
         if (!Block.isBlockFilename(blockFile))
           continue;
@@ -724,10 +724,10 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
       File finalizedDir = new File(bpCurrentDir,
           DataStorage.STORAGE_DIR_FINALIZED);
       File rbwDir = new File(bpCurrentDir, DataStorage.STORAGE_DIR_RBW);
-      if (finalizedDir.exists() && finalizedDir.list().length != 0) {
+      if (finalizedDir.exists() && FileUtil.list(finalizedDir).length != 0) {
         return false;
       }
-      if (rbwDir.exists() && rbwDir.list().length != 0) {
+      if (rbwDir.exists() && FileUtil.list(rbwDir).length != 0) {
         return false;
       }
       return true;
@@ -756,7 +756,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
           throw new IOException("Failed to delete " + finalizedDir);
         }
         FileUtil.fullyDelete(tmpDir);
-        for (File f : bpCurrentDir.listFiles()) {
+        for (File f : FileUtil.listFiles(bpCurrentDir)) {
           if (!f.delete()) {
             throw new IOException("Failed to delete " + f);
           }
@@ -764,7 +764,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
         if (!bpCurrentDir.delete()) {
           throw new IOException("Failed to delete " + bpCurrentDir);
         }
-        for (File f : bpDir.listFiles()) {
+        for (File f : FileUtil.listFiles(bpDir)) {
           if (!f.delete()) {
             throw new IOException("Failed to delete " + f);
           }
@@ -1118,6 +1118,7 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
     return f;
   }
     
+  private final DataNode datanode;
   final FSVolumeSet volumes;
   private final int maxBlocksPerDir;
   final ReplicasMap volumeMap;
@@ -1133,7 +1134,9 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
   /**
    * An FSDataset has a directory where it loads its data files.
    */
-  public FSDataset(DataStorage storage, Configuration conf) throws IOException {
+  public FSDataset(DataNode datanode, DataStorage storage, Configuration conf)
+      throws IOException {
+    this.datanode = datanode;
     this.maxBlocksPerDir = 
       conf.getInt(DFSConfigKeys.DFS_DATANODE_NUMBLOCKS_KEY,
                   DFSConfigKeys.DFS_DATANODE_NUMBLOCKS_DEFAULT);
@@ -2000,7 +2003,6 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
         return f;
    
       // if file is not null, but doesn't exist - possibly disk failed
-      DataNode datanode = DataNode.getDataNode();
       datanode.checkDiskError();
     }
     
@@ -2246,7 +2248,6 @@ public class FSDataset implements FSConstants, FSDatasetInterface {
    */
   public void checkAndUpdate(String bpid, long blockId, File diskFile,
       File diskMetaFile, FSVolume vol) {
-    DataNode datanode = DataNode.getDataNode();
     Block corruptBlock = null;
     ReplicaInfo memBlockInfo;
     synchronized (this) {

@@ -23,6 +23,8 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes;
 
 import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.ByteToken;
@@ -39,9 +41,8 @@ import static org.apache.hadoop.hdfs.tools.offlineEditsViewer.Tokenizer.VIntToke
 @InterfaceStability.Unstable
 class EditsLoaderCurrent implements EditsLoader {
 
-  private static int[] supportedVersions = {
-      -18, -19, -20, -21, -22, -23, -24,
-      -25, -26, -27, -28, -30, -31, -32, -33, -34, -35, -36, -37 };
+  private static int[] supportedVersions = { -18, -19, -20, -21, -22, -23, -24,
+      -25, -26, -27, -28, -30, -31, -32, -33, -34, -35, -36, -37, -38};
 
   private EditsVisitor v;
   private int editsVersion = 0;
@@ -253,11 +254,6 @@ class EditsLoaderCurrent implements EditsLoader {
   private void visit_OP_RENAME() throws IOException {
     visitTxId();
 
-    if(editsVersion > -21) {
-      throw new IOException("Unexpected op code " + FSEditLogOpCodes.OP_RENAME
-        + " for edit log version " + editsVersion
-        + " (op code 15 only expected for 21 and later)");
-    }
     v.visitInt(           EditsElement.LENGTH);
     v.visitStringUTF8(    EditsElement.SOURCE);
     v.visitStringUTF8(    EditsElement.DESTINATION);
@@ -271,12 +267,6 @@ class EditsLoaderCurrent implements EditsLoader {
   private void visit_OP_CONCAT_DELETE() throws IOException {
     visitTxId();
 
-    if(editsVersion > -22) {
-      throw new IOException("Unexpected op code "
-        + FSEditLogOpCodes.OP_CONCAT_DELETE
-        + " for edit log version " + editsVersion
-        + " (op code 16 only expected for 22 and later)");
-    }
     IntToken lengthToken = v.visitInt(EditsElement.LENGTH);
     v.visitStringUTF8(EditsElement.CONCAT_TARGET);
     // all except of CONCAT_TARGET and TIMESTAMP
@@ -314,21 +304,15 @@ class EditsLoaderCurrent implements EditsLoader {
   private void visit_OP_GET_DELEGATION_TOKEN() throws IOException {
     visitTxId();
     
-    if(editsVersion > -24) {
-      throw new IOException("Unexpected op code "
-          + FSEditLogOpCodes.OP_GET_DELEGATION_TOKEN
-          + " for edit log version " + editsVersion
-          + " (op code 18 only expected for 24 and later)");
-    }
-    v.visitByte(       EditsElement.T_VERSION);
-    v.visitStringText( EditsElement.T_OWNER);
-    v.visitStringText( EditsElement.T_RENEWER);
-    v.visitStringText( EditsElement.T_REAL_USER);
-    v.visitVLong(      EditsElement.T_ISSUE_DATE);
-    v.visitVLong(      EditsElement.T_MAX_DATE);
-    v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
-    v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
-    v.visitStringUTF8( EditsElement.T_EXPIRY_TIME);
+      v.visitByte(       EditsElement.T_VERSION);
+      v.visitStringText( EditsElement.T_OWNER);
+      v.visitStringText( EditsElement.T_RENEWER);
+      v.visitStringText( EditsElement.T_REAL_USER);
+      v.visitVLong(      EditsElement.T_ISSUE_DATE);
+      v.visitVLong(      EditsElement.T_MAX_DATE);
+      v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
+      v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
+      v.visitStringUTF8( EditsElement.T_EXPIRY_TIME);
   }
 
   /**
@@ -338,21 +322,15 @@ class EditsLoaderCurrent implements EditsLoader {
     throws IOException {
     visitTxId();
 
-    if(editsVersion > -24) {
-      throw new IOException("Unexpected op code "
-          + FSEditLogOpCodes.OP_RENEW_DELEGATION_TOKEN
-          + " for edit log version " + editsVersion
-          + " (op code 19 only expected for 24 and later)");
-    }
-    v.visitByte(       EditsElement.T_VERSION);
-    v.visitStringText( EditsElement.T_OWNER);
-    v.visitStringText( EditsElement.T_RENEWER);
-    v.visitStringText( EditsElement.T_REAL_USER);
-    v.visitVLong(      EditsElement.T_ISSUE_DATE);
-    v.visitVLong(      EditsElement.T_MAX_DATE);
-    v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
-    v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
-    v.visitStringUTF8( EditsElement.T_EXPIRY_TIME);
+      v.visitByte(       EditsElement.T_VERSION);
+      v.visitStringText( EditsElement.T_OWNER);
+      v.visitStringText( EditsElement.T_RENEWER);
+      v.visitStringText( EditsElement.T_REAL_USER);
+      v.visitVLong(      EditsElement.T_ISSUE_DATE);
+      v.visitVLong(      EditsElement.T_MAX_DATE);
+      v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
+      v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
+      v.visitStringUTF8( EditsElement.T_EXPIRY_TIME);
   }
 
   /**
@@ -362,20 +340,14 @@ class EditsLoaderCurrent implements EditsLoader {
     throws IOException {
     visitTxId();
 
-    if(editsVersion > -24) {
-      throw new IOException("Unexpected op code "
-          + FSEditLogOpCodes.OP_CANCEL_DELEGATION_TOKEN
-          + " for edit log version " + editsVersion
-          + " (op code 20 only expected for 24 and later)");
-    }
-    v.visitByte(       EditsElement.T_VERSION);
-    v.visitStringText( EditsElement.T_OWNER);
-    v.visitStringText( EditsElement.T_RENEWER);
-    v.visitStringText( EditsElement.T_REAL_USER);
-    v.visitVLong(      EditsElement.T_ISSUE_DATE);
-    v.visitVLong(      EditsElement.T_MAX_DATE);
-    v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
-    v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
+      v.visitByte(       EditsElement.T_VERSION);
+      v.visitStringText( EditsElement.T_OWNER);
+      v.visitStringText( EditsElement.T_RENEWER);
+      v.visitStringText( EditsElement.T_REAL_USER);
+      v.visitVLong(      EditsElement.T_ISSUE_DATE);
+      v.visitVLong(      EditsElement.T_MAX_DATE);
+      v.visitVInt(       EditsElement.T_SEQUENCE_NUMBER);
+      v.visitVInt(       EditsElement.T_MASTER_KEY_ID);
   }
 
   /**
@@ -385,18 +357,21 @@ class EditsLoaderCurrent implements EditsLoader {
     throws IOException {
     visitTxId();
     
-    if(editsVersion > -24) {
-      throw new IOException("Unexpected op code "
-          + FSEditLogOpCodes.OP_UPDATE_MASTER_KEY
-          + " for edit log version " + editsVersion
-          + "(op code 21 only expected for 24 and later)");
-    }
-    v.visitVInt(  EditsElement.KEY_ID);
-    v.visitVLong( EditsElement.KEY_EXPIRY_DATE);
-    VIntToken blobLengthToken = v.visitVInt(EditsElement.KEY_LENGTH);
-    v.visitBlob(EditsElement.KEY_BLOB, blobLengthToken.value);
+      v.visitVInt(  EditsElement.KEY_ID);
+      v.visitVLong( EditsElement.KEY_EXPIRY_DATE);
+      VIntToken blobLengthToken = v.visitVInt(EditsElement.KEY_LENGTH);
+      v.visitBlob(EditsElement.KEY_BLOB, blobLengthToken.value);
   }
   
+  private void visit_OP_REASSIGN_LEASE()
+    throws IOException {
+    visitTxId();
+
+      v.visitStringUTF8(EditsElement.CLIENT_NAME);
+      v.visitStringUTF8(EditsElement.PATH);
+      v.visitStringUTF8(EditsElement.CLIENT_NAME);
+  }
+
   /**
    * Visit OP_BEGIN_LOG_SEGMENT
    */
@@ -404,7 +379,7 @@ class EditsLoaderCurrent implements EditsLoader {
     throws IOException {
     visitTxId();
   }
-
+  
   /**
    * Visit OP_END_LOG_SEGMENT
    */
@@ -474,10 +449,13 @@ class EditsLoaderCurrent implements EditsLoader {
       case OP_UPDATE_MASTER_KEY: // 21
         visit_OP_UPDATE_MASTER_KEY();
         break;
-      case OP_END_LOG_SEGMENT: // 22
+      case OP_REASSIGN_LEASE: // 22
+        visit_OP_REASSIGN_LEASE();
+        break;
+      case OP_END_LOG_SEGMENT: // 23
         visit_OP_END_LOG_SEGMENT();
         break;        
-      case OP_START_LOG_SEGMENT: // 23
+      case OP_START_LOG_SEGMENT: // 24
         visit_OP_BEGIN_LOG_SEGMENT();
         break;
       default:
@@ -527,7 +505,8 @@ class EditsLoaderCurrent implements EditsLoader {
 
         v.leaveEnclosingElement(); // DATA
         
-        if (editsOpCode != FSEditLogOpCodes.OP_INVALID && editsVersion  <= -28) {
+        if (editsOpCode != FSEditLogOpCodes.OP_INVALID && 
+            LayoutVersion.supports(Feature.EDITS_CHESKUM, editsVersion)) {
           v.visitInt(EditsElement.CHECKSUM);
         }
         v.leaveEnclosingElement(); // RECORD

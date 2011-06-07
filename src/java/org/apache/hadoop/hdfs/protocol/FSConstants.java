@@ -87,19 +87,16 @@ public interface FSConstants {
    */
   public static final String HDFS_URI_SCHEME = "hdfs";
 
-  // Version is reflected in the dfs image and edit log files.
-  // Version is reflected in the data storage file.
-  // Versions are negative.
-  // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -37;
-  // Current version: 
-  // -35: Adding support for block pools and multiple namenodes
-  // -36: persistent transaction IDs
-  // -37: file names based on txids
+  /**
+   * Please see {@link LayoutVersion} on adding new layout version.
+   */
+  public static final int LAYOUT_VERSION = 
+    LayoutVersion.getCurrentLayoutVersion();
 
-  // Record of version numbers for specific changes:
+  // TODO: remove these in favor of LayoutVersion calls
   // Version where the edits log and image stored txn ID information
-  public static final int FIRST_STORED_TXIDS_VERSION = -36;
+  public static final int FIRST_STORED_TXIDS_VERSION = -37;
   // Version where the edits log and image file names are based on txn IDs
-  public static final int FIRST_TXNID_BASED_LAYOUT_VERSION = -37;
+  public static final int FIRST_TXNID_BASED_LAYOUT_VERSION = -38;
+
 }

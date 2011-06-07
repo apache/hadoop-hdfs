@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.server.datanode;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,11 +39,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.datanode.FSDataset.FSVolume;
 import org.apache.hadoop.util.Daemon;
+import org.apache.hadoop.util.StringUtils;
 
 /**
  * Periodically scans the data directories for block and block metadata files.
@@ -54,6 +57,7 @@ public class DirectoryScanner implements Runnable {
   private static final Log LOG = LogFactory.getLog(DirectoryScanner.class);
   private static final int DEFAULT_SCAN_INTERVAL = 21600;
 
+  private final DataNode datanode;
   private final FSDataset dataset;
   private final ExecutorService reportCompileThreadPool;
   private final ScheduledExecutorService masterThread;
@@ -218,7 +222,8 @@ public class DirectoryScanner implements Runnable {
     }
   }
 
-  DirectoryScanner(FSDataset dataset, Configuration conf) {
+  DirectoryScanner(DataNode dn, FSDataset dataset, Configuration conf) {
+    this.datanode = dn;
     this.dataset = dataset;
     int interval = conf.getInt(DFSConfigKeys.DFS_DATANODE_DIRECTORYSCAN_INTERVAL_KEY,
         DEFAULT_SCAN_INTERVAL);
@@ -270,7 +275,7 @@ public class DirectoryScanner implements Runnable {
       String[] bpids = dataset.getBPIdlist();
       for(String bpid : bpids) {
         UpgradeManagerDatanode um = 
-          DataNode.getUpgradeManagerDatanode(bpid);
+          datanode.getUpgradeManagerDatanode(bpid);
         if (um != null && !um.isUpgradeCompleted()) {
           //If distributed upgrades underway, exit and wait for next cycle.
           LOG.warn("this cycle terminating immediately because Distributed Upgrade is in process");
@@ -480,9 +485,15 @@ public class DirectoryScanner implements Runnable {
     /** Compile list {@link ScanInfo} for the blocks in the directory <dir> */
     private LinkedList<ScanInfo> compileReport(FSVolume vol, File dir,
         LinkedList<ScanInfo> report) {
-      File[] files = dir.listFiles();
+      File[] files;
+      try {
+        files = FileUtil.listFiles(dir);
+      } catch (IOException ioe) {
+        LOG.warn("Exception occured while compiling report: ", ioe);
+        // Ignore this directory and proceed.
+        return report;
+      }
       Arrays.sort(files);
-
       /*
        * Assumption: In the sorted list of files block file appears immediately
        * before block metadata file. This is true for the current naming

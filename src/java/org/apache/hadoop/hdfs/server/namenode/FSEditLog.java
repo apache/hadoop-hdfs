@@ -701,6 +701,12 @@ public class FSEditLog  {
   void logUpdateMasterKey(DelegationKey key) {
     logEdit(OP_UPDATE_MASTER_KEY, key);
   }
+
+  void logReassignLease(String leaseHolder, String src, String newHolder) {
+    logEdit(OP_REASSIGN_LEASE, new DeprecatedUTF8(leaseHolder),
+        new DeprecatedUTF8(src),
+        new DeprecatedUTF8(newHolder));
+  }
   
   static private DeprecatedUTF8 toLogReplication(short replication) {
     return new DeprecatedUTF8(Short.toString(replication));
