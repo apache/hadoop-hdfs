@@ -92,11 +92,4 @@ public interface FSConstants {
    */
   public static final int LAYOUT_VERSION = 
     LayoutVersion.getCurrentLayoutVersion();
-
-  // TODO: remove these in favor of LayoutVersion calls
-  // Version where the edits log and image stored txn ID information
-  public static final int FIRST_STORED_TXIDS_VERSION = -37;
-  // Version where the edits log and image file names are based on txn IDs
-  public static final int FIRST_TXNID_BASED_LAYOUT_VERSION = -38;
-
 }

@@ -158,8 +158,7 @@ class ImageLoaderCurrent implements ImageLoader {
 
       v.visit(ImageElement.GENERATION_STAMP, in.readLong());
 
-      if (imageVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
-      // TODO use LayoutVersion class
+      if (LayoutVersion.supports(Feature.STORED_TXIDS, imageVersion)) {
         v.visit(ImageElement.TRANSACTION_ID, in.readLong());
       }
 

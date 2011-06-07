@@ -183,7 +183,7 @@ public class FSEditLogLoader {
           }
           recentOpcodeOffsets[numEdits % recentOpcodeOffsets.length] =
               tracker.getPos();
-          if (logVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
+          if (LayoutVersion.supports(Feature.STORED_TXIDS, logVersion)) {
             // Read the txid
             long thisTxId = in.readLong();
             if (thisTxId != txId + 1) {

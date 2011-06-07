@@ -593,9 +593,9 @@ public class FSImage implements Closeable {
     // (ie edits_<txnid>) then use the new inspector, which will ignore
     // the old format dirs.
     FSImageStorageInspector inspector;
-    if (minLayoutVersion <= FSConstants.FIRST_TXNID_BASED_LAYOUT_VERSION) {
+    if (LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, minLayoutVersion)) {
       inspector = new FSImageTransactionalStorageInspector();
-      if (maxLayoutVersion > FSConstants.FIRST_TXNID_BASED_LAYOUT_VERSION) {
+      if (!LayoutVersion.supports(Feature.TXID_BASED_LAYOUT, maxLayoutVersion)) {
         LOG.warn("Ignoring one or more storage directories with old layouts");
       }
     } else {

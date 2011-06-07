@@ -70,7 +70,7 @@ class EditsLoaderCurrent implements EditsLoader {
    * Visit a transaction ID, if the log version supports it.
    */
   private void visitTxId() throws IOException {
-    if (editsVersion <= FSConstants.FIRST_STORED_TXIDS_VERSION) {
+    if (LayoutVersion.supports(Feature.STORED_TXIDS, editsVersion)) {
       v.visitLong(EditsElement.TRANSACTION_ID);
     }
   }
