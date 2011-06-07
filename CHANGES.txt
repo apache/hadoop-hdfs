@@ -488,6 +488,9 @@ Trunk (unreleased changes)
     HDFS-1998. Federation: Make refresh-namenodes.sh refresh all the
     namenode. (Tanping Wang via suresh)
 
+    HDFS-2021. Update numBytesAcked before sending the ack in PacketResponder.
+    (John George via szetszwo)
+
 Release 0.22.0 - Unreleased
 
   NEW FEATURES
