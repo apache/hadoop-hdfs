@@ -366,6 +366,9 @@ Trunk (unreleased changes)
     HDFS-2029. In TestWriteRead, check visible length immediately after
     openning the file and fix code style.  (John George via szetszwo)
 
+    HDFS-1905. Improve namenode -format command by not making -clusterId
+    parameter mandatory. (Bharath Mundlapudi via suresh)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
