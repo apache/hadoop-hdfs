@@ -609,7 +609,27 @@ public class FSImage implements Closeable {
     File imageFile = loadPlan.getImageFile();
 
     try {
-      loadFSImage(imageFile);
+      if (LayoutVersion.supports(Feature.TXID_BASED_LAYOUT,
+                                 getLayoutVersion())) {
+        // For txid-based layout, we should have a .md5 file
+        // next to the image file
+        loadFSImage(imageFile);
+      } else if (LayoutVersion.supports(Feature.FSIMAGE_CHECKSUM,
+                                        getLayoutVersion())) {
+        // In 0.22, we have the checksum stored in the VERSION file.
+        String md5 = storage.getDeprecatedProperty(
+            NNStorage.DEPRECATED_MESSAGE_DIGEST_PROPERTY);
+        if (md5 == null) {
+          throw new InconsistentFSStateException(sdForProperties.getRoot(),
+              "Message digest property " +
+              NNStorage.DEPRECATED_MESSAGE_DIGEST_PROPERTY +
+              " not set for storage directory " + sdForProperties.getRoot());
+        }
+        loadFSImage(imageFile, new MD5Hash(md5));
+      } else {
+        // We don't have any record of the md5sum
+        loadFSImage(imageFile, null);
+      }
     } catch (IOException ioe) {
       throw new IOException("Failed to load image from " + loadPlan.getImageFile(), ioe);
     }
@@ -662,6 +682,10 @@ public class FSImage implements Closeable {
    */
   void loadFSImage(File imageFile) throws IOException {
     MD5Hash expectedMD5 = MD5FileUtils.readStoredMd5ForFile(imageFile);
+    if (expectedMD5 == null) {
+      throw new IOException("No MD5 file found corresponding to image file "
+          + imageFile);
+    }
     loadFSImage(imageFile, expectedMD5);
   }
   

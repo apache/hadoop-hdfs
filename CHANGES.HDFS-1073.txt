@@ -46,3 +46,5 @@ HDFS-2015. Remove checkpointTxId from VERSION file. (todd)
 HDFS-2016. Add infrastructure to remove or archive old and unneeded storage
            files within the name directories. (todd)
 HDFS-2047. Improve TestNamespace and TestEditLog in HDFS-1073 branch. (todd)
+HDFS-2048. Add upgrade tests and fix upgrade from 0.22 with corrupt image.
+           (todd)

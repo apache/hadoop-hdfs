@@ -34,6 +34,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -77,7 +78,7 @@ import com.google.common.annotations.VisibleForTesting;
 public class NNStorage extends Storage implements Closeable {
   private static final Log LOG = LogFactory.getLog(NNStorage.class.getName());
 
-  static final String MESSAGE_DIGEST_PROPERTY = "imageMD5Digest";
+  static final String DEPRECATED_MESSAGE_DIGEST_PROPERTY = "imageMD5Digest";
   
   //
   // The filenames used for storing the images
@@ -144,6 +145,12 @@ public class NNStorage extends Storage implements Closeable {
    */
   final protected List<StorageDirectory> removedStorageDirs
     = new CopyOnWriteArrayList<StorageDirectory>();
+
+  /**
+   * Properties from old layout versions that may be needed
+   * during upgrade only.
+   */
+  private HashMap<String, String> deprecatedProperties;
 
   /**
    * Construct the NNStorage.
@@ -589,7 +596,32 @@ public class NNStorage extends Storage implements Closeable {
     setDistributedUpgradeState(
         sDUS == null? false : Boolean.parseBoolean(sDUS),
         sDUV == null? getLayoutVersion() : Integer.parseInt(sDUV));
+    setDeprecatedPropertiesForUpgrade(props);
+  }
+
+  /**
+   * Pull any properties out of the VERSION file that are from older
+   * versions of HDFS and only necessary during upgrade.
+   */
+  private void setDeprecatedPropertiesForUpgrade(Properties props) {
+    deprecatedProperties = new HashMap<String, String>();
+    String md5 = props.getProperty(DEPRECATED_MESSAGE_DIGEST_PROPERTY);
+    if (md5 != null) {
+      deprecatedProperties.put(DEPRECATED_MESSAGE_DIGEST_PROPERTY, md5);
     }
+  }
+  
+  /**
+   * Return a property that was stored in an earlier version of HDFS.
+   * 
+   * This should only be used during upgrades.
+   */
+  String getDeprecatedProperty(String prop) {
+    assert getLayoutVersion() > FSConstants.LAYOUT_VERSION :
+      "getDeprecatedProperty should only be done when loading " +
+      "storage from past versions during upgrade.";
+    return deprecatedProperties.get(prop);
+  }
 
   /**
    * Write version file into the storage directory.
@@ -617,18 +649,6 @@ public class NNStorage extends Storage implements Closeable {
       props.setProperty("distributedUpgradeVersion",
                         Integer.toString(uVersion));
     }
-    /* TODO: resolve merge here.
-    if (LayoutVersion.supports(Feature.FSIMAGE_CHECKSUM, layoutVersion)) {
-    // TODO && ! transactional storage
-      // Though the current NN supports this feature, this function
-      // is called with old layoutVersions from the upgrade tests.
-      
-        // May be null on the first save after an upgrade.
-        imageDigest = MD5Hash.digest(
-            new FileInputStream(getStorageFile(sd, NameNodeFile.IMAGE)));
-      }
-      props.setProperty(MESSAGE_DIGEST_PROPERTY, imageDigest.toString());
-    } */
   }
   
   static File getStorageFile(StorageDirectory sd, NameNodeFile type, long imageTxId) {

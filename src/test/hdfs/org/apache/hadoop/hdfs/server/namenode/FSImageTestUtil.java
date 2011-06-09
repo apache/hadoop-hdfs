@@ -22,6 +22,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -30,12 +31,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSImageTransactionalStorageInspector.FoundFSImage;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.util.MD5FileUtils;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.MD5Hash;
 import org.mockito.Mockito;
 
@@ -230,6 +233,33 @@ public abstract class FSImageTestUtil {
 
     FoundFSImage latestImage = inspector.getLatestImage();
     return (latestImage == null) ? null : latestImage.getFile();
+  }
+
+  /**
+   * Corrupt the given VERSION file by replacing a given
+   * key with a new value and re-writing the file.
+   * 
+   * @param versionFile the VERSION file to corrupt
+   * @param key the key to replace
+   * @param value the new value for this key
+   */
+  public static void corruptVersionFile(File versionFile, String key, String value)
+      throws IOException {
+    Properties props = new Properties();
+    FileInputStream fis = new FileInputStream(versionFile);
+    FileOutputStream out = null;
+    try {
+      props.load(fis);
+      IOUtils.closeStream(fis);
+  
+      props.setProperty(key, value);
+      
+      out = new FileOutputStream(versionFile);
+      props.store(out, null);
+      
+    } finally {
+      IOUtils.cleanup(null, fis, out);
+    }    
   }
 
 
