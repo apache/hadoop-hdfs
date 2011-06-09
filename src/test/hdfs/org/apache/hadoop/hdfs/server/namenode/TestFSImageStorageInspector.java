@@ -332,11 +332,11 @@ public class TestFSImageStorageInspector {
         mockDirectoryWithEditLogs("/foo1/current/edits_1-1",
                                   "/foo1/current/edits_2-200"));
     inspector.inspectDirectory(
-        mockDirectoryWithEditLogs("/foo2/current/edits_1-inprogress",
+        mockDirectoryWithEditLogs("/foo2/current/edits_inprogress_1",
                                   "/foo2/current/edits_201-400"));
     inspector.inspectDirectory(
         mockDirectoryWithEditLogs("/foo3/current/edits_1-1",
-                                  "/foo3/current/edts_2-200"));
+                                  "/foo3/current/edits_2-200"));
     
     assertEquals("[[1,1], [2,200], [201,400]]",
                  inspector.getEditLogManifest(1).toString());
@@ -346,8 +346,31 @@ public class TestFSImageStorageInspector {
                  inspector.getEditLogManifest(10).toString());
     assertEquals("[[201,400]]",
                  inspector.getEditLogManifest(201).toString());
-  }
+  }  
 
+  /**
+   * Test case where an in-progress log is in an earlier name directory
+   * than a finalized log. Previously, getEditLogManifest wouldn't
+   * see this log.
+   */
+  @Test
+  public void testLogManifestInProgressComesFirst() throws IOException { 
+    FSImageTransactionalStorageInspector inspector =
+        new FSImageTransactionalStorageInspector();
+    inspector.inspectDirectory(
+        mockDirectoryWithEditLogs("/foo1/current/edits_2622-2623",
+                                  "/foo1/current/edits_2624-2625",
+                                  "/foo1/current/edits_inprogress_2626"));
+    inspector.inspectDirectory(
+        mockDirectoryWithEditLogs("/foo2/current/edits_2622-2623",
+                                  "/foo2/current/edits_2624-2625",
+                                  "/foo2/current/edits_2626-2627",
+                                  "/foo2/current/edits_2628-2629"));
+    
+    assertEquals("[[2622,2623], [2624,2625], [2626,2627], [2628,2629]]",
+                 inspector.getEditLogManifest(2621).toString());
+  }  
+  
   private StorageDirectory mockDirectoryWithEditLogs(String... fileNames) {
     return mockDirectory(NameNodeDirType.EDITS, false, fileNames);
   }

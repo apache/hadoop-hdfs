@@ -289,11 +289,19 @@ class FSImageTransactionalStorageInspector extends FSImageStorageInspector {
     }
     
     FoundEditLog getBestNonCorruptLog() {
+      // First look for non-corrupt finalized logs
+      for (FoundEditLog log : logs) {
+        if (!log.isCorrupt() && !log.isInProgress()) {
+          return log;
+        }
+      }
+      // Then look for non-corrupt in-progress logs
       for (FoundEditLog log : logs) {
         if (!log.isCorrupt()) {
           return log;
         }
       }
+
       // We should never get here, because we don't get to the planning stage
       // without calling planRecovery first, and if we've called planRecovery,
       // we would have already thrown if there were no non-corrupt logs!

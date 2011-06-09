@@ -48,3 +48,5 @@ HDFS-2016. Add infrastructure to remove or archive old and unneeded storage
 HDFS-2047. Improve TestNamespace and TestEditLog in HDFS-1073 branch. (todd)
 HDFS-2048. Add upgrade tests and fix upgrade from 0.22 with corrupt image.
            (todd)
+HDFS-2027. Image inspector should return finalized logs before unfinalized
+           logs. (todd)
