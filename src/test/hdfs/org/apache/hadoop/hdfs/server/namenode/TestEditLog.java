@@ -558,10 +558,19 @@ public class TestEditLog extends TestCase {
         // Now restore the backup
         FileUtil.deleteContents(dfsDir);
         backupDir.renameTo(dfsDir);
+        
+        // Directory layout looks like:
+        // test/data/dfs/nameN/current/{fsimage_N,edits_...}
+        File currentDir = new File(nameDir, "current");
 
         // We should see the file as in-progress
-        File editsFile = new File(nameDir, "current/edits_inprogress_1");
+        File editsFile = new File(currentDir, "edits_inprogress_1");
         assertTrue("Edits file " + editsFile + " should exist", editsFile.exists());        
+        
+        File imageFile = FSImageTestUtil.findNewestImageFile(
+            currentDir.getAbsolutePath());
+        assertNotNull("No image found in " + nameDir, imageFile);
+        assertEquals("fsimage_0", imageFile.getName());
         
         // Try to start a new cluster
         LOG.info("\n===========================================\n" +
@@ -577,6 +586,14 @@ public class TestEditLog extends TestCase {
         for (int i = 0; i < numTransactions; i++) {
           assertTrue(fs.exists(new Path("/test" + i)));
         }
+
+        // It should have saved a checkpoint on startup since there
+        // were unfinalized edits
+        long expectedTxId = numTransactions + 1;
+        imageFile = FSImageTestUtil.findNewestImageFile(
+            currentDir.getAbsolutePath());
+        assertNotNull("No image found in " + nameDir, imageFile);
+        assertEquals("fsimage_" + expectedTxId, imageFile.getName());
         
         // Started successfully
         cluster.shutdown();    

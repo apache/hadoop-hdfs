@@ -228,7 +228,8 @@ public abstract class FSImageTestUtil {
       new FSImageTransactionalStorageInspector();
     inspector.inspectDirectory(sd);
 
-    return inspector.getLatestImage().getFile();
+    FoundFSImage latestImage = inspector.getLatestImage();
+    return (latestImage == null) ? null : latestImage.getFile();
   }
 
 

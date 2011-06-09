@@ -785,6 +785,10 @@ public class FSImage implements Closeable {
   }
   
   protected void saveFSImageInAllDirs(long txid) throws IOException {
+    if (storage.getNumStorageDirs(NameNodeDirType.IMAGE) == 0) {
+      throw new IOException("No image directories available!");
+    }
+    
     List<StorageDirectory> errorSDs =
       Collections.synchronizedList(new ArrayList<StorageDirectory>());
 

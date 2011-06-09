@@ -45,3 +45,4 @@ HDFS-2001. Remove use of previous.checkpoint and lastcheckpoint.tmp directories
 HDFS-2015. Remove checkpointTxId from VERSION file. (todd)
 HDFS-2016. Add infrastructure to remove or archive old and unneeded storage
            files within the name directories. (todd)
+HDFS-2047. Improve TestNamespace and TestEditLog in HDFS-1073 branch. (todd)
