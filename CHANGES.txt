@@ -887,6 +887,8 @@ Release 0.22.0 - Unreleased
 
     HDFS-1503. TestSaveNamespace fails. (Todd Lipcon via cos)
 
+    HDFS-900. Corrupt replicas are not processed correctly in block report (shv)
+
 Release 0.21.1 - Unreleased
 
     HDFS-1411. Correct backup node startup command in hdfs user guide.
