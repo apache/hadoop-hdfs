@@ -152,8 +152,7 @@ public class FSEditLogLoader {
           recentOpcodeOffsets[numEdits % recentOpcodeOffsets.length] =
               tracker.getPos();
           if (LayoutVersion.supports(Feature.STORED_TXIDS, logVersion)) {
-            // Read the txid
-            long thisTxId = in.readLong();
+            long thisTxId = op.txid;
             if (thisTxId != txId + 1) {
               throw new IOException("Expected transaction ID " +
                   (txId + 1) + " but got " + thisTxId);

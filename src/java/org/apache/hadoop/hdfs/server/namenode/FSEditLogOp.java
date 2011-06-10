@@ -55,6 +55,8 @@ import java.io.EOFException;
 @InterfaceStability.Unstable
 public abstract class FSEditLogOp {
   final FSEditLogOpCodes opCode;
+  long txid;
+
 
   /**
    * Constructor for an EditLog Op. EditLog ops cannot be constructed
@@ -62,6 +64,11 @@ public abstract class FSEditLogOp {
    */
   private FSEditLogOp(FSEditLogOpCodes opCode) {
     this.opCode = opCode;
+    this.txid = 0;
+  }
+
+  public void setTransactionId(long txid) {
+    this.txid = txid;
   }
 
   public abstract void readFields(DataInputStream in, int logVersion)
@@ -577,6 +584,19 @@ public abstract class FSEditLogOp {
     }
   }
   
+  static class LogSegmentOp extends FSEditLogOp {
+    private LogSegmentOp(FSEditLogOpCodes code) {
+      super(code);
+      assert code == OP_START_LOG_SEGMENT ||
+             code == OP_END_LOG_SEGMENT : "Bad op: " + code;
+    }
+
+    public void readFields(DataInputStream in, int logVersion)
+        throws IOException {
+      // no data stored in these ops yet
+    }
+  }
+
   static private short readShort(DataInputStream in) throws IOException {
     return Short.parseShort(FSImageSerialization.readString(in));
   }
@@ -677,6 +697,10 @@ public abstract class FSEditLogOp {
       opInstances.put(OP_CANCEL_DELEGATION_TOKEN,
                       new CancelDelegationTokenOp());
       opInstances.put(OP_UPDATE_MASTER_KEY, new UpdateMasterKeyOp());
+      opInstances.put(OP_START_LOG_SEGMENT,
+                      new LogSegmentOp(OP_START_LOG_SEGMENT));
+      opInstances.put(OP_END_LOG_SEGMENT,
+                      new LogSegmentOp(OP_END_LOG_SEGMENT));
     }
 
     /**
@@ -713,9 +737,15 @@ public abstract class FSEditLogOp {
       if (op == null) {
         throw new IOException("Read invalid opcode " + opCode);
       }
+
+      if (LayoutVersion.supports(Feature.STORED_TXIDS, logVersion)) {
+        // Read the txid
+        op.setTransactionId(in.readLong());
+      }
+
       op.readFields(in, logVersion);
 
-      validateChecksum(in, checksum);
+      validateChecksum(in, checksum, op.txid);
       return op;
     }
 
@@ -723,7 +753,8 @@ public abstract class FSEditLogOp {
      * Validate a transaction's checksum
      */
     private void validateChecksum(DataInputStream in,
-                                  Checksum checksum)
+                                  Checksum checksum,
+                                  long txid)
         throws IOException {
       if (checksum != null) {
         int calculatedChecksum = (int)checksum.getValue();
@@ -731,7 +762,7 @@ public abstract class FSEditLogOp {
         if (readChecksum != calculatedChecksum) {
           throw new ChecksumException(
               "Transaction is corrupt. Calculated checksum is " +
-              calculatedChecksum + " but read checksum " + readChecksum, -1);
+              calculatedChecksum + " but read checksum " + readChecksum, txid);
         }
       }
     }
