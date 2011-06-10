@@ -136,6 +136,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   final int hdfsTimeout;    // timeout value for a DFS operation.
   final LeaseRenewer leaserenewer;
 
+  final SocketCache socketCache;
+  
   /**
    * A map from file names to {@link DFSOutputStream} objects
    * that are currently being written by this client.
@@ -279,6 +281,10 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     defaultReplication = (short) 
       conf.getInt(DFSConfigKeys.DFS_REPLICATION_KEY, 
                   DFSConfigKeys.DFS_REPLICATION_DEFAULT);
+    
+    this.socketCache = new SocketCache(
+        conf.getInt(DFSConfigKeys.DFS_CLIENT_SOCKET_CACHE_CAPACITY_KEY,
+            DFSConfigKeys.DFS_CLIENT_SOCKET_CACHE_CAPACITY_DEFAULT));
 
     if (nameNodeAddr != null && rpcNamenode == null) {
       this.rpcNamenode = createRPCNamenode(nameNodeAddr, conf, ugi);
@@ -535,6 +541,23 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      FileNotFoundException.class,
                                      UnresolvedPathException.class);
+    }
+  }
+
+  /**
+   * Recover a file's lease
+   * @param src a file's path
+   * @return true if the file is already closed
+   * @throws IOException
+   */
+  boolean recoverLease(String src) throws IOException {
+    checkOpen();
+
+    try {
+      return namenode.recoverLease(src, clientName);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(FileNotFoundException.class,
+                                     AccessControlException.class);
     }
   }
 

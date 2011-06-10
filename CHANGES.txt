@@ -287,6 +287,9 @@ Trunk (unreleased changes)
 
   IMPROVEMENTS
 
+    HDFS-1875. MiniDFSCluster hard-codes dfs.datanode.address to localhost
+    (Eric Payne via mattf)
+
     HDFS-2019. Fix all the places where Java method File.list is used with
     FileUtil.list API (Bharath Mundlapudi via mattf)
 
@@ -390,6 +393,7 @@ Trunk (unreleased changes)
 
     HDFS-1295. Improve namenode restart times by short-circuiting the
     first block reports from datanodes. (Matt Foley via suresh)
+    Corrected merge error in DataNode.java. (Matt Foley)
 
     HDFS-1843. Discover file not found early for file append. 
     (Bharath Mundlapudi via jitendra)
@@ -485,6 +489,14 @@ Trunk (unreleased changes)
     HDFS-2029. In TestWriteRead, check visible length immediately after
     openning the file and fix code style.  (John George via szetszwo)
 
+    HDFS-2040. Only build libhdfs if a flag is passed. (eli)
+
+    HDFS-1586. Add InterfaceAudience and InterfaceStability annotations to 
+    MiniDFSCluster. (suresh)
+
+    HDFS-2003. Separate FSEditLog reading logic from edit log memory state
+    building logic. (Ivan Kelly via todd)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
@@ -494,6 +506,9 @@ Trunk (unreleased changes)
 
     HDFS-1826. NameNode should save image to name directories in parallel
     during upgrade. (Matt Foley via hairong)
+
+    HDFS-941. The DFS client should cache and reuse open sockets to datanodes
+    while performing reads. (bc Wong and Todd Lipcon via todd)
 
   BUG FIXES
 
@@ -941,6 +956,11 @@ Release 0.22.0 - Unreleased
 
     HDFS-1980. Move build/webapps deeper in the build directory heirarchy
     to aid eclipse users. (todd)
+
+    HDFS-1619. Remove AC_TYPE* from the libhdfs. (Roman Shaposhnik via eli)
+
+    HDFS-1948  Forward port 'hdfs-1520 lightweight namenode operation to
+    trigger lease recovery' (stack)
 
   OPTIMIZATIONS
 
