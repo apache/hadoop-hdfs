@@ -3138,18 +3138,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
    */
   public void processReport(DatanodeID nodeID, String poolId,
       BlockListAsLongs newReport) throws IOException {
-
+    long startTime, endTime;
+    
     writeLock();
+    startTime = now(); //after acquiring write lock
     try {
-    long startTime = now();
-    if (NameNode.stateChangeLog.isDebugEnabled()) {
-      NameNode.stateChangeLog.debug("BLOCK* NameSystem.processReport: "
-                             + "from " + nodeID.getName()+" " + 
-                             newReport.getNumberOfBlocks()+" blocks");
-    }
     DatanodeDescriptor node = getDatanode(nodeID);
     if (node == null || !node.isAlive) {
-      throw new IOException("ProcessReport from dead or unregisterted node: "
+      throw new IOException("ProcessReport from dead or unregistered node: "
                             + nodeID.getName());
     }
     // To minimize startup time, we discard any second (or later) block reports
@@ -3162,10 +3158,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     }
 
     blockManager.processReport(node, newReport);
-    NameNode.getNameNodeMetrics().addBlockReport((int) (now() - startTime));
     } finally {
+      endTime = now();
       writeUnlock();
     }
+
+    // Log the block report processing stats from Namenode perspective
+    NameNode.getNameNodeMetrics().addBlockReport((int) (endTime - startTime));
+    NameNode.stateChangeLog.info("BLOCK* NameSystem.processReport: from "
+        + nodeID.getName() + ", blocks: " + newReport.getNumberOfBlocks()
+        + ", processing time: " + (endTime - startTime) + " msecs");
   }
 
   /**
@@ -3932,7 +3934,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
         }
       }
       // verify blocks replications
+      long startTimeMisReplicatedScan = now();
       blockManager.processMisReplicatedBlocks();
+      NameNode.stateChangeLog.info("STATE* Replication Queue initialization "
+          + "scan for invalid, over- and under-replicated blocks "
+          + "completed in " + (now() - startTimeMisReplicatedScan)
+          + " msec");
+      
       long timeInSafemode = now() - systemStart;
       NameNode.stateChangeLog.info("STATE* Leaving safe mode after " 
                                     + timeInSafemode/1000 + " secs.");

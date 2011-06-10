@@ -378,6 +378,9 @@ Trunk (unreleased changes)
     HDFS-1905. Improve namenode -format command by not making -clusterId
     parameter mandatory. (Bharath Mundlapudi via suresh)
 
+    HDFS-1295. Improve namenode restart times by short-circuiting the
+    first block reports from datanodes. (Matt Foley via suresh)
+
   OPTIMIZATIONS
 
     HDFS-1458. Improve checkpoint performance by avoiding unnecessary image
