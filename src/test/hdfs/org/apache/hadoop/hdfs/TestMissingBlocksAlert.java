@@ -89,7 +89,7 @@ public class TestMissingBlocksAlert extends TestCase {
       URL url = new URL("http://" + conf.get(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY) + 
                         "/dfshealth.jsp");
       String dfsFrontPage = DFSTestUtil.urlGet(url);
-      String warnStr = "WARNING : There are about ";
+      String warnStr = "WARNING : There are ";
       assertTrue("HDFS Front page does not contain expected warning", 
                  dfsFrontPage.contains(warnStr + "1 missing blocks"));
 
