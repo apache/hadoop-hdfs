@@ -386,6 +386,9 @@ Trunk (unreleased changes)
     HDFS-1826. NameNode should save image to name directories in parallel
     during upgrade. (Matt Foley via hairong)
 
+    HDFS-2030. Improve usability of namenode -upgrade command.
+    (Bharath Mundlapudi via suresh)
+
   BUG FIXES
 
     HDFS-1449. Fix test failures - ExtendedBlock must return 
