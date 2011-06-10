@@ -35,6 +35,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
+import org.apache.hadoop.hdfs.server.namenode.FSImageTransactionalStorageInspector.FoundEditLog;
 import org.apache.hadoop.hdfs.server.namenode.FSImageTransactionalStorageInspector.FoundFSImage;
 import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeDirType;
 import org.apache.hadoop.hdfs.util.MD5FileUtils;
@@ -233,6 +234,19 @@ public abstract class FSImageTestUtil {
 
     FoundFSImage latestImage = inspector.getLatestImage();
     return (latestImage == null) ? null : latestImage.getFile();
+  }
+
+  /**
+   * @return the latest edits log, finalized or otherwise, from the given
+   * storage directory.
+   */
+  public static FoundEditLog findLatestEditsLog(StorageDirectory sd)
+  throws IOException {
+    FSImageTransactionalStorageInspector inspector =
+      new FSImageTransactionalStorageInspector();
+    inspector.inspectDirectory(sd);
+    
+    return inspector.foundEditLogs.get(inspector.foundEditLogs.size() - 1);
   }
 
   /**

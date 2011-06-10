@@ -57,9 +57,11 @@ public class TestFSEditLogLoader {
       fileSys.mkdirs(new Path("/tmp/tmp" + i));
     }
     StorageDirectory sd = fsimage.getStorage().dirIterator(NameNodeDirType.EDITS).next();
-    File editFile = NNStorage.getStorageFile(sd, NameNodeFile.EDITS);
     cluster.shutdown();
-    
+
+    File editFile = FSImageTestUtil.findLatestEditsLog(sd).getFile();
+    assertTrue("Should exist: " + editFile, editFile.exists());
+
     // Corrupt the edits file.
     long fileLen = editFile.length();
     RandomAccessFile rwf = new RandomAccessFile(editFile, "rw");
