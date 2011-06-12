@@ -522,9 +522,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
   
   NamespaceInfo getNamespaceInfo() {
-    return new NamespaceInfo(dir.fsImage.getNamespaceID(),
-                             dir.fsImage.getCTime(),
-                             getDistributedUpgradeVersion());
+    readLock();
+    try {
+      return new NamespaceInfo(dir.fsImage.getNamespaceID(),
+          dir.fsImage.getCTime(), getDistributedUpgradeVersion());
+    } finally {
+      readUnlock();
+    }
   }
 
   /**
@@ -1683,6 +1687,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       UnresolvedLinkException, IOException {
     writeLock();
     try {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot addbandon block " + b +
+            " for file "+src, safeMode);
+      }
+
     //
     // Remove the block from the pending creates list
     //
@@ -2184,12 +2193,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   void setQuota(String path, long nsQuota, long dsQuota) 
       throws IOException, UnresolvedLinkException {
-    if (isInSafeMode())
-      throw new SafeModeException("Cannot set quota on " + path, safeMode);
-    if (isPermissionEnabled) {
-      checkSuperuserPrivilege();
+    writeLock();
+    try {
+      if (isInSafeMode())
+        throw new SafeModeException("Cannot set quota on " + path, safeMode);
+      if (isPermissionEnabled) {
+        checkSuperuserPrivilege();
+      }
+      dir.setQuota(path, nsQuota, dsQuota);
+    } finally {
+      writeUnlock();
     }
-    dir.setQuota(path, nsQuota, dsQuota);
     getEditLog().logSync();
   }
   
@@ -2213,6 +2227,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     } finally {
       writeUnlock();
     }
+    getEditLog().logSync();
   }
 
   /**
@@ -2392,6 +2407,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           + ", closeFile=" + closeFile
           + ", deleteBlock=" + deleteblock
           + ")");
+    if (isInSafeMode()) {
+      throw new SafeModeException("Cannot commitBlockSynchronization "
+          + lastblock, safeMode);
+    }
     final BlockInfo storedBlock = blockManager.getStoredBlock(lastblock);
     if (storedBlock == null) {
       throw new IOException("Block (=" + lastblock + ") not found");
@@ -2477,9 +2496,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Renew the lease(s) held by the given client
    */
   void renewLease(String holder) throws IOException {
-    if (isInSafeMode())
-      throw new SafeModeException("Cannot renew lease for " + holder, safeMode);
-    leaseManager.renewLease(holder);
+    writeLock();
+    try {
+      if (isInSafeMode())
+        throw new SafeModeException("Cannot renew lease for " + holder, safeMode);
+      leaseManager.renewLease(holder);
+    } finally {
+      writeUnlock();
+    }
   }
 
   /**
@@ -4241,6 +4265,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return;
     }
     safeMode.setManual();
+    getEditLog().logSyncAll();
     NameNode.stateChangeLog.info("STATE* Safe mode is ON. " 
                                 + safeMode.getTurnOffTip());
     } finally {
@@ -4587,9 +4612,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * Increments, logs and then returns the stamp
    */
-  long nextGenerationStamp() {
+  private long nextGenerationStamp() throws IOException {
+    if (isInSafeMode()) {
+      throw new SafeModeException(
+          "Cannot get next generation stamp", safeMode);
+    }
     long gs = generationStamp.nextStamp();
     getEditLog().logGenerationStamp(gs);
+    // NB: callers sync the log
     return gs;
   }
 
@@ -4639,6 +4669,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   LocatedBlock updateBlockForPipeline(Block block, 
       String clientName) throws IOException {
+    LocatedBlock locatedBlock;
     writeLock();
     try {
     // check vadility of parameters
@@ -4646,15 +4677,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
     // get a new generation stamp and an access token
     block.setGenerationStamp(nextGenerationStamp());
-    LocatedBlock locatedBlock = new LocatedBlock(block, new DatanodeInfo[0]);
+    locatedBlock = new LocatedBlock(block, new DatanodeInfo[0]);
     if (isBlockTokenEnabled) {
       locatedBlock.setBlockToken(blockTokenSecretManager.generateToken(
           block, EnumSet.of(BlockTokenSecretManager.AccessMode.WRITE)));
     }
-    return locatedBlock;
     } finally {
       writeUnlock();
     }
+    getEditLog().logSync();
+    return locatedBlock;
   }
   
   

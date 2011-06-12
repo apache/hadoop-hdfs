@@ -1864,15 +1864,10 @@ class FSDirectory implements Closeable {
   void setQuota(String src, long nsQuota, long dsQuota) 
     throws FileNotFoundException, QuotaExceededException,
     UnresolvedLinkException { 
-    writeLock();
-    try {
-      INodeDirectory dir = unprotectedSetQuota(src, nsQuota, dsQuota);
-      if (dir != null) {
-        fsImage.getEditLog().logSetQuota(src, dir.getNsQuota(), 
-                                         dir.getDsQuota());
-      }
-    } finally {
-      writeUnlock();
+    INodeDirectory dir = unprotectedSetQuota(src, nsQuota, dsQuota);
+    if (dir != null) {
+      fsImage.getEditLog().logSetQuota(src, dir.getNsQuota(),
+                                       dir.getDsQuota());
     }
   }
   

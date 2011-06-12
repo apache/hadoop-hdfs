@@ -26,7 +26,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.PrivilegedExceptionAction;
@@ -57,12 +56,10 @@ import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeAdapter;
 import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.security.ShellBasedUnixGroupsMapping;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.UserGroupInformation;
 
-import static org.junit.Assert.*;
 
 /** Utilities for HDFS tests */
 public class DFSTestUtil {
@@ -505,6 +502,15 @@ public class DFSTestUtil {
     }
     InputStream is = new ByteArrayInputStream(s.getBytes());
     FSDataOutputStream os = fs.create(p);
+    IOUtils.copyBytes(is, os, s.length(), true);
+  }
+
+  /* Append the given string to the given file */
+  public static void appendFile(FileSystem fs, Path p, String s) 
+      throws IOException {
+    assert fs.exists(p);
+    InputStream is = new ByteArrayInputStream(s.getBytes());
+    FSDataOutputStream os = fs.append(p);
     IOUtils.copyBytes(is, os, s.length(), true);
   }
 
